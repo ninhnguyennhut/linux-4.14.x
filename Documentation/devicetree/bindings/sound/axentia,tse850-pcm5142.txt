@@ -45,6 +45,7 @@ Example:
 	&ssc0 {
 		#sound-dai-cells = <0>;
 
+		status = "okay";
 	};
 
 	&i2c {

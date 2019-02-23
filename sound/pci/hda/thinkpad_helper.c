@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Helper functions for Thinkpad LED control;
  * to be included from codec driver
  */

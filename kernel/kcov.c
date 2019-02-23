@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #define pr_fmt(fmt) "kcov: " fmt
 
 #define DISABLE_BRANCH_PROFILING
@@ -271,7 +270,6 @@ static long kcov_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 static const struct file_operations kcov_fops = {
 	.open		= kcov_open,
 	.unlocked_ioctl	= kcov_ioctl,
-	.compat_ioctl	= kcov_ioctl,
 	.mmap		= kcov_mmap,
 	.release        = kcov_close,
 };

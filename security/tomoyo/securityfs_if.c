@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * security/tomoyo/securityfs_if.c
  *

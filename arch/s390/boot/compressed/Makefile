@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # linux/arch/s390/boot/compressed/Makefile
 #

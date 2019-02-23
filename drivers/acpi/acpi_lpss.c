@@ -465,8 +465,7 @@ static int acpi_lpss_create_device(struct acpi_device *adev,
 	acpi_dev_free_resource_list(&resource_list);
 
 	if (!pdata->mmio_base) {
-		/* Skip the device, but continue the namespace scan. */
-		ret = 0;
+		ret = -ENOMEM;
 		goto err_out;
 	}
 

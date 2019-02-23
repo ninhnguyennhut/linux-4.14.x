@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * File:	portdrv_core.c
  * Purpose:	PCI Express Port Bus Driver's Core Functions

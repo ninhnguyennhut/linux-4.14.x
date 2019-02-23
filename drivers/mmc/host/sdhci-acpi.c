@@ -294,9 +294,12 @@ static int sdhci_acpi_sdio_probe_slot(struct platform_device *pdev,
 				      const char *hid, const char *uid)
 {
 	struct sdhci_acpi_host *c = platform_get_drvdata(pdev);
+	struct sdhci_host *host;
 
 	if (!c || !c->host)
 		return 0;
+
+	host = c->host;
 
 	/* Platform specific code during sdio probe slot goes here */
 
@@ -429,6 +432,7 @@ static const struct sdhci_acpi_slot *sdhci_acpi_get_slot(const char *hid,
 static int sdhci_acpi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	acpi_handle handle = ACPI_HANDLE(dev);
 	struct acpi_device *device, *child;
 	struct sdhci_acpi_host *c;
 	struct sdhci_host *host;
@@ -438,8 +442,7 @@ static int sdhci_acpi_probe(struct platform_device *pdev)
 	const char *uid;
 	int err;
 
-	device = ACPI_COMPANION(dev);
-	if (!device)
+	if (acpi_bus_get_device(handle, &device))
 		return -ENODEV;
 
 	hid = acpi_device_hid(device);

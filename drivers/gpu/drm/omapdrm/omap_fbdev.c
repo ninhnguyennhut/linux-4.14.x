@@ -184,6 +184,7 @@ static int omap_fbdev_create(struct drm_fb_helper *helper,
 	helper->fb = fb;
 
 	fbi->par = helper;
+	fbi->flags = FBINFO_DEFAULT;
 	fbi->fbops = &omap_fb_ops;
 
 	strcpy(fbi->fix.id, MODULE_NAME);

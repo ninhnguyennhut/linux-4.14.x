@@ -246,7 +246,7 @@ static void __sdma_process_event(
 	enum sdma_events event);
 static void dump_sdma_state(struct sdma_engine *sde);
 static void sdma_make_progress(struct sdma_engine *sde, u64 status);
-static void sdma_desc_avail(struct sdma_engine *sde, uint avail);
+static void sdma_desc_avail(struct sdma_engine *sde, unsigned avail);
 static void sdma_flush_descq(struct sdma_engine *sde);
 
 /**
@@ -325,7 +325,7 @@ static void sdma_wait_for_packet_egress(struct sdma_engine *sde,
 			/* timed out - bounce the link */
 			dd_dev_err(dd, "%s: engine %u timeout waiting for packets to egress, remaining count %u, bouncing link\n",
 				   __func__, sde->this_idx, (u32)reg);
-			queue_work(dd->pport->link_wq,
+			queue_work(dd->pport->hfi1_wq,
 				   &dd->pport->link_bounce_work);
 			break;
 		}
@@ -1340,8 +1340,10 @@ static void sdma_clean(struct hfi1_devdata *dd, size_t num_engines)
  * @dd: hfi1_devdata
  * @port: port number (currently only zero)
  *
- * Initializes each sde and its csrs.
- * Interrupts are not required to be enabled.
+ * sdma_init initializes the specified number of engines.
+ *
+ * The code initializes each sde, its csrs.  Interrupts
+ * are not required to be enabled.
  *
  * Returns:
  * 0 - success, -errno on failure
@@ -1762,14 +1764,13 @@ retry:
  *
  * This is called with head_lock held.
  */
-static void sdma_desc_avail(struct sdma_engine *sde, uint avail)
+static void sdma_desc_avail(struct sdma_engine *sde, unsigned avail)
 {
 	struct iowait *wait, *nw;
 	struct iowait *waits[SDMA_WAIT_BATCH_SIZE];
-	uint i, n = 0, seq, max_idx = 0;
+	unsigned i, n = 0, seq;
 	struct sdma_txreq *stx;
 	struct hfi1_ibdev *dev = &sde->dd->verbs_dev;
-	u8 max_starved_cnt = 0;
 
 #ifdef CONFIG_SDMA_VERBOSITY
 	dd_dev_err(sde->dd, "CONFIG SDMA(%u) %s:%d %s()\n", sde->this_idx,
@@ -1804,9 +1805,6 @@ static void sdma_desc_avail(struct sdma_engine *sde, uint avail)
 				if (num_desc > avail)
 					break;
 				avail -= num_desc;
-				/* Find the most starved wait memeber */
-				iowait_starve_find_max(wait, &max_starved_cnt,
-						       n, &max_idx);
 				list_del_init(&wait->list);
 				waits[n++] = wait;
 			}
@@ -1815,13 +1813,8 @@ static void sdma_desc_avail(struct sdma_engine *sde, uint avail)
 		}
 	} while (read_seqretry(&dev->iowait_lock, seq));
 
-	/* Schedule the most starved one first */
-	if (n)
-		waits[max_idx]->wakeup(waits[max_idx], SDMA_AVAIL_REASON);
-
 	for (i = 0; i < n; i++)
-		if (i != max_idx)
-			waits[i]->wakeup(waits[i], SDMA_AVAIL_REASON);
+		waits[i]->wakeup(waits[i], SDMA_AVAIL_REASON);
 }
 
 /* head_lock must be held */
@@ -2358,8 +2351,7 @@ static inline u16 submit_tx(struct sdma_engine *sde, struct sdma_txreq *tx)
 static int sdma_check_progress(
 	struct sdma_engine *sde,
 	struct iowait *wait,
-	struct sdma_txreq *tx,
-	bool pkts_sent)
+	struct sdma_txreq *tx)
 {
 	int ret;
 
@@ -2372,7 +2364,7 @@ static int sdma_check_progress(
 
 		seq = raw_seqcount_begin(
 			(const seqcount_t *)&sde->head_lock.seqcount);
-		ret = wait->sleep(sde, wait, tx, seq, pkts_sent);
+		ret = wait->sleep(sde, wait, tx, seq);
 		if (ret == -EAGAIN)
 			sde->desc_avail = sdma_descq_freecnt(sde);
 	} else {
@@ -2386,7 +2378,6 @@ static int sdma_check_progress(
  * @sde: sdma engine to use
  * @wait: wait structure to use when full (may be NULL)
  * @tx: sdma_txreq to submit
- * @pkts_sent: has any packet been sent yet?
  *
  * The call submits the tx into the ring.  If a iowait structure is non-NULL
  * the packet will be queued to the list in wait.
@@ -2398,8 +2389,7 @@ static int sdma_check_progress(
  */
 int sdma_send_txreq(struct sdma_engine *sde,
 		    struct iowait *wait,
-		    struct sdma_txreq *tx,
-		    bool pkts_sent)
+		    struct sdma_txreq *tx)
 {
 	int ret = 0;
 	u16 tail;
@@ -2441,7 +2431,7 @@ unlock_noconn:
 	ret = -ECOMM;
 	goto unlock;
 nodesc:
-	ret = sdma_check_progress(sde, wait, tx, pkts_sent);
+	ret = sdma_check_progress(sde, wait, tx);
 	if (ret == -EAGAIN) {
 		ret = 0;
 		goto retry;
@@ -2510,10 +2500,8 @@ retry:
 	}
 update_tail:
 	total_count = submit_count + flush_count;
-	if (wait) {
+	if (wait)
 		iowait_sdma_add(wait, total_count);
-		iowait_starve_clear(submit_count > 0, wait);
-	}
 	if (tail != INVALID_TAIL)
 		sdma_update_tail(sde, tail);
 	spin_unlock_irqrestore(&sde->tail_lock, flags);
@@ -2541,7 +2529,7 @@ unlock_noconn:
 	ret = -ECOMM;
 	goto update_tail;
 nodesc:
-	ret = sdma_check_progress(sde, wait, tx, submit_count > 0);
+	ret = sdma_check_progress(sde, wait, tx);
 	if (ret == -EAGAIN) {
 		ret = 0;
 		goto retry;

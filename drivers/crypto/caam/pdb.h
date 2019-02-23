@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * CAAM Protocol Data Block (PDB) definition header file
  *

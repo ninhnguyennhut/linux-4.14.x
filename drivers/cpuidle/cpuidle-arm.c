@@ -104,13 +104,13 @@ static int __init arm_idle_init(void)
 		ret = dt_init_idle_driver(drv, arm_idle_state_match, 1);
 		if (ret <= 0) {
 			ret = ret ? : -ENODEV;
-			goto out_kfree_drv;
+			goto out_fail;
 		}
 
 		ret = cpuidle_register_driver(drv);
 		if (ret) {
 			pr_err("Failed to register cpuidle driver\n");
-			goto out_kfree_drv;
+			goto out_fail;
 		}
 
 		/*
@@ -128,14 +128,14 @@ static int __init arm_idle_init(void)
 
 		if (ret) {
 			pr_err("CPU %d failed to init idle CPU ops\n", cpu);
-			goto out_unregister_drv;
+			goto out_fail;
 		}
 
 		dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 		if (!dev) {
 			pr_err("Failed to allocate cpuidle device\n");
 			ret = -ENOMEM;
-			goto out_unregister_drv;
+			goto out_fail;
 		}
 		dev->cpu = cpu;
 
@@ -143,25 +143,19 @@ static int __init arm_idle_init(void)
 		if (ret) {
 			pr_err("Failed to register cpuidle device for CPU %d\n",
 			       cpu);
-			goto out_kfree_dev;
+			kfree(dev);
+			goto out_fail;
 		}
 	}
 
 	return 0;
-
-out_kfree_dev:
-	kfree(dev);
-out_unregister_drv:
-	cpuidle_unregister_driver(drv);
-out_kfree_drv:
-	kfree(drv);
 out_fail:
 	while (--cpu >= 0) {
 		dev = per_cpu(cpuidle_devices, cpu);
-		drv = cpuidle_get_cpu_driver(dev);
 		cpuidle_unregister_device(dev);
-		cpuidle_unregister_driver(drv);
 		kfree(dev);
+		drv = cpuidle_get_driver();
+		cpuidle_unregister_driver(drv);
 		kfree(drv);
 	}
 

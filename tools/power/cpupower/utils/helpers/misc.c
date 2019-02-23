@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #if defined(__i386__) || defined(__x86_64__)
 
 #include "helpers/helpers.h"
@@ -14,7 +13,7 @@ int cpufreq_has_boost_support(unsigned int cpu, int *support, int *active,
 
 	*support = *active = *states = 0;
 
-	ret = get_cpu_info(&cpu_info);
+	ret = get_cpu_info(0, &cpu_info);
 	if (ret)
 		return ret;
 

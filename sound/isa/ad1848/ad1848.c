@@ -110,17 +110,13 @@ static int snd_ad1848_probe(struct device *dev, unsigned int n)
 	if (error < 0)
 		goto out;
 
-	strlcpy(card->driver, "AD1848", sizeof(card->driver));
-	strlcpy(card->shortname, chip->pcm->name, sizeof(card->shortname));
+	strcpy(card->driver, "AD1848");
+	strcpy(card->shortname, chip->pcm->name);
 
-	if (!thinkpad[n])
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s at 0x%lx, irq %d, dma %d",
-			 chip->pcm->name, chip->port, irq[n], dma1[n]);
-	else
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s at 0x%lx, irq %d, dma %d [Thinkpad]",
-			 chip->pcm->name, chip->port, irq[n], dma1[n]);
+	sprintf(card->longname, "%s at 0x%lx, irq %d, dma %d",
+		chip->pcm->name, chip->port, irq[n], dma1[n]);
+	if (thinkpad[n])
+		strcat(card->longname, " [Thinkpad]");
 
 	error = snd_card_register(card);
 	if (error < 0)

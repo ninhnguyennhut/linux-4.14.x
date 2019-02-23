@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "coreconfigurator.h"
 #include "wilc_wlan_if.h"
 #include "wilc_wlan.h"

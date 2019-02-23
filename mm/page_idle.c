@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/init.h>
 #include <linux/bootmem.h>
 #include <linux/fs.h>
@@ -205,7 +204,7 @@ static struct bin_attribute *page_idle_bin_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group page_idle_attr_group = {
+static struct attribute_group page_idle_attr_group = {
 	.bin_attrs = page_idle_bin_attrs,
 	.name = "page_idle",
 };

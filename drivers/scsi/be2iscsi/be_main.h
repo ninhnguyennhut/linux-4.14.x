@@ -438,7 +438,7 @@ struct beiscsi_hba {
 	 test_bit(BEISCSI_HBA_ONLINE, &phba->state))
 
 struct beiscsi_session {
-	struct dma_pool *bhs_pool;
+	struct pci_pool *bhs_pool;
 };
 
 /**

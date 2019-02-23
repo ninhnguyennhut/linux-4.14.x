@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  * ring.h
  *
@@ -9,8 +8,6 @@
 
 #ifndef __XEN_PUBLIC_IO_RING_H__
 #define __XEN_PUBLIC_IO_RING_H__
-
-#include <xen/interface/grant_table.h>
 
 typedef unsigned int RING_IDX;
 

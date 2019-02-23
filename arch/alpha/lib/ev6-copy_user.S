@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * arch/alpha/lib/ev6-copy_user.S
  *
@@ -46,10 +45,9 @@
 				# Pipeline info: Slotting & Comments
 __copy_user:
 	.prologue 0
-	mov $18, $0		# .. .. .. E
-	subq $18, 32, $1	# .. .. E. ..	: Is this going to be a small copy?
-	nop			# .. E  .. ..
-	beq $18, $zerolength	# U  .. .. ..	: U L U L
+	andq $18, $18, $0
+	subq $18, 32, $1	# .. E  .. ..	: Is this going to be a small copy?
+	beq $0, $zerolength	# U  .. .. ..	: U L U L
 
 	and $16,7,$3		# .. .. .. E	: is leading dest misalignment
 	ble $1, $onebyteloop	# .. .. U  ..	: 1st branch : small amount of data

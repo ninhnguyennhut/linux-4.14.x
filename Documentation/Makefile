@@ -22,8 +22,6 @@ ifeq ($(HAVE_SPHINX),0)
 
 .DEFAULT:
 	$(warning The '$(SPHINXBUILD)' command was not found. Make sure you have Sphinx installed and in PATH, or set the SPHINXBUILD make variable to point to the full path of the '$(SPHINXBUILD)' executable.)
-	@echo
-	@./scripts/sphinx-pre-install
 	@echo "  SKIP    Sphinx $@ target."
 
 else # HAVE_SPHINX
@@ -96,6 +94,16 @@ endif # HAVE_SPHINX
 
 # The following targets are independent of HAVE_SPHINX, and the rules should
 # work or silently pass without Sphinx.
+
+# no-ops for the Sphinx toolchain
+sgmldocs:
+	@:
+psdocs:
+	@:
+mandocs:
+	@:
+installmandocs:
+	@:
 
 cleandocs:
 	$(Q)rm -rf $(BUILDDIR)

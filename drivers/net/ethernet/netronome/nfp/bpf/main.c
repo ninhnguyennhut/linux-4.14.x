@@ -84,7 +84,7 @@ static const char *nfp_bpf_extra_cap(struct nfp_app *app, struct nfp_net *nn)
 }
 
 static int
-nfp_bpf_vnic_alloc(struct nfp_app *app, struct nfp_net *nn, unsigned int id)
+nfp_bpf_vnic_init(struct nfp_app *app, struct nfp_net *nn, unsigned int id)
 {
 	struct nfp_net_bpf_priv *priv;
 	int ret;
@@ -106,14 +106,14 @@ nfp_bpf_vnic_alloc(struct nfp_app *app, struct nfp_net *nn, unsigned int id)
 	setup_timer(&priv->rx_filter_stats_timer,
 		    nfp_net_filter_stats_timer, (unsigned long)nn);
 
-	ret = nfp_app_nic_vnic_alloc(app, nn, id);
+	ret = nfp_app_nic_vnic_init(app, nn, id);
 	if (ret)
 		kfree(priv);
 
 	return ret;
 }
 
-static void nfp_bpf_vnic_free(struct nfp_app *app, struct nfp_net *nn)
+static void nfp_bpf_vnic_clean(struct nfp_app *app, struct nfp_net *nn)
 {
 	if (nn->dp.bpf_offload_xdp)
 		nfp_bpf_xdp_offload(app, nn, NULL);
@@ -121,21 +121,23 @@ static void nfp_bpf_vnic_free(struct nfp_app *app, struct nfp_net *nn)
 }
 
 static int nfp_bpf_setup_tc(struct nfp_app *app, struct net_device *netdev,
-			    enum tc_setup_type type, void *type_data)
+			    u32 handle, __be16 proto, struct tc_to_netdev *tc)
 {
-	struct tc_cls_bpf_offload *cls_bpf = type_data;
 	struct nfp_net *nn = netdev_priv(netdev);
 
-	if (type != TC_SETUP_CLSBPF || !nfp_net_ebpf_capable(nn) ||
-	    !is_classid_clsact_ingress(cls_bpf->common.classid) ||
-	    cls_bpf->common.protocol != htons(ETH_P_ALL) ||
-	    cls_bpf->common.chain_index)
+	if (TC_H_MAJ(handle) != TC_H_MAJ(TC_H_INGRESS))
+		return -EOPNOTSUPP;
+	if (proto != htons(ETH_P_ALL))
 		return -EOPNOTSUPP;
 
-	if (nn->dp.bpf_offload_xdp)
-		return -EBUSY;
+	if (tc->type == TC_SETUP_CLSBPF && nfp_net_ebpf_capable(nn)) {
+		if (!nn->dp.bpf_offload_xdp)
+			return nfp_net_bpf_offload(nn, tc->cls_bpf);
+		else
+			return -EBUSY;
+	}
 
-	return nfp_net_bpf_offload(nn, cls_bpf);
+	return -EINVAL;
 }
 
 static bool nfp_bpf_tc_busy(struct nfp_app *app, struct nfp_net *nn)
@@ -149,8 +151,8 @@ const struct nfp_app_type app_bpf = {
 
 	.extra_cap	= nfp_bpf_extra_cap,
 
-	.vnic_alloc	= nfp_bpf_vnic_alloc,
-	.vnic_free	= nfp_bpf_vnic_free,
+	.vnic_init	= nfp_bpf_vnic_init,
+	.vnic_clean	= nfp_bpf_vnic_clean,
 
 	.setup_tc	= nfp_bpf_setup_tc,
 	.tc_busy	= nfp_bpf_tc_busy,

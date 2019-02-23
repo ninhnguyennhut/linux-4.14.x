@@ -301,13 +301,20 @@ static bool tcp_invert_tuple(struct nf_conntrack_tuple *tuple,
 	return true;
 }
 
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+/* Print out the per-protocol part of the tuple. */
+static void tcp_print_tuple(struct seq_file *s,
+			    const struct nf_conntrack_tuple *tuple)
+{
+	seq_printf(s, "sport=%hu dport=%hu ",
+		   ntohs(tuple->src.u.tcp.port),
+		   ntohs(tuple->dst.u.tcp.port));
+}
+
 /* Print out the private part of the conntrack. */
 static void tcp_print_conntrack(struct seq_file *s, struct nf_conn *ct)
 {
 	seq_printf(s, "%s ", tcp_conntrack_names[ct->proto.tcp.state]);
 }
-#endif
 
 static unsigned int get_conntrack_index(const struct tcphdr *tcph)
 {
@@ -803,6 +810,7 @@ static int tcp_packet(struct nf_conn *ct,
 		      unsigned int dataoff,
 		      enum ip_conntrack_info ctinfo,
 		      u_int8_t pf,
+		      unsigned int hooknum,
 		      unsigned int *timeouts)
 {
 	struct net *net = nf_ct_net(ct);
@@ -1548,11 +1556,11 @@ struct nf_conntrack_l4proto nf_conntrack_l4proto_tcp4 __read_mostly =
 {
 	.l3proto		= PF_INET,
 	.l4proto 		= IPPROTO_TCP,
+	.name 			= "tcp",
 	.pkt_to_tuple 		= tcp_pkt_to_tuple,
 	.invert_tuple 		= tcp_invert_tuple,
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+	.print_tuple 		= tcp_print_tuple,
 	.print_conntrack 	= tcp_print_conntrack,
-#endif
 	.packet 		= tcp_packet,
 	.get_timeouts		= tcp_get_timeouts,
 	.new 			= tcp_new,
@@ -1586,11 +1594,11 @@ struct nf_conntrack_l4proto nf_conntrack_l4proto_tcp6 __read_mostly =
 {
 	.l3proto		= PF_INET6,
 	.l4proto 		= IPPROTO_TCP,
+	.name 			= "tcp",
 	.pkt_to_tuple 		= tcp_pkt_to_tuple,
 	.invert_tuple 		= tcp_invert_tuple,
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+	.print_tuple 		= tcp_print_tuple,
 	.print_conntrack 	= tcp_print_conntrack,
-#endif
 	.packet 		= tcp_packet,
 	.get_timeouts		= tcp_get_timeouts,
 	.new 			= tcp_new,

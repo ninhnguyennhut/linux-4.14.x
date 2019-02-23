@@ -121,13 +121,6 @@
 	};
 };
 
-&cec_AO {
-	status = "okay";
-	pinctrl-0 = <&ao_cec_pins>;
-	pinctrl-names = "default";
-	hdmi-phandle = <&hdmi_tx>;
-};
-
 &cvbs_vdac_port {
 	cvbs_vdac_out: endpoint {
 		remote-endpoint = <&cvbs_connector_in>;
@@ -168,8 +161,7 @@
 &sd_emmc_a {
 	status = "okay";
 	pinctrl-0 = <&sdio_pins>;
-	pinctrl-1 = <&sdio_clk_gate_pins>;
-	pinctrl-names = "default", "clk-gate";
+	pinctrl-names = "default";
 	#address-cells = <1>;
 	#size-cells = <0>;
 
@@ -195,8 +187,7 @@
 &sd_emmc_b {
 	status = "okay";
 	pinctrl-0 = <&sdcard_pins>;
-	pinctrl-1 = <&sdcard_clk_gate_pins>;
-	pinctrl-names = "default", "clk-gate";
+	pinctrl-names = "default";
 
 	bus-width = <4>;
 	cap-sd-highspeed;
@@ -214,10 +205,10 @@
 &sd_emmc_c {
 	status = "okay";
 	pinctrl-0 = <&emmc_pins>;
-	pinctrl-1 = <&emmc_clk_gate_pins>;
-	pinctrl-names = "default", "clk-gate";
+	pinctrl-names = "default";
 
 	bus-width = <8>;
+	cap-sd-highspeed;
 	cap-mmc-highspeed;
 	max-frequency = <200000000>;
 	non-removable;

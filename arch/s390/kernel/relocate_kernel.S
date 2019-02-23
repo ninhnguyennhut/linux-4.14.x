@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright IBM Corp. 2005
  *
@@ -8,7 +7,6 @@
  */
 
 #include <linux/linkage.h>
-#include <asm/page.h>
 #include <asm/sigp.h>
 
 /*
@@ -29,6 +27,7 @@
 ENTRY(relocate_kernel)
 		basr	%r13,0		# base address
 	.base:
+		stnsm	sys_msk-.base(%r13),0xfb	# disable DAT
 		stctg	%c0,%c15,ctlregs-.base(%r13)
 		stmg	%r0,%r15,gprregs-.base(%r13)
 		lghi	%r0,3
@@ -56,8 +55,8 @@ ENTRY(relocate_kernel)
 	.back_pgm:
 		lmg	%r0,%r15,gprregs-.base(%r13)
 	.top:
-		lghi	%r7,PAGE_SIZE	# load PAGE_SIZE in r7
-		lghi	%r9,PAGE_SIZE	# load PAGE_SIZE in r9
+		lghi	%r7,4096	# load PAGE_SIZE in r7
+		lghi	%r9,4096	# load PAGE_SIZE in r9
 		lg	%r5,0(%r2)	# read another word for indirection page
 		aghi	%r2,8		# increment pointer
 		tml	%r5,0x1		# is it a destination page?
@@ -102,6 +101,8 @@ ENTRY(relocate_kernel)
 		.align	8
 	load_psw:
 		.long	0x00080000,0x80000000
+	sys_msk:
+		.quad	0
 	ctlregs:
 		.rept	16
 		.quad	0

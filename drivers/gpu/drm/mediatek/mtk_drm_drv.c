@@ -48,11 +48,11 @@ static void mtk_atomic_schedule(struct mtk_drm_private *private,
 static void mtk_atomic_wait_for_fences(struct drm_atomic_state *state)
 {
 	struct drm_plane *plane;
-	struct drm_plane_state *new_plane_state;
+	struct drm_plane_state *plane_state;
 	int i;
 
-	for_each_new_plane_in_state(state, plane, new_plane_state, i)
-		mtk_fb_wait(new_plane_state->fb);
+	for_each_plane_in_state(state, plane, plane_state, i)
+		mtk_fb_wait(plane->state->fb);
 }
 
 static void mtk_atomic_complete(struct mtk_drm_private *private,
@@ -109,12 +109,7 @@ static int mtk_atomic_commit(struct drm_device *drm,
 	mutex_lock(&private->commit.lock);
 	flush_work(&private->commit.work);
 
-	ret = drm_atomic_helper_swap_state(state, true);
-	if (ret) {
-		mutex_unlock(&private->commit.lock);
-		drm_atomic_helper_cleanup_planes(drm, state);
-		return ret;
-	}
+	drm_atomic_helper_swap_state(state, true);
 
 	drm_atomic_state_get(state);
 	if (async)
@@ -192,8 +187,8 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 
 	pdev = of_find_device_by_node(private->mutex_node);
 	if (!pdev) {
-		dev_err(drm->dev, "Waiting for disp-mutex device %pOF\n",
-			private->mutex_node);
+		dev_err(drm->dev, "Waiting for disp-mutex device %s\n",
+			private->mutex_node->full_name);
 		of_node_put(private->mutex_node);
 		return -EPROBE_DEFER;
 	}
@@ -271,6 +266,7 @@ static void mtk_drm_kms_deinit(struct drm_device *drm)
 {
 	drm_kms_helper_poll_fini(drm);
 
+	drm_vblank_cleanup(drm);
 	component_unbind_all(drm->dev, drm);
 	drm_mode_config_cleanup(drm);
 }
@@ -293,6 +289,8 @@ static struct drm_driver mtk_drm_driver = {
 	.gem_free_object_unlocked = mtk_drm_gem_free_object,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
 	.dumb_create = mtk_drm_gem_dumb_create,
+	.dumb_map_offset = mtk_drm_gem_dumb_map_offset,
+	.dumb_destroy = drm_gem_dumb_destroy,
 
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
@@ -419,8 +417,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 			continue;
 
 		if (!of_device_is_available(node)) {
-			dev_dbg(dev, "Skipping disabled component %pOF\n",
-				node);
+			dev_dbg(dev, "Skipping disabled component %s\n",
+				node->full_name);
 			continue;
 		}
 
@@ -433,8 +431,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 
 		comp_id = mtk_ddp_comp_get_id(node, comp_type);
 		if (comp_id < 0) {
-			dev_warn(dev, "Skipping unknown component %pOF\n",
-				 node);
+			dev_warn(dev, "Skipping unknown component %s\n",
+				 node->full_name);
 			continue;
 		}
 
@@ -450,8 +448,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		    comp_type == MTK_DISP_RDMA ||
 		    comp_type == MTK_DSI ||
 		    comp_type == MTK_DPI) {
-			dev_info(dev, "Adding component match for %pOF\n",
-				 node);
+			dev_info(dev, "Adding component match for %s\n",
+				 node->full_name);
 			drm_of_component_match_add(dev, &match, compare_of,
 						   node);
 		} else {

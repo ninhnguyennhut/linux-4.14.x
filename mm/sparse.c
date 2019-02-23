@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * sparse memory mappings.
  */
@@ -23,7 +22,8 @@
  * 1) mem_section	- memory sections, mem_map's for valid memory
  */
 #ifdef CONFIG_SPARSEMEM_EXTREME
-struct mem_section **mem_section;
+struct mem_section *mem_section[NR_SECTION_ROOTS]
+	____cacheline_internodealigned_in_smp;
 #else
 struct mem_section mem_section[NR_SECTION_ROOTS][SECTIONS_PER_ROOT]
 	____cacheline_internodealigned_in_smp;
@@ -65,10 +65,14 @@ static noinline struct mem_section __ref *sparse_index_alloc(int nid)
 	unsigned long array_size = SECTIONS_PER_ROOT *
 				   sizeof(struct mem_section);
 
-	if (slab_is_available())
-		section = kzalloc_node(array_size, GFP_KERNEL, nid);
-	else
+	if (slab_is_available()) {
+		if (node_state(nid, N_HIGH_MEMORY))
+			section = kzalloc_node(array_size, GFP_KERNEL, nid);
+		else
+			section = kzalloc(array_size, GFP_KERNEL);
+	} else {
 		section = memblock_virt_alloc_node(array_size, nid);
+	}
 
 	return section;
 }
@@ -100,7 +104,7 @@ static inline int sparse_index_init(unsigned long section_nr, int nid)
 int __section_nr(struct mem_section* ms)
 {
 	unsigned long root_nr;
-	struct mem_section *root = NULL;
+	struct mem_section* root;
 
 	for (root_nr = 0; root_nr < NR_SECTION_ROOTS; root_nr++) {
 		root = __nr_to_section(root_nr * SECTIONS_PER_ROOT);
@@ -111,7 +115,7 @@ int __section_nr(struct mem_section* ms)
 		     break;
 	}
 
-	VM_BUG_ON(!root);
+	VM_BUG_ON(root_nr == NR_SECTION_ROOTS);
 
 	return (root_nr * SECTIONS_PER_ROOT) + (ms - root);
 }
@@ -206,16 +210,6 @@ static inline int next_present_section_nr(int section_nr)
 void __init memory_present(int nid, unsigned long start, unsigned long end)
 {
 	unsigned long pfn;
-
-#ifdef CONFIG_SPARSEMEM_EXTREME
-	if (unlikely(!mem_section)) {
-		unsigned long size, align;
-
-		size = sizeof(struct mem_section*) * NR_SECTION_ROOTS;
-		align = 1 << (INTERNODE_CACHE_SHIFT);
-		mem_section = memblock_virt_alloc(size, align);
-	}
-#endif
 
 	start &= PAGE_SECTION_MASK;
 	mminit_validate_memmodel_limits(&start, &end);
@@ -339,16 +333,10 @@ again:
 static void __init check_usemap_section_nr(int nid, unsigned long *usemap)
 {
 	unsigned long usemap_snr, pgdat_snr;
-	static unsigned long old_usemap_snr;
-	static unsigned long old_pgdat_snr;
+	static unsigned long old_usemap_snr = NR_MEM_SECTIONS;
+	static unsigned long old_pgdat_snr = NR_MEM_SECTIONS;
 	struct pglist_data *pgdat = NODE_DATA(nid);
 	int usemap_nid;
-
-	/* First call */
-	if (!old_usemap_snr) {
-		old_usemap_snr = NR_MEM_SECTIONS;
-		old_pgdat_snr = NR_MEM_SECTIONS;
-	}
 
 	usemap_snr = pfn_to_section_nr(__pa(usemap) >> PAGE_SHIFT);
 	pgdat_snr = pfn_to_section_nr(__pa(pgdat) >> PAGE_SHIFT);
@@ -642,7 +630,7 @@ void online_mem_sections(unsigned long start_pfn, unsigned long end_pfn)
 	unsigned long pfn;
 
 	for (pfn = start_pfn; pfn < end_pfn; pfn += PAGES_PER_SECTION) {
-		unsigned long section_nr = pfn_to_section_nr(pfn);
+		unsigned long section_nr = pfn_to_section_nr(start_pfn);
 		struct mem_section *ms;
 
 		/* onlining code should never touch invalid ranges */

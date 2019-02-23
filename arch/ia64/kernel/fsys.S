@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * This file contains the light-weight system call handlers (fsyscall-handlers).
  *

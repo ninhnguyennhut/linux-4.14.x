@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _M32R_TLB_H
 #define _M32R_TLB_H
 

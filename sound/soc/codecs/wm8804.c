@@ -623,7 +623,8 @@ int wm8804_probe(struct device *dev, struct regmap *regmap)
 		return ret;
 	}
 
-	gpiod_set_value_cansleep(wm8804->reset, 1);
+	if (wm8804->reset)
+		gpiod_set_value_cansleep(wm8804->reset, 1);
 
 	ret = regmap_read(regmap, WM8804_RST_DEVID1, &id1);
 	if (ret < 0) {

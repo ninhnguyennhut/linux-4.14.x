@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __IMX134_H__
 #define __IMX134_H__
 

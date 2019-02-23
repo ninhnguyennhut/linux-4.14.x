@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _TDA18271C2DD_H_
 #define _TDA18271C2DD_H_
 

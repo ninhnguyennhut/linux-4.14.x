@@ -59,6 +59,7 @@ I2C-connected TVP5147 decoder:
 	tvp5147@5d {
 		compatible = "ti,tvp5147";
 		reg = <0x5d>;
+		status = "okay";
 
 		port {
 			composite_in: endpoint {

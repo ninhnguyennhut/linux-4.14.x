@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * APIC driver for "bigsmp" xAPIC machines with more than 8 virtual CPUs.
  *

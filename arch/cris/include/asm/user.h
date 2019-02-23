@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_CRIS_USER_H
 #define __ASM_CRIS_USER_H
 

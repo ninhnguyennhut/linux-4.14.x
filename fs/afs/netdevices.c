@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* AFS network device helpers
  *
  * Copyright (c) 2007 Patrick McHardy <kaber@trash.net>

@@ -793,8 +793,11 @@ static int hdsp_get_iobox_version (struct hdsp *hdsp)
 
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S200 | HDSP_PROGRAM);
 		hdsp_write (hdsp, HDSP_fifoData, 0);
-		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) < 0)
-			goto set_multi;
+		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) < 0) {
+			hdsp->io_type = Multiface;
+			dev_info(hdsp->card->dev, "Multiface found\n");
+			return 0;
+		}
 
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S_LOAD);
 		hdsp_write(hdsp, HDSP_fifoData, 0);
@@ -807,14 +810,20 @@ static int hdsp_get_iobox_version (struct hdsp *hdsp)
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S300);
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S_LOAD);
 		hdsp_write(hdsp, HDSP_fifoData, 0);
-		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) == 0)
-			goto set_multi;
+		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) == 0) {
+			hdsp->io_type = Multiface;
+			dev_info(hdsp->card->dev, "Multiface found\n");
+			return 0;
+		}
 
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S300);
 		hdsp_write(hdsp, HDSP_control2Reg, HDSP_S_LOAD);
 		hdsp_write(hdsp, HDSP_fifoData, 0);
-		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) < 0)
-			goto set_multi;
+		if (hdsp_fifo_wait(hdsp, 0, HDSP_SHORT_WAIT) < 0) {
+			hdsp->io_type = Multiface;
+			dev_info(hdsp->card->dev, "Multiface found\n");
+			return 0;
+		}
 
 		hdsp->io_type = RPM;
 		dev_info(hdsp->card->dev, "RPM found\n");
@@ -828,11 +837,6 @@ static int hdsp_get_iobox_version (struct hdsp *hdsp)
 		else
 			hdsp->io_type = Digiface;
 	}
-	return 0;
-
-set_multi:
-	hdsp->io_type = Multiface;
-	dev_info(hdsp->card->dev, "Multiface found\n");
 	return 0;
 }
 
@@ -4207,7 +4211,7 @@ static int snd_hdsp_prepare(struct snd_pcm_substream *substream)
 	return result;
 }
 
-static const struct snd_pcm_hardware snd_hdsp_playback_subinfo =
+static struct snd_pcm_hardware snd_hdsp_playback_subinfo =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP |
 				 SNDRV_PCM_INFO_MMAP_VALID |
@@ -4237,7 +4241,7 @@ static const struct snd_pcm_hardware snd_hdsp_playback_subinfo =
 	.fifo_size =		0
 };
 
-static const struct snd_pcm_hardware snd_hdsp_capture_subinfo =
+static struct snd_pcm_hardware snd_hdsp_capture_subinfo =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP |
 				 SNDRV_PCM_INFO_MMAP_VALID |
@@ -5377,16 +5381,17 @@ static int snd_hdsp_probe(struct pci_dev *pci,
 	card->private_free = snd_hdsp_card_free;
 	hdsp->dev = dev;
 	hdsp->pci = pci;
-	err = snd_hdsp_create(card, hdsp);
-	if (err)
-		goto free_card;
+
+	if ((err = snd_hdsp_create(card, hdsp)) < 0) {
+		snd_card_free(card);
+		return err;
+	}
 
 	strcpy(card->shortname, "Hammerfall DSP");
 	sprintf(card->longname, "%s at 0x%lx, irq %d", hdsp->card_name,
 		hdsp->port, hdsp->irq);
-	err = snd_card_register(card);
-	if (err) {
-free_card:
+
+	if ((err = snd_card_register(card)) < 0) {
 		snd_card_free(card);
 		return err;
 	}

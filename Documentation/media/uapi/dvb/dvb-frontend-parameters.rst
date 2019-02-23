@@ -24,7 +24,7 @@ instead, in order to be able to support the newer System Delivery like
 DVB-S2, DVB-T2, DVB-C2, ISDB, etc.
 
 All kinds of parameters are combined as a union in the
-``dvb_frontend_parameters`` structure:
+FrontendParameters structure:
 
 
 .. code-block:: c

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NET_RAWV6_H
 #define _NET_RAWV6_H
 
@@ -7,7 +6,7 @@
 extern struct raw_hashinfo raw_v6_hashinfo;
 struct sock *__raw_v6_lookup(struct net *net, struct sock *sk,
 			     unsigned short num, const struct in6_addr *loc_addr,
-			     const struct in6_addr *rmt_addr, int dif, int sdif);
+			     const struct in6_addr *rmt_addr, int dif);
 
 int raw_abort(struct sock *sk, int err);
 

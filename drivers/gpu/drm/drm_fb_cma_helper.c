@@ -18,17 +18,27 @@
  */
 
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
+#include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_framebuffer.h>
+#include <drm/drm_crtc_helper.h>
 #include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_fb_cma_helper.h>
+#include <linux/dma-buf.h>
+#include <linux/dma-mapping.h>
 #include <linux/module.h>
+#include <linux/reservation.h>
 
 #define DEFAULT_FBDEFIO_DELAY_MS 50
 
+struct drm_fb_cma {
+	struct drm_framebuffer		fb;
+	struct drm_gem_cma_object	*obj[4];
+};
+
 struct drm_fbdev_cma {
 	struct drm_fb_helper	fb_helper;
+	struct drm_fb_cma	*fb;
 	const struct drm_framebuffer_funcs *fb_funcs;
 };
 
@@ -80,18 +90,68 @@ static inline struct drm_fbdev_cma *to_fbdev_cma(struct drm_fb_helper *helper)
 	return container_of(helper, struct drm_fbdev_cma, fb_helper);
 }
 
+static inline struct drm_fb_cma *to_fb_cma(struct drm_framebuffer *fb)
+{
+	return container_of(fb, struct drm_fb_cma, fb);
+}
+
 void drm_fb_cma_destroy(struct drm_framebuffer *fb)
 {
-	drm_gem_fb_destroy(fb);
+	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
+	int i;
+
+	for (i = 0; i < 4; i++) {
+		if (fb_cma->obj[i])
+			drm_gem_object_put_unlocked(&fb_cma->obj[i]->base);
+	}
+
+	drm_framebuffer_cleanup(fb);
+	kfree(fb_cma);
 }
 EXPORT_SYMBOL(drm_fb_cma_destroy);
 
 int drm_fb_cma_create_handle(struct drm_framebuffer *fb,
 	struct drm_file *file_priv, unsigned int *handle)
 {
-	return drm_gem_fb_create_handle(fb, file_priv, handle);
+	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
+
+	return drm_gem_handle_create(file_priv,
+			&fb_cma->obj[0]->base, handle);
 }
 EXPORT_SYMBOL(drm_fb_cma_create_handle);
+
+static struct drm_framebuffer_funcs drm_fb_cma_funcs = {
+	.destroy	= drm_fb_cma_destroy,
+	.create_handle	= drm_fb_cma_create_handle,
+};
+
+static struct drm_fb_cma *drm_fb_cma_alloc(struct drm_device *dev,
+	const struct drm_mode_fb_cmd2 *mode_cmd,
+	struct drm_gem_cma_object **obj,
+	unsigned int num_planes, const struct drm_framebuffer_funcs *funcs)
+{
+	struct drm_fb_cma *fb_cma;
+	int ret;
+	int i;
+
+	fb_cma = kzalloc(sizeof(*fb_cma), GFP_KERNEL);
+	if (!fb_cma)
+		return ERR_PTR(-ENOMEM);
+
+	drm_helper_mode_fill_fb_struct(dev, &fb_cma->fb, mode_cmd);
+
+	for (i = 0; i < num_planes; i++)
+		fb_cma->obj[i] = obj[i];
+
+	ret = drm_framebuffer_init(dev, &fb_cma->fb, funcs);
+	if (ret) {
+		dev_err(dev->dev, "Failed to initialize framebuffer: %d\n", ret);
+		kfree(fb_cma);
+		return ERR_PTR(ret);
+	}
+
+	return fb_cma;
+}
 
 /**
  * drm_fb_cma_create_with_funcs() - helper function for the
@@ -110,7 +170,53 @@ struct drm_framebuffer *drm_fb_cma_create_with_funcs(struct drm_device *dev,
 	struct drm_file *file_priv, const struct drm_mode_fb_cmd2 *mode_cmd,
 	const struct drm_framebuffer_funcs *funcs)
 {
-	return drm_gem_fb_create_with_funcs(dev, file_priv, mode_cmd, funcs);
+	const struct drm_format_info *info;
+	struct drm_fb_cma *fb_cma;
+	struct drm_gem_cma_object *objs[4];
+	struct drm_gem_object *obj;
+	int ret;
+	int i;
+
+	info = drm_get_format_info(dev, mode_cmd);
+	if (!info)
+		return ERR_PTR(-EINVAL);
+
+	for (i = 0; i < info->num_planes; i++) {
+		unsigned int width = mode_cmd->width / (i ? info->hsub : 1);
+		unsigned int height = mode_cmd->height / (i ? info->vsub : 1);
+		unsigned int min_size;
+
+		obj = drm_gem_object_lookup(file_priv, mode_cmd->handles[i]);
+		if (!obj) {
+			dev_err(dev->dev, "Failed to lookup GEM object\n");
+			ret = -ENOENT;
+			goto err_gem_object_put;
+		}
+
+		min_size = (height - 1) * mode_cmd->pitches[i]
+			 + width * info->cpp[i]
+			 + mode_cmd->offsets[i];
+
+		if (obj->size < min_size) {
+			drm_gem_object_put_unlocked(obj);
+			ret = -EINVAL;
+			goto err_gem_object_put;
+		}
+		objs[i] = to_drm_gem_cma_obj(obj);
+	}
+
+	fb_cma = drm_fb_cma_alloc(dev, mode_cmd, objs, i, funcs);
+	if (IS_ERR(fb_cma)) {
+		ret = PTR_ERR(fb_cma);
+		goto err_gem_object_put;
+	}
+
+	return &fb_cma->fb;
+
+err_gem_object_put:
+	for (i--; i >= 0; i--)
+		drm_gem_object_put_unlocked(&objs[i]->base);
+	return ERR_PTR(ret);
 }
 EXPORT_SYMBOL_GPL(drm_fb_cma_create_with_funcs);
 
@@ -127,7 +233,8 @@ EXPORT_SYMBOL_GPL(drm_fb_cma_create_with_funcs);
 struct drm_framebuffer *drm_fb_cma_create(struct drm_device *dev,
 	struct drm_file *file_priv, const struct drm_mode_fb_cmd2 *mode_cmd)
 {
-	return drm_gem_fb_create(dev, file_priv, mode_cmd);
+	return drm_fb_cma_create_with_funcs(dev, file_priv, mode_cmd,
+					    &drm_fb_cma_funcs);
 }
 EXPORT_SYMBOL_GPL(drm_fb_cma_create);
 
@@ -143,13 +250,12 @@ EXPORT_SYMBOL_GPL(drm_fb_cma_create);
 struct drm_gem_cma_object *drm_fb_cma_get_gem_obj(struct drm_framebuffer *fb,
 						  unsigned int plane)
 {
-	struct drm_gem_object *gem;
+	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
 
-	gem = drm_gem_fb_get_obj(fb, plane);
-	if (!gem)
+	if (plane >= 4)
 		return NULL;
 
-	return to_drm_gem_cma_obj(gem);
+	return fb_cma->obj[plane];
 }
 EXPORT_SYMBOL_GPL(drm_fb_cma_get_gem_obj);
 
@@ -166,14 +272,13 @@ dma_addr_t drm_fb_cma_get_gem_addr(struct drm_framebuffer *fb,
 				   struct drm_plane_state *state,
 				   unsigned int plane)
 {
-	struct drm_gem_cma_object *obj;
+	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
 	dma_addr_t paddr;
 
-	obj = drm_fb_cma_get_gem_obj(fb, plane);
-	if (!obj)
+	if (plane >= 4)
 		return 0;
 
-	paddr = obj->paddr + fb->offsets[plane];
+	paddr = fb_cma->obj[plane]->paddr + fb->offsets[plane];
 	paddr += fb->format->cpp[plane] * (state->src_x >> 16);
 	paddr += fb->pitches[plane] * (state->src_y >> 16);
 
@@ -197,13 +302,26 @@ EXPORT_SYMBOL_GPL(drm_fb_cma_get_gem_addr);
 int drm_fb_cma_prepare_fb(struct drm_plane *plane,
 			  struct drm_plane_state *state)
 {
-	return drm_gem_fb_prepare_fb(plane, state);
+	struct dma_buf *dma_buf;
+	struct dma_fence *fence;
+
+	if ((plane->state->fb == state->fb) || !state->fb)
+		return 0;
+
+	dma_buf = drm_fb_cma_get_gem_obj(state->fb, 0)->base.dma_buf;
+	if (dma_buf) {
+		fence = reservation_object_get_excl_rcu(dma_buf->resv);
+		drm_atomic_set_fence_for_plane(state, fence);
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(drm_fb_cma_prepare_fb);
 
 #ifdef CONFIG_DEBUG_FS
 static void drm_fb_cma_describe(struct drm_framebuffer *fb, struct seq_file *m)
 {
+	struct drm_fb_cma *fb_cma = to_fb_cma(fb);
 	int i;
 
 	seq_printf(m, "fb: %dx%d@%4.4s\n", fb->width, fb->height,
@@ -212,7 +330,7 @@ static void drm_fb_cma_describe(struct drm_framebuffer *fb, struct seq_file *m)
 	for (i = 0; i < fb->format->num_planes; i++) {
 		seq_printf(m, "   %d: offset=%d pitch=%d, obj: ",
 				i, fb->offsets[i], fb->pitches[i]);
-		drm_gem_cma_describe(drm_fb_cma_get_gem_obj(fb, i), m);
+		drm_gem_cma_describe(fb_cma->obj[i], m);
 	}
 }
 
@@ -313,6 +431,7 @@ drm_fbdev_cma_create(struct drm_fb_helper *helper,
 	struct drm_fb_helper_surface_size *sizes)
 {
 	struct drm_fbdev_cma *fbdev_cma = to_fbdev_cma(helper);
+	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 	struct drm_device *dev = helper->dev;
 	struct drm_gem_cma_object *obj;
 	struct drm_framebuffer *fb;
@@ -327,7 +446,14 @@ drm_fbdev_cma_create(struct drm_fb_helper *helper,
 			sizes->surface_bpp);
 
 	bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
-	size = sizes->surface_width * sizes->surface_height * bytes_per_pixel;
+
+	mode_cmd.width = sizes->surface_width;
+	mode_cmd.height = sizes->surface_height;
+	mode_cmd.pitches[0] = sizes->surface_width * bytes_per_pixel;
+	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
+		sizes->surface_depth);
+
+	size = mode_cmd.pitches[0] * mode_cmd.height;
 	obj = drm_gem_cma_create(dev, size);
 	if (IS_ERR(obj))
 		return -ENOMEM;
@@ -338,14 +464,15 @@ drm_fbdev_cma_create(struct drm_fb_helper *helper,
 		goto err_gem_free_object;
 	}
 
-	fb = drm_gem_fbdev_fb_create(dev, sizes, 0, &obj->base,
-				     fbdev_cma->fb_funcs);
-	if (IS_ERR(fb)) {
+	fbdev_cma->fb = drm_fb_cma_alloc(dev, &mode_cmd, &obj, 1,
+					 fbdev_cma->fb_funcs);
+	if (IS_ERR(fbdev_cma->fb)) {
 		dev_err(dev->dev, "Failed to allocate DRM framebuffer.\n");
-		ret = PTR_ERR(fb);
+		ret = PTR_ERR(fbdev_cma->fb);
 		goto err_fb_info_destroy;
 	}
 
+	fb = &fbdev_cma->fb->fb;
 	helper->fb = fb;
 
 	fbi->par = helper;
@@ -373,7 +500,7 @@ drm_fbdev_cma_create(struct drm_fb_helper *helper,
 	return 0;
 
 err_cma_destroy:
-	drm_framebuffer_remove(fb);
+	drm_framebuffer_remove(&fbdev_cma->fb->fb);
 err_fb_info_destroy:
 	drm_fb_helper_fini(helper);
 err_gem_free_object:
@@ -443,11 +570,6 @@ err_free:
 }
 EXPORT_SYMBOL_GPL(drm_fbdev_cma_init_with_funcs);
 
-static const struct drm_framebuffer_funcs drm_fb_cma_funcs = {
-	.destroy	= drm_gem_fb_destroy,
-	.create_handle	= drm_gem_fb_create_handle,
-};
-
 /**
  * drm_fbdev_cma_init() - Allocate and initializes a drm_fbdev_cma struct
  * @dev: DRM device
@@ -475,8 +597,8 @@ void drm_fbdev_cma_fini(struct drm_fbdev_cma *fbdev_cma)
 	if (fbdev_cma->fb_helper.fbdev)
 		drm_fbdev_cma_defio_fini(fbdev_cma->fb_helper.fbdev);
 
-	if (fbdev_cma->fb_helper.fb)
-		drm_framebuffer_remove(fbdev_cma->fb_helper.fb);
+	if (fbdev_cma->fb)
+		drm_framebuffer_remove(&fbdev_cma->fb->fb);
 
 	drm_fb_helper_fini(&fbdev_cma->fb_helper);
 	kfree(fbdev_cma);
@@ -518,7 +640,7 @@ EXPORT_SYMBOL_GPL(drm_fbdev_cma_hotplug_event);
  * Calls drm_fb_helper_set_suspend, which is a wrapper around
  * fb_set_suspend implemented by fbdev core.
  */
-void drm_fbdev_cma_set_suspend(struct drm_fbdev_cma *fbdev_cma, bool state)
+void drm_fbdev_cma_set_suspend(struct drm_fbdev_cma *fbdev_cma, int state)
 {
 	if (fbdev_cma)
 		drm_fb_helper_set_suspend(&fbdev_cma->fb_helper, state);
@@ -535,7 +657,7 @@ EXPORT_SYMBOL(drm_fbdev_cma_set_suspend);
  * fb_set_suspend implemented by fbdev core.
  */
 void drm_fbdev_cma_set_suspend_unlocked(struct drm_fbdev_cma *fbdev_cma,
-					bool state)
+					int state)
 {
 	if (fbdev_cma)
 		drm_fb_helper_set_suspend_unlocked(&fbdev_cma->fb_helper,

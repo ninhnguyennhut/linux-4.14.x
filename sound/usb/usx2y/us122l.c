@@ -508,7 +508,8 @@ static bool us122l_create_card(struct snd_card *card)
 		err = us122l_create_usbmidi(card);
 	if (err < 0) {
 		snd_printk(KERN_ERR "us122l_create_usbmidi error %i \n", err);
-		goto stop;
+		us122l_stop(us122l);
+		return false;
 	}
 	err = usb_stream_hwdep_new(card);
 	if (err < 0) {
@@ -517,13 +518,10 @@ static bool us122l_create_card(struct snd_card *card)
 		list_for_each(p, &us122l->midi_list)
 			snd_usbmidi_disconnect(p);
 
-		goto stop;
+		us122l_stop(us122l);
+		return false;
 	}
 	return true;
-
-stop:
-	us122l_stop(us122l);
-	return false;
 }
 
 static void snd_us122l_free(struct snd_card *card)
@@ -738,7 +736,7 @@ unlock:
 	return err;
 }
 
-static const struct usb_device_id snd_us122l_usb_id_table[] = {
+static struct usb_device_id snd_us122l_usb_id_table[] = {
 	{
 		.match_flags =	USB_DEVICE_ID_MATCH_DEVICE,
 		.idVendor =	0x0644,

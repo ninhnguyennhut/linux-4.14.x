@@ -40,7 +40,8 @@
 #include "usbatm.h"
 
 #define DRIVER_AUTHOR	"Johan Verrept, Duncan Sands <duncan.sands@free.fr>"
-#define DRIVER_DESC	"Alcatel SpeedTouch USB driver"
+#define DRIVER_VERSION	"1.10"
+#define DRIVER_DESC	"Alcatel SpeedTouch USB driver version " DRIVER_VERSION
 
 static const char speedtch_driver_name[] = "speedtch";
 
@@ -737,7 +738,7 @@ static int speedtch_post_reset(struct usb_interface *intf)
 **  USB  **
 **********/
 
-static const struct usb_device_id speedtch_usb_ids[] = {
+static struct usb_device_id speedtch_usb_ids[] = {
 	{USB_DEVICE(0x06b9, 0x4061)},
 	{}
 };
@@ -961,3 +962,4 @@ module_usb_driver(speedtch_usb_driver);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
+MODULE_VERSION(DRIVER_VERSION);

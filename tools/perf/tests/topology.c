@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -87,7 +86,7 @@ static int check_cpu_topology(char *path, struct cpu_map *map)
 	return 0;
 }
 
-int test__session_topology(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test_session_topology(int subtest __maybe_unused)
 {
 	char path[PATH_MAX];
 	struct cpu_map *map;

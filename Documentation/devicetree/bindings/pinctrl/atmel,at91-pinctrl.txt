@@ -148,4 +148,5 @@ dbgu: serial@fffff200 {
 	interrupts = <1 4 7>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_dbgu>;
+	status = "disabled";
 };

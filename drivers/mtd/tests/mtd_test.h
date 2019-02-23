@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/mtd/mtd.h>
 #include <linux/sched/signal.h>
 

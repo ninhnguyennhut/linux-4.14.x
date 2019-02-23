@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Generic UHCI HCD (Host Controller Driver) for Platform Devices
  *

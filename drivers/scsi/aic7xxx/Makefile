@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for the Linux aic7xxx SCSI driver.
 #
@@ -60,8 +59,7 @@ $(obj)/aic7xxx_seq.h: $(src)/aic7xxx.seq $(src)/aic7xxx.reg $(obj)/aicasm/aicasm
 			      $(aicasm-7xxx-opts-y) -o $(obj)/aic7xxx_seq.h \
 			      $(srctree)/$(src)/aic7xxx.seq
 
-$(aic7xxx-gen-y): $(objtree)/$(obj)/aic7xxx_seq.h
-	@true
+$(aic7xxx-gen-y): $(obj)/aic7xxx_seq.h
 else
 $(obj)/aic7xxx_reg_print.c: $(src)/aic7xxx_reg_print.c_shipped
 endif
@@ -78,8 +76,7 @@ $(obj)/aic79xx_seq.h: $(src)/aic79xx.seq $(src)/aic79xx.reg $(obj)/aicasm/aicasm
 			      $(aicasm-79xx-opts-y) -o $(obj)/aic79xx_seq.h \
 			      $(srctree)/$(src)/aic79xx.seq
 
-$(aic79xx-gen-y): $(objtree)/$(obj)/aic79xx_seq.h
-	@true
+$(aic79xx-gen-y): $(obj)/aic79xx_seq.h
 else
 $(obj)/aic79xx_reg_print.c: $(src)/aic79xx_reg_print.c_shipped
 endif

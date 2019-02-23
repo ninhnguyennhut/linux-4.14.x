@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Code for replacing ftrace calls with jumps.
  *

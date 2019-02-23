@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Common support for omap3 EVM boards
  */
@@ -116,7 +115,7 @@
 &mmc1 {
 	interrupts-extended = <&intc 83 &omap3_pmx_core 0x11a>;
 	vmmc-supply = <&vmmc1>;
-	vqmmc-supply = <&vsim>;
+	vmmc_aux-supply = <&vsim>;
 	bus-width = <8>;
 };
 

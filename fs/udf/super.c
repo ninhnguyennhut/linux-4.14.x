@@ -266,8 +266,11 @@ static int udf_sb_alloc_partition_maps(struct super_block *sb, u32 count)
 {
 	struct udf_sb_info *sbi = UDF_SB(sb);
 
-	sbi->s_partmaps = kcalloc(count, sizeof(*sbi->s_partmaps), GFP_KERNEL);
+	sbi->s_partmaps = kcalloc(count, sizeof(struct udf_part_map),
+				  GFP_KERNEL);
 	if (!sbi->s_partmaps) {
+		udf_err(sb, "Unable to allocate space for %d partition maps\n",
+			count);
 		sbi->s_partitions = 0;
 		return -ENOMEM;
 	}
@@ -321,8 +324,7 @@ static void udf_sb_free_partitions(struct super_block *sb)
 {
 	struct udf_sb_info *sbi = UDF_SB(sb);
 	int i;
-
-	if (!sbi->s_partmaps)
+	if (sbi->s_partmaps == NULL)
 		return;
 	for (i = 0; i < sbi->s_partitions; i++)
 		udf_free_partition(&sbi->s_partmaps[i]);
@@ -673,7 +675,7 @@ static int udf_remount_fs(struct super_block *sb, int *flags, char *options)
 	sbi->s_dmode = uopt.dmode;
 	write_unlock(&sbi->s_cred_lock);
 
-	if ((bool)(*flags & MS_RDONLY) == sb_rdonly(sb))
+	if ((*flags & MS_RDONLY) == (sb->s_flags & MS_RDONLY))
 		goto out_unlock;
 
 	if (*flags & MS_RDONLY)
@@ -703,7 +705,7 @@ static loff_t udf_check_vsd(struct super_block *sb)
 	else
 		sectorsize = sb->s_blocksize;
 
-	sector += (((loff_t)sbi->s_session) << sb->s_blocksize_bits);
+	sector += (sbi->s_session << sb->s_blocksize_bits);
 
 	udf_debug("Starting at sector %u (%ld byte sectors)\n",
 		  (unsigned int)(sector >> sb->s_blocksize_bits),
@@ -1017,7 +1019,7 @@ static int udf_load_metadata_files(struct super_block *sb, int partition,
 
 		fe = udf_iget_special(sb, &addr);
 		if (IS_ERR(fe)) {
-			if (sb_rdonly(sb))
+			if (sb->s_flags & MS_RDONLY)
 				udf_warn(sb, "bitmap inode efe not found but it's ok since the disc is mounted read-only\n");
 			else {
 				udf_err(sb, "bitmap inode efe not found and attempted read-write mount\n");
@@ -1069,7 +1071,7 @@ static struct udf_bitmap *udf_sb_alloc_bitmap(struct super_block *sb, u32 index)
 	else
 		bitmap = vzalloc(size); /* TODO: get rid of vzalloc */
 
-	if (!bitmap)
+	if (bitmap == NULL)
 		return NULL;
 
 	bitmap->s_nr_groups = nr_groups;
@@ -1341,7 +1343,7 @@ static int udf_load_partdesc(struct super_block *sb, sector_t block)
 		 * writing to it (we overwrite blocks instead of relocating
 		 * them).
 		 */
-		if (!sb_rdonly(sb)) {
+		if (!(sb->s_flags & MS_RDONLY)) {
 			ret = -EACCES;
 			goto out_bh;
 		}
@@ -2097,7 +2099,7 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 	uopt.fmode = UDF_INVALID_MODE;
 	uopt.dmode = UDF_INVALID_MODE;
 
-	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
+	sbi = kzalloc(sizeof(struct udf_sb_info), GFP_KERNEL);
 	if (!sbi)
 		return -ENOMEM;
 
@@ -2205,7 +2207,7 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 			ret = -EINVAL;
 			goto error_out;
 		} else if (minUDFWriteRev > UDF_MAX_WRITE_VERSION &&
-			   !sb_rdonly(sb)) {
+			   !(sb->s_flags & MS_RDONLY)) {
 			ret = -EACCES;
 			goto error_out;
 		}
@@ -2226,7 +2228,7 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 
 	if (sbi->s_partmaps[sbi->s_partition].s_partition_flags &
 			UDF_PART_FLAG_READ_ONLY &&
-	    !sb_rdonly(sb)) {
+	    !(sb->s_flags & MS_RDONLY)) {
 		ret = -EACCES;
 		goto error_out;
 	}
@@ -2245,7 +2247,7 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 			 le16_to_cpu(ts.year), ts.month, ts.day,
 			 ts.hour, ts.minute, le16_to_cpu(ts.typeAndTimezone));
 	}
-	if (!sb_rdonly(sb)) {
+	if (!(sb->s_flags & MS_RDONLY)) {
 		udf_open_lvid(sb);
 		lvid_open = true;
 	}
@@ -2332,7 +2334,7 @@ static void udf_put_super(struct super_block *sb)
 	if (UDF_QUERY_FLAG(sb, UDF_FLAG_NLS_MAP))
 		unload_nls(sbi->s_nls_map);
 #endif
-	if (!sb_rdonly(sb))
+	if (!(sb->s_flags & MS_RDONLY))
 		udf_close_lvid(sb);
 	brelse(sbi->s_lvid_bh);
 	udf_sb_free_partitions(sb);

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /* exynos_drm.h
  *
  * Copyright (c) 2011 Samsung Electronics Co., Ltd.

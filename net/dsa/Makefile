@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # the core
 obj-$(CONFIG_NET_DSA) += dsa_core.o
 dsa_core-y += dsa.o dsa2.o legacy.o port.o slave.o switch.o

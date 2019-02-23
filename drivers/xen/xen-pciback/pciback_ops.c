@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * PCI Backend Operations - respond to PCI requests from Frontend
  *

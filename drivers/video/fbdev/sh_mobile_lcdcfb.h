@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef SH_MOBILE_LCDCFB_H
 #define SH_MOBILE_LCDCFB_H
 

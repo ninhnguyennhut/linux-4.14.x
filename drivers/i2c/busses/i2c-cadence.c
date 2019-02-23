@@ -826,7 +826,8 @@ static int cdns_i2c_clk_notifier_cb(struct notifier_block *nb, unsigned long
  */
 static int __maybe_unused cdns_i2c_runtime_suspend(struct device *dev)
 {
-	struct cdns_i2c *xi2c = dev_get_drvdata(dev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct cdns_i2c *xi2c = platform_get_drvdata(pdev);
 
 	clk_disable(xi2c->clk);
 
@@ -843,7 +844,8 @@ static int __maybe_unused cdns_i2c_runtime_suspend(struct device *dev)
  */
 static int __maybe_unused cdns_i2c_runtime_resume(struct device *dev)
 {
-	struct cdns_i2c *xi2c = dev_get_drvdata(dev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct cdns_i2c *xi2c = platform_get_drvdata(pdev);
 	int ret;
 
 	ret = clk_enable(xi2c->clk);

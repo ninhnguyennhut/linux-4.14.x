@@ -355,8 +355,10 @@ int snd_opl3_new(struct snd_card *card,
 
 	*ropl3 = NULL;
 	opl3 = kzalloc(sizeof(*opl3), GFP_KERNEL);
-	if (!opl3)
+	if (opl3 == NULL) {
+		snd_printk(KERN_ERR "opl3: cannot allocate\n");
 		return -ENOMEM;
+	}
 
 	opl3->card = card;
 	opl3->hardware = hardware;

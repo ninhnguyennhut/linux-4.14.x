@@ -255,13 +255,12 @@ static int parse_rgb(const char *buf, struct platform_zone *zone)
 
 static struct platform_zone *match_zone(struct device_attribute *attr)
 {
-	u8 zone;
-
-	for (zone = 0; zone < quirks->num_zones; zone++) {
-		if ((struct device_attribute *)zone_data[zone].attr == attr) {
+	int i;
+	for (i = 0; i < quirks->num_zones; i++) {
+		if ((struct device_attribute *)zone_data[i].attr == attr) {
 			pr_debug("alienware-wmi: matched zone location: %d\n",
-				 zone_data[zone].location);
-			return &zone_data[zone];
+				 zone_data[i].location);
+			return &zone_data[i];
 		}
 	}
 	return NULL;
@@ -421,7 +420,7 @@ static DEVICE_ATTR(lighting_control_state, 0644, show_control_state,
 
 static int alienware_zone_init(struct platform_device *dev)
 {
-	u8 zone;
+	int i;
 	char buffer[10];
 	char *name;
 
@@ -458,19 +457,19 @@ static int alienware_zone_init(struct platform_device *dev)
 	if (!zone_data)
 		return -ENOMEM;
 
-	for (zone = 0; zone < quirks->num_zones; zone++) {
-		sprintf(buffer, "zone%02hhX", zone);
+	for (i = 0; i < quirks->num_zones; i++) {
+		sprintf(buffer, "zone%02X", i);
 		name = kstrdup(buffer, GFP_KERNEL);
 		if (name == NULL)
 			return 1;
-		sysfs_attr_init(&zone_dev_attrs[zone].attr);
-		zone_dev_attrs[zone].attr.name = name;
-		zone_dev_attrs[zone].attr.mode = 0644;
-		zone_dev_attrs[zone].show = zone_show;
-		zone_dev_attrs[zone].store = zone_set;
-		zone_data[zone].location = zone;
-		zone_attrs[zone] = &zone_dev_attrs[zone].attr;
-		zone_data[zone].attr = &zone_dev_attrs[zone];
+		sysfs_attr_init(&zone_dev_attrs[i].attr);
+		zone_dev_attrs[i].attr.name = name;
+		zone_dev_attrs[i].attr.mode = 0644;
+		zone_dev_attrs[i].show = zone_show;
+		zone_dev_attrs[i].store = zone_set;
+		zone_data[i].location = i;
+		zone_attrs[i] = &zone_dev_attrs[i].attr;
+		zone_data[i].attr = &zone_dev_attrs[i];
 	}
 	zone_attrs[quirks->num_zones] = &dev_attr_lighting_control_state.attr;
 	zone_attribute_group.attrs = zone_attrs;
@@ -482,13 +481,12 @@ static int alienware_zone_init(struct platform_device *dev)
 
 static void alienware_zone_exit(struct platform_device *dev)
 {
-	u8 zone;
-
 	sysfs_remove_group(&dev->dev.kobj, &zone_attribute_group);
 	led_classdev_unregister(&global_led);
 	if (zone_dev_attrs) {
-		for (zone = 0; zone < quirks->num_zones; zone++)
-			kfree(zone_dev_attrs[zone].attr.name);
+		int i;
+		for (i = 0; i < quirks->num_zones; i++)
+			kfree(zone_dev_attrs[i].attr.name);
 	}
 	kfree(zone_dev_attrs);
 	kfree(zone_data);

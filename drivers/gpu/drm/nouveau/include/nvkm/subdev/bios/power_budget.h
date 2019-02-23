@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVBIOS_POWER_BUDGET_H__
 #define __NVBIOS_POWER_BUDGET_H__
 

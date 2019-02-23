@@ -38,15 +38,15 @@
 
 #define DEBUG_SUBSYSTEM S_FID
 
-#include <linux/libcfs/libcfs.h>
+#include "../../include/linux/libcfs/libcfs.h"
 #include <linux/module.h>
 
-#include <obd.h>
-#include <obd_class.h>
-#include <obd_support.h>
-#include <lustre_fid.h>
+#include "../include/obd.h"
+#include "../include/obd_class.h"
+#include "../include/obd_support.h"
+#include "../include/lustre_fid.h"
 /* mdc RPC locks */
-#include <lustre_mdc.h>
+#include "../include/lustre_mdc.h"
 #include "fid_internal.h"
 
 static struct dentry *seq_debugfs_dir;

@@ -69,7 +69,7 @@ static unsigned int ip6table_nat_local_fn(void *priv,
 	return nf_nat_ipv6_local_fn(priv, skb, state, ip6table_nat_do_chain);
 }
 
-static const struct nf_hook_ops nf_nat_ipv6_ops[] = {
+static struct nf_hook_ops nf_nat_ipv6_ops[] __read_mostly = {
 	/* Before packet filtering, change destination */
 	{
 		.hook		= ip6table_nat_in,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * ld script for the x86 kernel
  *
@@ -25,7 +24,6 @@
 #include <asm/asm-offsets.h>
 #include <asm/thread_info.h>
 #include <asm/page_types.h>
-#include <asm/orc_lookup.h>
 #include <asm/cache.h>
 #include <asm/boot.h>
 
@@ -61,16 +59,10 @@ jiffies_64 = jiffies;
 		. = ALIGN(HPAGE_SIZE);				\
 		__end_rodata_hpage_align = .;
 
-#define ALIGN_ENTRY_TEXT_BEGIN	. = ALIGN(PMD_SIZE);
-#define ALIGN_ENTRY_TEXT_END	. = ALIGN(PMD_SIZE);
-
 #else
 
 #define X64_ALIGN_RODATA_BEGIN
 #define X64_ALIGN_RODATA_END
-
-#define ALIGN_ENTRY_TEXT_BEGIN
-#define ALIGN_ENTRY_TEXT_END
 
 #endif
 
@@ -108,22 +100,11 @@ SECTIONS
 		CPUIDLE_TEXT
 		LOCK_TEXT
 		KPROBES_TEXT
-		ALIGN_ENTRY_TEXT_BEGIN
 		ENTRY_TEXT
 		IRQENTRY_TEXT
-		ALIGN_ENTRY_TEXT_END
 		SOFTIRQENTRY_TEXT
 		*(.fixup)
 		*(.gnu.warning)
-
-#ifdef CONFIG_X86_64
-		. = ALIGN(PAGE_SIZE);
-		_entry_trampoline = .;
-		*(.entry_trampoline)
-		. = ALIGN(PAGE_SIZE);
-		ASSERT(. - _entry_trampoline == PAGE_SIZE, "entry trampoline is too big");
-#endif
-
 		/* End of text section */
 		_etext = .;
 	} :text = 0x9090
@@ -166,8 +147,6 @@ SECTIONS
 	} :data
 
 	BUG_TABLE
-
-	ORC_UNWIND_TABLE
 
 	. = ALIGN(PAGE_SIZE);
 	__vvar_page = .;

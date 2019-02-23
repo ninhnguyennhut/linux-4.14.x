@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_RC_MAP) += rc-adstech-dvb-t-pci.o \
 			rc-alink-dtu-m.o \
 			rc-anysee.o \
@@ -110,5 +109,4 @@ obj-$(CONFIG_RC_MAP) += rc-adstech-dvb-t-pci.o \
 			rc-videomate-tv-pvr.o \
 			rc-winfast.o \
 			rc-winfast-usbii-deluxe.o \
-			rc-su3000.o \
-			rc-zx-irdec.o
+			rc-su3000.o

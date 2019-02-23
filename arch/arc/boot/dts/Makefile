@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Built-in dtb
 builtindtb-y		:= nsim_700
 

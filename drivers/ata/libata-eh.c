@@ -645,10 +645,11 @@ void ata_scsi_cmd_error_handler(struct Scsi_Host *host, struct ata_port *ap,
 	 * completions are honored.  A scmd is determined to have
 	 * timed out iff its associated qc is active and not failed.
 	 */
-	spin_lock_irqsave(ap->lock, flags);
 	if (ap->ops->error_handler) {
 		struct scsi_cmnd *scmd, *tmp;
 		int nr_timedout = 0;
+
+		spin_lock_irqsave(ap->lock, flags);
 
 		/* This must occur under the ap->lock as we don't want
 		   a polled recovery to race the real interrupt handler
@@ -699,11 +700,12 @@ void ata_scsi_cmd_error_handler(struct Scsi_Host *host, struct ata_port *ap,
 		if (nr_timedout)
 			__ata_port_freeze(ap);
 
+		spin_unlock_irqrestore(ap->lock, flags);
 
 		/* initialize eh_tries */
 		ap->eh_tries = ATA_EH_MAX_TRIES;
-	}
-	spin_unlock_irqrestore(ap->lock, flags);
+	} else
+		spin_unlock_wait(ap->lock);
 
 }
 EXPORT_SYMBOL(ata_scsi_cmd_error_handler);
@@ -2264,8 +2266,8 @@ static void ata_eh_link_autopsy(struct ata_link *link)
 		if (dev->flags & ATA_DFLAG_DUBIOUS_XFER)
 			eflags |= ATA_EFLAG_DUBIOUS_XFER;
 		ehc->i.action |= ata_eh_speed_down(dev, eflags, all_err_mask);
-		trace_ata_eh_link_autopsy(dev, ehc->i.action, all_err_mask);
 	}
+	trace_ata_eh_link_autopsy(dev, ehc->i.action, all_err_mask);
 	DPRINTK("EXIT\n");
 }
 

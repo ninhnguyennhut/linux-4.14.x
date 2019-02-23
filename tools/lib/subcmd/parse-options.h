@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SUBCMD_PARSE_OPTIONS_H
 #define __SUBCMD_PARSE_OPTIONS_H
 

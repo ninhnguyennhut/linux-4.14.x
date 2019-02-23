@@ -79,7 +79,7 @@ static void kvm_get_wallclock(struct timespec *now)
 
 static int kvm_set_wallclock(const struct timespec *now)
 {
-	return -ENODEV;
+	return -1;
 }
 
 static u64 kvm_clock_read(void)

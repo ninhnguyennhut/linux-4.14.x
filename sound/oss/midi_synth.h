@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 int midi_synth_ioctl (int dev,
 	    unsigned int cmd, void __user * arg);
 int midi_synth_kill_note (int dev, int channel, int note, int velocity);

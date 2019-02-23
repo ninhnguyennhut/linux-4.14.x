@@ -149,7 +149,6 @@ __intel_engine_context_size(struct drm_i915_private *dev_priv, u8 class)
 		switch (INTEL_GEN(dev_priv)) {
 		default:
 			MISSING_CASE(INTEL_GEN(dev_priv));
-		case 10:
 		case 9:
 			return GEN9_LR_CONTEXT_RENDER_SIZE;
 		case 8:
@@ -292,9 +291,11 @@ cleanup:
  */
 int intel_engines_init(struct drm_i915_private *dev_priv)
 {
+	struct intel_device_info *device_info = mkwrite_device_info(dev_priv);
 	struct intel_engine_cs *engine;
 	enum intel_engine_id id, err_id;
-	int err;
+	unsigned int mask = 0;
+	int err = 0;
 
 	for_each_engine(engine, dev_priv, id) {
 		const struct engine_class_info *class_info =
@@ -305,30 +306,40 @@ int intel_engines_init(struct drm_i915_private *dev_priv)
 			init = class_info->init_execlists;
 		else
 			init = class_info->init_legacy;
-
-		err = -EINVAL;
-		err_id = id;
-
-		if (GEM_WARN_ON(!init))
-			goto cleanup;
+		if (!init) {
+			kfree(engine);
+			dev_priv->engine[id] = NULL;
+			continue;
+		}
 
 		err = init(engine);
-		if (err)
+		if (err) {
+			err_id = id;
 			goto cleanup;
+		}
 
 		GEM_BUG_ON(!engine->submit_request);
+		mask |= ENGINE_MASK(id);
 	}
+
+	/*
+	 * Catch failures to update intel_engines table when the new engines
+	 * are added to the driver by a warning and disabling the forgotten
+	 * engines.
+	 */
+	if (WARN_ON(mask != INTEL_INFO(dev_priv)->ring_mask))
+		device_info->ring_mask = mask;
+
+	device_info->num_rings = hweight32(mask);
 
 	return 0;
 
 cleanup:
 	for_each_engine(engine, dev_priv, id) {
-		if (id >= err_id) {
+		if (id >= err_id)
 			kfree(engine);
-			dev_priv->engine[id] = NULL;
-		} else {
+		else
 			dev_priv->gt.cleanup_engine(engine);
-		}
 	}
 	return err;
 }
@@ -336,6 +347,9 @@ cleanup:
 void intel_engine_init_global_seqno(struct intel_engine_cs *engine, u32 seqno)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
+
+	GEM_BUG_ON(!intel_engine_is_idle(engine));
+	GEM_BUG_ON(i915_gem_active_isset(&engine->timeline->last_request));
 
 	/* Our semaphore implementation is strictly monotonic (i.e. we proceed
 	 * so long as the semaphore value in the register/page is greater
@@ -1048,12 +1062,9 @@ static int bxt_init_workarounds(struct intel_engine_cs *engine)
 	}
 
 	/* WaProgramL3SqcReg1DefaultForPerf:bxt */
-	if (IS_BXT_REVID(dev_priv, BXT_REVID_B0, REVID_FOREVER)) {
-		u32 val = I915_READ(GEN8_L3SQCREG1);
-		val &= ~L3_PRIO_CREDITS_MASK;
-		val |= L3_GENERAL_PRIO_CREDITS(62) | L3_HIGH_PRIO_CREDITS(2);
-		I915_WRITE(GEN8_L3SQCREG1, val);
-	}
+	if (IS_BXT_REVID(dev_priv, BXT_REVID_B0, REVID_FOREVER))
+		I915_WRITE(GEN8_L3SQCREG1, L3_GENERAL_PRIO_CREDITS(62) |
+					   L3_HIGH_PRIO_CREDITS(2));
 
 	/* WaToEnableHwFixForPushConstHWBug:bxt */
 	if (IS_BXT_REVID(dev_priv, BXT_REVID_C0, REVID_FOREVER))
@@ -1122,11 +1133,6 @@ static int glk_init_workarounds(struct intel_engine_cs *engine)
 	int ret;
 
 	ret = gen9_init_workarounds(engine);
-	if (ret)
-		return ret;
-
-	/* WA #0862: Userspace has to set "Barrier Mode" to avoid hangs. */
-	ret = wa_ring_whitelist_reg(engine, GEN9_SLICE_COMMON_ECO_CHICKEN1);
 	if (ret)
 		return ret;
 
@@ -1288,10 +1294,6 @@ bool intel_engine_is_idle(struct intel_engine_cs *engine)
 	if (port_request(&engine->execlist_port[0]))
 		return false;
 
-	/* ELSP is empty, but there are ready requests? */
-	if (READ_ONCE(engine->execlist_first))
-		return false;
-
 	/* Ring stopped? */
 	if (!ring_is_idle(engine))
 		return false;
@@ -1338,7 +1340,6 @@ void intel_engines_mark_idle(struct drm_i915_private *i915)
 	for_each_engine(engine, i915, id) {
 		intel_engine_disarm_breadcrumbs(engine);
 		i915_gem_batch_pool_fini(&engine->batch_pool);
-		tasklet_kill(&engine->irq_tasklet);
 		engine->no_priolist = false;
 	}
 }

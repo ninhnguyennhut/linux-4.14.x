@@ -18,6 +18,5 @@
 #define _BUILTIN_H
 
 extern int cmd_check(int argc, const char **argv);
-extern int cmd_orc(int argc, const char **argv);
 
 #endif /* _BUILTIN_H */

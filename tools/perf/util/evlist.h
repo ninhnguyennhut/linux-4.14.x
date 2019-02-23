@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_EVLIST_H
 #define __PERF_EVLIST_H 1
 
@@ -116,14 +115,7 @@ void perf_evlist__delete(struct perf_evlist *evlist);
 
 void perf_evlist__add(struct perf_evlist *evlist, struct perf_evsel *entry);
 void perf_evlist__remove(struct perf_evlist *evlist, struct perf_evsel *evsel);
-
-int __perf_evlist__add_default(struct perf_evlist *evlist, bool precise);
-
-static inline int perf_evlist__add_default(struct perf_evlist *evlist)
-{
-	return __perf_evlist__add_default(evlist, true);
-}
-
+int perf_evlist__add_default(struct perf_evlist *evlist);
 int __perf_evlist__add_default_attrs(struct perf_evlist *evlist,
 				     struct perf_event_attr *attrs, size_t nr_attrs);
 
@@ -265,11 +257,6 @@ bool perf_evlist__valid_read_format(struct perf_evlist *evlist);
 
 void perf_evlist__splice_list_tail(struct perf_evlist *evlist,
 				   struct list_head *list);
-
-static inline bool perf_evlist__empty(struct perf_evlist *evlist)
-{
-	return list_empty(&evlist->entries);
-}
 
 static inline struct perf_evsel *perf_evlist__first(struct perf_evlist *evlist)
 {

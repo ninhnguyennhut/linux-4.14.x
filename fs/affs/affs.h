@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifdef pr_fmt
 #undef pr_fmt
 #endif

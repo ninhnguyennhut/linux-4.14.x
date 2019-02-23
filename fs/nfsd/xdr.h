@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* XDR types for nfsd. This is mainly a typing exercise. */
 
 #ifndef LINUX_NFSD_H

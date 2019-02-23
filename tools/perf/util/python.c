@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <Python.h>
 #include <structmember.h>
 #include <inttypes.h>

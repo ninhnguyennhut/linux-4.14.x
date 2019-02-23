@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _LINUX_TTY_FLAGS_H
 #define _LINUX_TTY_FLAGS_H
 

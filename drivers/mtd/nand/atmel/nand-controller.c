@@ -59,7 +59,7 @@
 #include <linux/mfd/syscon/atmel-matrix.h>
 #include <linux/mfd/syscon/atmel-smc.h>
 #include <linux/module.h>
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
@@ -247,7 +247,6 @@ struct atmel_hsmc_nand_controller {
 		void __iomem *virt;
 		dma_addr_t dma;
 	} sram;
-	const struct atmel_hsmc_reg_layout *hsmc_layout;
 	struct regmap *io;
 	struct atmel_nfc_op op;
 	struct completion complete;
@@ -1443,12 +1442,12 @@ static int atmel_hsmc_nand_setup_data_interface(struct atmel_nand *nand,
 					int csline,
 					const struct nand_data_interface *conf)
 {
-	struct atmel_hsmc_nand_controller *nc;
+	struct atmel_nand_controller *nc;
 	struct atmel_smc_cs_conf smcconf;
 	struct atmel_nand_cs *cs;
 	int ret;
 
-	nc = to_hsmc_nand_controller(nand->base.controller);
+	nc = to_nand_controller(nand->base.controller);
 
 	ret = atmel_smc_nand_prepare_smcconf(nand, conf, &smcconf);
 	if (ret)
@@ -1463,8 +1462,7 @@ static int atmel_hsmc_nand_setup_data_interface(struct atmel_nand *nand,
 	if (cs->rb.type == ATMEL_NAND_NATIVE_RB)
 		cs->smcconf.timings |= ATMEL_HSMC_TIMINGS_RBNSEL(cs->rb.id);
 
-	atmel_hsmc_cs_conf_apply(nc->base.smc, nc->hsmc_layout, cs->id,
-				 &cs->smcconf);
+	atmel_hsmc_cs_conf_apply(nc->smc, cs->id, &cs->smcconf);
 
 	return 0;
 }
@@ -2091,8 +2089,8 @@ atmel_hsmc_nand_controller_legacy_init(struct atmel_hsmc_nand_controller *nc)
 	}
 
 	nc->irq = of_irq_get(nand_np, 0);
-	if (nc->irq <= 0) {
-		ret = nc->irq ?: -ENXIO;
+	if (nc->irq < 0) {
+		ret = nc->irq;
 		if (ret != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get IRQ number (err = %d)\n",
 				ret);
@@ -2179,16 +2177,13 @@ atmel_hsmc_nand_controller_init(struct atmel_hsmc_nand_controller *nc)
 		return -EINVAL;
 	}
 
-	nc->hsmc_layout = atmel_hsmc_get_reg_layout(np);
-
 	nc->irq = of_irq_get(np, 0);
 	of_node_put(np);
-	if (nc->irq <= 0) {
-		ret = nc->irq ?: -ENXIO;
-		if (ret != -EPROBE_DEFER)
+	if (nc->irq < 0) {
+		if (nc->irq != -EPROBE_DEFER)
 			dev_err(dev, "Failed to get IRQ number (err = %d)\n",
-				ret);
-		return ret;
+				nc->irq);
+		return nc->irq;
 	}
 
 	np = of_parse_phandle(dev->of_node, "atmel,nfc-io", 0);
@@ -2547,7 +2542,6 @@ static struct platform_driver atmel_nand_controller_driver = {
 	.driver = {
 		.name = "atmel-nand-controller",
 		.of_match_table = of_match_ptr(atmel_nand_controller_of_ids),
-		.pm = &atmel_nand_controller_pm_ops,
 	},
 	.probe = atmel_nand_controller_probe,
 	.remove = atmel_nand_controller_remove,

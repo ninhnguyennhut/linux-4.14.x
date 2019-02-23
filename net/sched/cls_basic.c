@@ -34,10 +34,7 @@ struct basic_filter {
 	struct tcf_result	res;
 	struct tcf_proto	*tp;
 	struct list_head	link;
-	union {
-		struct work_struct	work;
-		struct rcu_head		rcu;
-	};
+	struct rcu_head		rcu;
 };
 
 static int basic_classify(struct sk_buff *skb, const struct tcf_proto *tp,
@@ -59,18 +56,20 @@ static int basic_classify(struct sk_buff *skb, const struct tcf_proto *tp,
 	return -1;
 }
 
-static void *basic_get(struct tcf_proto *tp, u32 handle)
+static unsigned long basic_get(struct tcf_proto *tp, u32 handle)
 {
+	unsigned long l = 0UL;
 	struct basic_head *head = rtnl_dereference(tp->root);
 	struct basic_filter *f;
 
 	list_for_each_entry(f, &head->flist, link) {
 		if (f->handle == handle) {
-			return f;
+			l = (unsigned long) f;
+			break;
 		}
 	}
 
-	return NULL;
+	return l;
 }
 
 static int basic_init(struct tcf_proto *tp)
@@ -85,29 +84,13 @@ static int basic_init(struct tcf_proto *tp)
 	return 0;
 }
 
-static void __basic_delete_filter(struct basic_filter *f)
-{
-	tcf_exts_destroy(&f->exts);
-	tcf_em_tree_destroy(&f->ematches);
-	tcf_exts_put_net(&f->exts);
-	kfree(f);
-}
-
-static void basic_delete_filter_work(struct work_struct *work)
-{
-	struct basic_filter *f = container_of(work, struct basic_filter, work);
-
-	rtnl_lock();
-	__basic_delete_filter(f);
-	rtnl_unlock();
-}
-
 static void basic_delete_filter(struct rcu_head *head)
 {
 	struct basic_filter *f = container_of(head, struct basic_filter, rcu);
 
-	INIT_WORK(&f->work, basic_delete_filter_work);
-	tcf_queue_work(&f->work);
+	tcf_exts_destroy(&f->exts);
+	tcf_em_tree_destroy(&f->ematches);
+	kfree(f);
 }
 
 static void basic_destroy(struct tcf_proto *tp)
@@ -118,22 +101,18 @@ static void basic_destroy(struct tcf_proto *tp)
 	list_for_each_entry_safe(f, n, &head->flist, link) {
 		list_del_rcu(&f->link);
 		tcf_unbind_filter(tp, &f->res);
-		if (tcf_exts_get_net(&f->exts))
-			call_rcu(&f->rcu, basic_delete_filter);
-		else
-			__basic_delete_filter(f);
+		call_rcu(&f->rcu, basic_delete_filter);
 	}
 	kfree_rcu(head, rcu);
 }
 
-static int basic_delete(struct tcf_proto *tp, void *arg, bool *last)
+static int basic_delete(struct tcf_proto *tp, unsigned long arg, bool *last)
 {
 	struct basic_head *head = rtnl_dereference(tp->root);
-	struct basic_filter *f = arg;
+	struct basic_filter *f = (struct basic_filter *) arg;
 
 	list_del_rcu(&f->link);
 	tcf_unbind_filter(tp, &f->res);
-	tcf_exts_get_net(&f->exts);
 	call_rcu(&f->rcu, basic_delete_filter);
 	*last = list_empty(&head->flist);
 	return 0;
@@ -150,27 +129,38 @@ static int basic_set_parms(struct net *net, struct tcf_proto *tp,
 			   struct nlattr *est, bool ovr)
 {
 	int err;
+	struct tcf_exts e;
+	struct tcf_ematch_tree t;
 
-	err = tcf_exts_validate(net, tp, tb, est, &f->exts, ovr);
+	err = tcf_exts_init(&e, TCA_BASIC_ACT, TCA_BASIC_POLICE);
 	if (err < 0)
 		return err;
-
-	err = tcf_em_tree_validate(tp, tb[TCA_BASIC_EMATCHES], &f->ematches);
+	err = tcf_exts_validate(net, tp, tb, est, &e, ovr);
 	if (err < 0)
-		return err;
+		goto errout;
+
+	err = tcf_em_tree_validate(tp, tb[TCA_BASIC_EMATCHES], &t);
+	if (err < 0)
+		goto errout;
 
 	if (tb[TCA_BASIC_CLASSID]) {
 		f->res.classid = nla_get_u32(tb[TCA_BASIC_CLASSID]);
 		tcf_bind_filter(tp, &f->res, base);
 	}
 
+	tcf_exts_change(tp, &f->exts, &e);
+	tcf_em_tree_change(tp, &f->ematches, &t);
 	f->tp = tp;
+
 	return 0;
+errout:
+	tcf_exts_destroy(&e);
+	return err;
 }
 
 static int basic_change(struct net *net, struct sk_buff *in_skb,
 			struct tcf_proto *tp, unsigned long base, u32 handle,
-			struct nlattr **tca, void **arg, bool ovr)
+			struct nlattr **tca, unsigned long *arg, bool ovr)
 {
 	int err;
 	struct basic_head *head = rtnl_dereference(tp->root);
@@ -223,12 +213,11 @@ static int basic_change(struct net *net, struct sk_buff *in_skb,
 	if (err < 0)
 		goto errout;
 
-	*arg = fnew;
+	*arg = (unsigned long)fnew;
 
 	if (fold) {
 		list_replace_rcu(&fold->link, &fnew->link);
 		tcf_unbind_filter(tp, &fold->res);
-		tcf_exts_get_net(&fold->exts);
 		call_rcu(&fold->rcu, basic_delete_filter);
 	} else {
 		list_add_rcu(&fnew->link, &head->flist);
@@ -250,7 +239,7 @@ static void basic_walk(struct tcf_proto *tp, struct tcf_walker *arg)
 		if (arg->count < arg->skip)
 			goto skip;
 
-		if (arg->fn(tp, f, arg) < 0) {
+		if (arg->fn(tp, (unsigned long) f, arg) < 0) {
 			arg->stop = 1;
 			break;
 		}
@@ -259,18 +248,10 @@ skip:
 	}
 }
 
-static void basic_bind_class(void *fh, u32 classid, unsigned long cl)
-{
-	struct basic_filter *f = fh;
-
-	if (f && f->res.classid == classid)
-		f->res.class = cl;
-}
-
-static int basic_dump(struct net *net, struct tcf_proto *tp, void *fh,
+static int basic_dump(struct net *net, struct tcf_proto *tp, unsigned long fh,
 		      struct sk_buff *skb, struct tcmsg *t)
 {
-	struct basic_filter *f = fh;
+	struct basic_filter *f = (struct basic_filter *) fh;
 	struct nlattr *nest;
 
 	if (f == NULL)
@@ -312,7 +293,6 @@ static struct tcf_proto_ops cls_basic_ops __read_mostly = {
 	.delete		=	basic_delete,
 	.walk		=	basic_walk,
 	.dump		=	basic_dump,
-	.bind_class	=	basic_bind_class,
 	.owner		=	THIS_MODULE,
 };
 

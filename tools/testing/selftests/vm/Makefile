@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Makefile for vm selftests
 
 ifndef OUTPUT

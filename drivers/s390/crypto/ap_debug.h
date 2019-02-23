@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  Copyright IBM Corp. 2016
  *  Author(s): Harald Freudenberger <freude@de.ibm.com>

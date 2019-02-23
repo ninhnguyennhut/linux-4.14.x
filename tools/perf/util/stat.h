@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_STATS_H
 #define __PERF_STATS_H
 
@@ -29,9 +28,8 @@ enum perf_stat_evsel_id {
 };
 
 struct perf_stat_evsel {
-	struct stats		 res_stats[3];
-	enum perf_stat_evsel_id	 id;
-	u64			*group_data;
+	struct stats		res_stats[3];
+	enum perf_stat_evsel_id	id;
 };
 
 enum aggr_mode {

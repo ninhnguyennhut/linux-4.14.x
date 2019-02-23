@@ -944,6 +944,7 @@ isr_setup_status_complete(struct usb_ep *ep, struct usb_request *req)
  */
 static int isr_setup_status_phase(struct ci_hdrc *ci)
 {
+	int retval;
 	struct ci_hw_ep *hwep;
 
 	/*
@@ -959,7 +960,9 @@ static int isr_setup_status_phase(struct ci_hdrc *ci)
 	ci->status->context = ci;
 	ci->status->complete = isr_setup_status_complete;
 
-	return _ep_queue(&hwep->ep, ci->status, GFP_ATOMIC);
+	retval = _ep_queue(&hwep->ep, ci->status, GFP_ATOMIC);
+
+	return retval;
 }
 
 /**
@@ -1895,9 +1898,6 @@ static int udc_start(struct ci_hdrc *ci)
 	ci->gadget.max_speed    = USB_SPEED_HIGH;
 	ci->gadget.name         = ci->platdata->name;
 	ci->gadget.otg_caps	= otg_caps;
-
-	if (ci->platdata->flags & CI_HDRC_REQUIRES_ALIGNED_DMA)
-		ci->gadget.quirk_avoids_skb_reserve = 1;
 
 	if (ci->is_otg && (otg_caps->hnp_support || otg_caps->srp_support ||
 						otg_caps->adp_support))

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 mainmenu "User Mode Linux/$SUBARCH $KERNELVERSION Kernel Configuration"
 
 source "arch/um/Kconfig.common"

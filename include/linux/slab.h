@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Written by Mark Hemment, 1996 (markhe@nextd.demon.co.uk).
  *

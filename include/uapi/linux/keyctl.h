@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /* keyctl.h: keyctl command IDs
  *
  * Copyright (C) 2004, 2008 Red Hat, Inc. All Rights Reserved.

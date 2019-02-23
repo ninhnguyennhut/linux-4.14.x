@@ -28,8 +28,7 @@ static void GLUE(X_PFX,ack_pending)(struct kvmppc_xive_vcpu *xc)
 	 * bit.
 	 */
 	if (cpu_has_feature(CPU_FTR_POWER9_DD1)) {
-		__be64 qw1 = __x_readq(__x_tima + TM_QW1_OS);
-		u8 pipr = be64_to_cpu(qw1) & 0xff;
+		u8 pipr = __x_readb(__x_tima + TM_QW1_OS + TM_PIPR);
 		if (pipr >= xc->hw_cppr)
 			return;
 	}
@@ -337,6 +336,7 @@ X_STATIC unsigned long GLUE(X_PFX,h_ipoll)(struct kvm_vcpu *vcpu, unsigned long 
 	struct kvmppc_xive_vcpu *xc = vcpu->arch.xive_vcpu;
 	u8 pending = xc->pending;
 	u32 hirq;
+	u8 pipr;
 
 	pr_devel("H_IPOLL(server=%ld)\n", server);
 
@@ -353,8 +353,7 @@ X_STATIC unsigned long GLUE(X_PFX,h_ipoll)(struct kvm_vcpu *vcpu, unsigned long 
 		pending = 0xff;
 	} else {
 		/* Grab pending interrupt if any */
-		__be64 qw1 = __x_readq(__x_tima + TM_QW1_OS);
-		u8 pipr = be64_to_cpu(qw1) & 0xff;
+		pipr = __x_readb(__x_tima + TM_QW1_OS + TM_PIPR);
 		if (pipr < 8)
 			pending |= 1 << pipr;
 	}

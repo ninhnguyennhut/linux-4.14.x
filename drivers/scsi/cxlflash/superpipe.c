@@ -1390,7 +1390,6 @@ static int cxlflash_disk_attach(struct scsi_device *sdev,
 	if (unlikely(!ctxi)) {
 		dev_err(dev, "%s: Failed to create context ctxid=%d\n",
 			__func__, ctxid);
-		rc = -ENOMEM;
 		goto err;
 	}
 
@@ -1651,7 +1650,6 @@ static int cxlflash_afu_recover(struct scsi_device *sdev,
 	u64 ctxid = DECODE_CTXID(recover->context_id),
 	    rctxid = recover->context_id;
 	long reg;
-	bool locked = true;
 	int lretry = 20; /* up to 2 seconds */
 	int new_adap_fd = -1;
 	int rc = 0;
@@ -1660,11 +1658,8 @@ static int cxlflash_afu_recover(struct scsi_device *sdev,
 	up_read(&cfg->ioctl_rwsem);
 	rc = mutex_lock_interruptible(mutex);
 	down_read(&cfg->ioctl_rwsem);
-	if (rc) {
-		locked = false;
+	if (rc)
 		goto out;
-	}
-
 	rc = check_state(cfg);
 	if (rc) {
 		dev_err(dev, "%s: Failed state rc=%d\n", __func__, rc);
@@ -1698,10 +1693,8 @@ retry_recover:
 				mutex_unlock(mutex);
 				msleep(100);
 				rc = mutex_lock_interruptible(mutex);
-				if (rc) {
-					locked = false;
+				if (rc)
 					goto out;
-				}
 				goto retry_recover;
 			}
 
@@ -1745,8 +1738,7 @@ retry_recover:
 out:
 	if (likely(ctxi))
 		put_context(ctxi);
-	if (locked)
-		mutex_unlock(mutex);
+	mutex_unlock(mutex);
 	atomic_dec_if_positive(&cfg->recovery_threads);
 	return rc;
 }

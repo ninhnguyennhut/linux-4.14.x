@@ -890,8 +890,6 @@ SRCU:	Critical sections	Grace period		Barrier
 	srcu_read_lock_held
 
 SRCU:	Initialization/cleanup
-	DEFINE_SRCU
-	DEFINE_STATIC_SRCU
 	init_srcu_struct
 	cleanup_srcu_struct
 
@@ -915,8 +913,7 @@ a.	Will readers need to block?  If so, you need SRCU.
 b.	What about the -rt patchset?  If readers would need to block
 	in an non-rt kernel, you need SRCU.  If readers would block
 	in a -rt kernel, but not in a non-rt kernel, SRCU is not
-	necessary.  (The -rt patchset turns spinlocks into sleeplocks,
-	hence this distinction.)
+	necessary.
 
 c.	Do you need to treat NMI handlers, hardirq handlers,
 	and code segments with preemption disabled (whether

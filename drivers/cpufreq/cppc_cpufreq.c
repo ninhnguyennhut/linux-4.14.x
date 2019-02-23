@@ -172,6 +172,7 @@ static int cppc_cpufreq_cpu_init(struct cpufreq_policy *policy)
 		return -EFAULT;
 	}
 
+	cpumask_set_cpu(policy->cpu, policy->cpus);
 	cpu->cur_policy = policy;
 
 	/* Set policy->cur to max now. The governors will adjust later. */

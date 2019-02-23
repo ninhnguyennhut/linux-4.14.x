@@ -156,6 +156,7 @@ enum qca8k_fdb_cmd {
 };
 
 struct ar8xxx_port_status {
+	struct ethtool_eee eee;
 	int enabled;
 };
 

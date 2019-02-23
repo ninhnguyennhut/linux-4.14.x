@@ -103,14 +103,16 @@ static int bman_portal_probe(struct platform_device *pdev)
 	addr_phys[0] = platform_get_resource(pdev, IORESOURCE_MEM,
 					     DPAA_PORTAL_CE);
 	if (!addr_phys[0]) {
-		dev_err(dev, "Can't get %pOF property 'reg::CE'\n", node);
+		dev_err(dev, "Can't get %s property 'reg::CE'\n",
+			node->full_name);
 		return -ENXIO;
 	}
 
 	addr_phys[1] = platform_get_resource(pdev, IORESOURCE_MEM,
 					     DPAA_PORTAL_CI);
 	if (!addr_phys[1]) {
-		dev_err(dev, "Can't get %pOF property 'reg::CI'\n", node);
+		dev_err(dev, "Can't get %s property 'reg::CI'\n",
+			node->full_name);
 		return -ENXIO;
 	}
 
@@ -118,7 +120,7 @@ static int bman_portal_probe(struct platform_device *pdev)
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq <= 0) {
-		dev_err(dev, "Can't get %pOF IRQ'\n", node);
+		dev_err(dev, "Can't get %s IRQ'\n", node->full_name);
 		return -ENXIO;
 	}
 	pcfg->irq = irq;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/fcntl.c
  *
@@ -563,9 +562,6 @@ static int put_compat_flock64(const struct flock *kfl, struct compat_flock64 __u
 {
 	struct compat_flock64 fl;
 
-	BUILD_BUG_ON(sizeof(kfl->l_start) > sizeof(ufl->l_start));
-	BUILD_BUG_ON(sizeof(kfl->l_len) > sizeof(ufl->l_len));
-
 	memset(&fl, 0, sizeof(struct compat_flock64));
 	copy_flock_fields(&fl, kfl);
 	if (copy_to_user(ufl, &fl, sizeof(struct compat_flock64)))
@@ -635,8 +631,9 @@ COMPAT_SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
 		if (err)
 			break;
 		err = fixup_compat_flock(&flock);
-		if (!err)
-			err = put_compat_flock(&flock, compat_ptr(arg));
+		if (err)
+			return err;
+		err = put_compat_flock(&flock, compat_ptr(arg));
 		break;
 	case F_GETLK64:
 	case F_OFD_GETLK:
@@ -644,8 +641,12 @@ COMPAT_SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
 		if (err)
 			break;
 		err = fcntl_getlk(f.file, convert_fcntl_cmd(cmd), &flock);
-		if (!err)
-			err = put_compat_flock64(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fixup_compat_flock(&flock);
+		if (err)
+			return err;
+		err = put_compat_flock64(&flock, compat_ptr(arg));
 		break;
 	case F_SETLK:
 	case F_SETLKW:
@@ -740,21 +741,10 @@ static void send_sigio_to_task(struct task_struct *p,
 			si.si_signo = signum;
 			si.si_errno = 0;
 		        si.si_code  = reason;
-			/*
-			 * Posix definies POLL_IN and friends to be signal
-			 * specific si_codes for SIG_POLL.  Linux extended
-			 * these si_codes to other signals in a way that is
-			 * ambiguous if other signals also have signal
-			 * specific si_codes.  In that case use SI_SIGIO instead
-			 * to remove the ambiguity.
-			 */
-			if ((signum != SIGPOLL) && sig_specific_sicodes(signum))
-				si.si_code = SI_SIGIO;
-
 			/* Make sure we are called with one of the POLL_*
 			   reasons, otherwise we could leak kernel stack into
 			   userspace.  */
-			BUG_ON((reason < POLL_IN) || ((reason - POLL_IN) >= NSIGPOLL));
+			BUG_ON((reason & __SI_MASK) != __SI_POLL);
 			if (reason - POLL_IN >= NSIGPOLL)
 				si.si_band  = ~0L;
 			else

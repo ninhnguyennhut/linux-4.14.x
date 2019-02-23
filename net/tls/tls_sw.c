@@ -219,7 +219,7 @@ static int tls_do_encryption(struct tls_context *tls_ctx,
 	struct aead_request *aead_req;
 	int rc;
 
-	aead_req = kzalloc(req_size, flags);
+	aead_req = kmalloc(req_size, flags);
 	if (!aead_req)
 		return -ENOMEM;
 
@@ -639,7 +639,7 @@ sendpage_end:
 	return ret;
 }
 
-static void tls_sw_free_resources(struct sock *sk)
+void tls_sw_free_resources(struct sock *sk)
 {
 	struct tls_context *tls_ctx = tls_get_ctx(sk);
 	struct tls_sw_context *ctx = tls_sw_ctx(tls_ctx);

@@ -1,1 +1,1 @@
-#define UTS_RELEASE "4.14.14-licheepi-zero"
+#define UTS_RELEASE "4.13.0-rc7-licheepi-zero+"

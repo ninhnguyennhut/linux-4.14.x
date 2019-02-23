@@ -51,8 +51,6 @@ else
 BITS := 32
 endif
 
-CHECKFLAGS	+= -m$(BITS)
-
 head-y		:= arch/tile/kernel/head_$(BITS).o
 
 libs-y		+= arch/tile/lib/

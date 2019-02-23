@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __UM_X86_PTRACE_H
 #define __UM_X86_PTRACE_H
 

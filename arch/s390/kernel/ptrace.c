@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Ptrace user space interface.
  *
@@ -1172,37 +1171,26 @@ static int s390_gs_cb_set(struct task_struct *target,
 			  unsigned int pos, unsigned int count,
 			  const void *kbuf, const void __user *ubuf)
 {
-	struct gs_cb gs_cb = { }, *data = NULL;
+	struct gs_cb *data = target->thread.gs_cb;
 	int rc;
 
 	if (!MACHINE_HAS_GS)
 		return -ENODEV;
-	if (!target->thread.gs_cb) {
+	if (!data) {
 		data = kzalloc(sizeof(*data), GFP_KERNEL);
 		if (!data)
 			return -ENOMEM;
-	}
-	if (!target->thread.gs_cb)
-		gs_cb.gsd = 25;
-	else if (target == current)
-		save_gs_cb(&gs_cb);
-	else
-		gs_cb = *target->thread.gs_cb;
-	rc = user_regset_copyin(&pos, &count, &kbuf, &ubuf,
-				&gs_cb, 0, sizeof(gs_cb));
-	if (rc) {
-		kfree(data);
-		return -EFAULT;
-	}
-	preempt_disable();
-	if (!target->thread.gs_cb)
+		data->gsd = 25;
 		target->thread.gs_cb = data;
-	*target->thread.gs_cb = gs_cb;
-	if (target == current) {
-		__ctl_set_bit(2, 4);
-		restore_gs_cb(target->thread.gs_cb);
+		if (target == current)
+			__ctl_set_bit(2, 4);
+	} else if (target == current) {
+		save_gs_cb(data);
 	}
-	preempt_enable();
+	rc = user_regset_copyin(&pos, &count, &kbuf, &ubuf,
+				data, 0, sizeof(struct gs_cb));
+	if (target == current)
+		restore_gs_cb(data);
 	return rc;
 }
 

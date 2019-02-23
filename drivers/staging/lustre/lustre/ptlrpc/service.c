@@ -31,12 +31,11 @@
  */
 
 #define DEBUG_SUBSYSTEM S_RPC
-
-#include <obd_support.h>
-#include <obd_class.h>
-#include <lustre_net.h>
-#include <lu_object.h>
-#include <uapi/linux/lnet/lnet-types.h>
+#include "../include/obd_support.h"
+#include "../include/obd_class.h"
+#include "../include/lustre_net.h"
+#include "../include/lu_object.h"
+#include "../../include/linux/lnet/types.h"
 #include "ptlrpc_internal.h"
 
 /* The following are visible and mutable through /sys/module/ptlrpc */
@@ -1566,9 +1565,9 @@ ptlrpc_server_handle_req_in(struct ptlrpc_service_part *svcpt,
 
 	/* req_in handling should/must be fast */
 	if (ktime_get_real_seconds() - req->rq_arrival_time.tv_sec > 5)
-		DEBUG_REQ(D_WARNING, req, "Slow req_in handling %llds",
-			  (s64)(ktime_get_real_seconds() -
-				req->rq_arrival_time.tv_sec));
+		DEBUG_REQ(D_WARNING, req, "Slow req_in handling " CFS_DURATION_T "s",
+			  (long)(ktime_get_real_seconds() -
+				 req->rq_arrival_time.tv_sec));
 
 	/* Set rpc server deadline and add it to the timed list */
 	deadline = (lustre_msghdr_get_flags(req->rq_reqmsg) &
@@ -1675,11 +1674,12 @@ ptlrpc_server_handle_request(struct ptlrpc_service_part *svcpt,
 	 * The deadline is increased if we send an early reply.
 	 */
 	if (ktime_get_real_seconds() > request->rq_deadline) {
-		DEBUG_REQ(D_ERROR, request, "Dropping timed-out request from %s: deadline %lld:%llds ago\n",
+		DEBUG_REQ(D_ERROR, request, "Dropping timed-out request from %s: deadline " CFS_DURATION_T ":" CFS_DURATION_T "s ago\n",
 			  libcfs_id2str(request->rq_peer),
-			  request->rq_deadline -
-			  request->rq_arrival_time.tv_sec,
-			  ktime_get_real_seconds() - request->rq_deadline);
+			  (long)(request->rq_deadline -
+				 request->rq_arrival_time.tv_sec),
+			  (long)(ktime_get_real_seconds() -
+				 request->rq_deadline));
 		goto put_conn;
 	}
 

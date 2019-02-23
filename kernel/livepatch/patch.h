@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LIVEPATCH_PATCH_H
 #define _LIVEPATCH_PATCH_H
 

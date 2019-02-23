@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef WILC_WLAN_H
 #define WILC_WLAN_H
 

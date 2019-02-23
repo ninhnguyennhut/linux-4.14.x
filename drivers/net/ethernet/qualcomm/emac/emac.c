@@ -443,9 +443,6 @@ static void emac_init_adapter(struct emac_adapter *adpt)
 
 	/* default to automatic flow control */
 	adpt->automatic = true;
-
-	/* Disable single-pause-frame mode by default */
-	adpt->single_pause_mode = false;
 }
 
 /* Get the clock */

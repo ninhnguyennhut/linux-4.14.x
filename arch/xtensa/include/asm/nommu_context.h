@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 static inline void init_mmu(void)
 {
 }

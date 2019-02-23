@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __OF_PCI_H
 #define __OF_PCI_H
 

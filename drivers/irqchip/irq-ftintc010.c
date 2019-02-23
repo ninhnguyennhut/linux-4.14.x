@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * irqchip for the Faraday Technology FTINTC010 Copyright (C) 2017 Linus
  * Walleij <linus.walleij@linaro.org>

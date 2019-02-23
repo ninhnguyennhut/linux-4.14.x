@@ -1,5 +1,7 @@
 /*
- * drivers/extcon/extcon.c - External Connector (extcon) framework.
+ *  drivers/extcon/extcon.c - External Connector (extcon) framework.
+ *
+ *  External connector (extcon) class driver
  *
  * Copyright (C) 2015 Samsung Electronics
  * Author: Chanwoo Choi <cw00.choi@samsung.com>
@@ -35,6 +37,7 @@
 #include "extcon.h"
 
 #define SUPPORTED_CABLE_MAX	32
+#define CABLE_NAME_MAX		30
 
 struct __extcon_info {
 	unsigned int type;
@@ -197,13 +200,13 @@ struct __extcon_info {
 };
 
 /**
- * struct extcon_cable - An internal data for an external connector.
- * @edev:		the extcon device
- * @cable_index:	the index of this cable in the edev
- * @attr_g:		the attribute group for the cable
+ * struct extcon_cable - An internal data for each cable of extcon device.
+ * @edev:		The extcon device
+ * @cable_index:	Index of this cable in the edev
+ * @attr_g:		Attribute group for the cable
  * @attr_name:		"name" sysfs entry
  * @attr_state:		"state" sysfs entry
- * @attrs:		the array pointing to attr_name and attr_state for attr_g
+ * @attrs:		Array pointing to attr_name and attr_state for attr_g
  */
 struct extcon_cable {
 	struct extcon_dev *edev;
@@ -231,6 +234,15 @@ static struct class *extcon_class;
 static LIST_HEAD(extcon_dev_list);
 static DEFINE_MUTEX(extcon_dev_list_lock);
 
+/**
+ * check_mutually_exclusive - Check if new_state violates mutually_exclusive
+ *			      condition.
+ * @edev:	the extcon device
+ * @new_state:	new cable attach status for @edev
+ *
+ * Returns 0 if nothing violates. Returns the index + 1 for the first
+ * violated condition.
+ */
 static int check_mutually_exclusive(struct extcon_dev *edev, u32 new_state)
 {
 	int i = 0;
@@ -405,13 +417,11 @@ static ssize_t cable_state_show(struct device *dev,
 }
 
 /**
- * extcon_sync() - Synchronize the state for an external connector.
- * @edev:	the extcon device
+ * extcon_sync()	- Synchronize the states for both the attached/detached
+ * @edev:		the extcon device that has the cable.
  *
- * Note that this function send a notification in order to synchronize
- * the state and property of an external connector.
- *
- * Returns 0 if success or error number if fail.
+ * This function send a notification to synchronize the all states of a
+ * specific external connector
  */
 int extcon_sync(struct extcon_dev *edev, unsigned int id)
 {
@@ -487,11 +497,9 @@ int extcon_sync(struct extcon_dev *edev, unsigned int id)
 EXPORT_SYMBOL_GPL(extcon_sync);
 
 /**
- * extcon_get_state() - Get the state of an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- *
- * Returns 0 if success or error number if fail.
+ * extcon_get_state() - Get the state of a external connector.
+ * @edev:	the extcon device that has the cable.
+ * @id:		the unique id of each external connector in extcon enumeration.
  */
 int extcon_get_state(struct extcon_dev *edev, const unsigned int id)
 {
@@ -514,19 +522,20 @@ int extcon_get_state(struct extcon_dev *edev, const unsigned int id)
 EXPORT_SYMBOL_GPL(extcon_get_state);
 
 /**
- * extcon_set_state() - Set the state of an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @state:	the new state of an external connector.
- *		the default semantics is true: attached / false: detached.
+ * extcon_set_state() - Set the state of a external connector.
+ *			without a notification.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @state:		the new cable status. The default semantics is
+ *			true: attached / false: detached.
  *
- * Note that this function set the state of an external connector without
- * a notification. To synchronize the state of an external connector,
- * have to use extcon_set_state_sync() and extcon_sync().
- *
- * Returns 0 if success or error number if fail.
+ * This function only set the state of a external connector without
+ * a notification. To synchronize the data of a external connector,
+ * use extcon_set_state_sync() and extcon_sync().
  */
-int extcon_set_state(struct extcon_dev *edev, unsigned int id, bool state)
+int extcon_set_state(struct extcon_dev *edev, unsigned int id,
+				bool cable_state)
 {
 	unsigned long flags;
 	int index, ret = 0;
@@ -541,11 +550,11 @@ int extcon_set_state(struct extcon_dev *edev, unsigned int id, bool state)
 	spin_lock_irqsave(&edev->lock, flags);
 
 	/* Check whether the external connector's state is changed. */
-	if (!is_extcon_changed(edev, index, state))
+	if (!is_extcon_changed(edev, index, cable_state))
 		goto out;
 
 	if (check_mutually_exclusive(edev,
-		(edev->state & ~BIT(index)) | (state & BIT(index)))) {
+		(edev->state & ~BIT(index)) | (cable_state & BIT(index)))) {
 		ret = -EPERM;
 		goto out;
 	}
@@ -554,11 +563,11 @@ int extcon_set_state(struct extcon_dev *edev, unsigned int id, bool state)
 	 * Initialize the value of extcon property before setting
 	 * the detached state for an external connector.
 	 */
-	if (!state)
+	if (!cable_state)
 		init_property(edev, id, index);
 
-	/* Update the state for an external connector. */
-	if (state)
+	/* Update the state for a external connector. */
+	if (cable_state)
 		edev->state |= BIT(index);
 	else
 		edev->state &= ~(BIT(index));
@@ -570,18 +579,19 @@ out:
 EXPORT_SYMBOL_GPL(extcon_set_state);
 
 /**
- * extcon_set_state_sync() - Set the state of an external connector with sync.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @state:	the new state of external connector.
- *		the default semantics is true: attached / false: detached.
+ * extcon_set_state_sync() - Set the state of a external connector
+ *			with a notification.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @state:		the new cable status. The default semantics is
+ *			true: attached / false: detached.
  *
- * Note that this function set the state of external connector
- * and synchronize the state by sending a notification.
- *
- * Returns 0 if success or error number if fail.
+ * This function set the state of external connector and synchronize the data
+ * by usning a notification.
  */
-int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id, bool state)
+int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id,
+				bool cable_state)
 {
 	int ret, index;
 	unsigned long flags;
@@ -592,12 +602,12 @@ int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id, bool state)
 
 	/* Check whether the external connector's state is changed. */
 	spin_lock_irqsave(&edev->lock, flags);
-	ret = is_extcon_changed(edev, index, state);
+	ret = is_extcon_changed(edev, index, cable_state);
 	spin_unlock_irqrestore(&edev->lock, flags);
 	if (!ret)
 		return 0;
 
-	ret = extcon_set_state(edev, id, state);
+	ret = extcon_set_state(edev, id, cable_state);
 	if (ret < 0)
 		return ret;
 
@@ -606,18 +616,19 @@ int extcon_set_state_sync(struct extcon_dev *edev, unsigned int id, bool state)
 EXPORT_SYMBOL_GPL(extcon_set_state_sync);
 
 /**
- * extcon_get_property() - Get the property value of an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @prop:	the property id indicating an extcon property
- * @prop_val:	the pointer which store the value of extcon property
+ * extcon_get_property() - Get the property value of a specific cable.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @prop:		the property id among enum extcon_property.
+ * @prop_val:		the pointer which store the value of property.
  *
- * Note that when getting the property value of external connector,
- * the external connector should be attached. If detached state, function
- * return 0 without property value. Also, the each property should be
- * included in the list of supported properties according to extcon type.
+ * When getting the property value of external connector, the external connector
+ * should be attached. If detached state, function just return 0 without
+ * property value. Also, the each property should be included in the list of
+ * supported properties according to the type of external connectors.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_get_property(struct extcon_dev *edev, unsigned int id,
 				unsigned int prop,
@@ -687,16 +698,17 @@ int extcon_get_property(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_get_property);
 
 /**
- * extcon_set_property() - Set the property value of an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @prop:	the property id indicating an extcon property
- * @prop_val:	the pointer including the new value of extcon property
+ * extcon_set_property() - Set the property value of a specific cable.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @prop:		the property id among enum extcon_property.
+ * @prop_val:		the pointer including the new value of property.
  *
- * Note that each property should be included in the list of supported
- * properties according to the extcon type.
+ * The each property should be included in the list of supported properties
+ * according to the type of external connectors.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_set_property(struct extcon_dev *edev, unsigned int id,
 				unsigned int prop,
@@ -754,14 +766,15 @@ int extcon_set_property(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_set_property);
 
 /**
- * extcon_set_property_sync() - Set property of an external connector with sync.
- * @prop_val:	the pointer including the new value of extcon property
+ * extcon_set_property_sync() - Set the property value of a specific cable
+			with a notification.
+ * @prop_val:		the pointer including the new value of property.
  *
- * Note that when setting the property value of external connector,
- * the external connector should be attached. The each property should
- * be included in the list of supported properties according to extcon type.
+ * When setting the property value of external connector, the external connector
+ * should be attached. The each property should be included in the list of
+ * supported properties according to the type of external connectors.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_set_property_sync(struct extcon_dev *edev, unsigned int id,
 				unsigned int prop,
@@ -778,11 +791,12 @@ int extcon_set_property_sync(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_set_property_sync);
 
 /**
- * extcon_get_property_capability() - Get the capability of the property
- *					for an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @prop:	the property id indicating an extcon property
+ * extcon_get_property_capability() - Get the capability of property
+ *			of an external connector.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @prop:		the property id among enum extcon_property.
  *
  * Returns 1 if the property is available or 0 if not available.
  */
@@ -808,17 +822,18 @@ int extcon_get_property_capability(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_get_property_capability);
 
 /**
- * extcon_set_property_capability() - Set the capability of the property
- *					for an external connector.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @prop:	the property id indicating an extcon property
+ * extcon_set_property_capability() - Set the capability of a property
+ *			of an external connector.
+ * @edev:		the extcon device that has the cable.
+ * @id:			the unique id of each external connector
+ *			in extcon enumeration.
+ * @prop:		the property id among enum extcon_property.
  *
- * Note that this function set the capability of the property
- * for an external connector in order to mark the bit in capability
- * bitmap which mean the available state of the property.
+ * This function set the capability of a property for an external connector
+ * to mark the bit in capability bitmap which mean the available state of
+ * a property.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_set_property_capability(struct extcon_dev *edev, unsigned int id,
 					unsigned int prop)
@@ -866,10 +881,8 @@ int extcon_set_property_capability(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_set_property_capability);
 
 /**
- * extcon_get_extcon_dev() - Get the extcon device instance from the name.
- * @extcon_name:	the extcon name provided with extcon_dev_register()
- *
- * Return the pointer of extcon device if success or ERR_PTR(err) if fail.
+ * extcon_get_extcon_dev() - Get the extcon device instance from the name
+ * @extcon_name:	The extcon name provided with extcon_dev_register()
  */
 struct extcon_dev *extcon_get_extcon_dev(const char *extcon_name)
 {
@@ -891,17 +904,15 @@ out:
 EXPORT_SYMBOL_GPL(extcon_get_extcon_dev);
 
 /**
- * extcon_register_notifier() - Register a notifier block to get notified by
- *				any state changes from the extcon.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @nb:		a notifier block to be registered
+ * extcon_register_notifier() - Register a notifiee to get notified by
+ *				any attach status changes from the extcon.
+ * @edev:	the extcon device that has the external connecotr.
+ * @id:		the unique id of each external connector in extcon enumeration.
+ * @nb:		a notifier block to be registered.
  *
  * Note that the second parameter given to the callback of nb (val) is
- * the current state of an external connector and the third pameter
- * is the pointer of extcon device.
- *
- * Returns 0 if success or error number if fail.
+ * "old_state", not the current state. The current state can be retrieved
+ * by looking at the third pameter (edev pointer)'s state value.
  */
 int extcon_register_notifier(struct extcon_dev *edev, unsigned int id,
 			     struct notifier_block *nb)
@@ -925,12 +936,10 @@ int extcon_register_notifier(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_register_notifier);
 
 /**
- * extcon_unregister_notifier() - Unregister a notifier block from the extcon.
- * @edev:	the extcon device
- * @id:		the unique id indicating an external connector
- * @nb:		a notifier block to be registered
- *
- * Returns 0 if success or error number if fail.
+ * extcon_unregister_notifier() - Unregister a notifiee from the extcon device.
+ * @edev:	the extcon device that has the external connecotr.
+ * @id:		the unique id of each external connector in extcon enumeration.
+ * @nb:		a notifier block to be registered.
  */
 int extcon_unregister_notifier(struct extcon_dev *edev, unsigned int id,
 				struct notifier_block *nb)
@@ -954,16 +963,16 @@ int extcon_unregister_notifier(struct extcon_dev *edev, unsigned int id,
 EXPORT_SYMBOL_GPL(extcon_unregister_notifier);
 
 /**
- * extcon_register_notifier_all() - Register a notifier block for all connectors.
- * @edev:	the extcon device
- * @nb:		a notifier block to be registered
+ * extcon_register_notifier_all() - Register a notifier block for all connectors
+ * @edev:	the extcon device that has the external connector.
+ * @nb:		a notifier block to be registered.
  *
- * Note that this function registers a notifier block in order to receive
- * the state change of all supported external connectors from extcon device.
+ * This function registers a notifier block in order to receive the state
+ * change of all supported external connectors from extcon device.
  * And the second parameter given to the callback of nb (val) is
- * the current state and the third pameter is the pointer of extcon device.
+ * the current state and third parameter is the edev pointer.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_register_notifier_all(struct extcon_dev *edev,
 				struct notifier_block *nb)
@@ -984,10 +993,10 @@ EXPORT_SYMBOL_GPL(extcon_register_notifier_all);
 
 /**
  * extcon_unregister_notifier_all() - Unregister a notifier block from extcon.
- * @edev:	the extcon device
- * @nb:		a notifier block to be registered
+ * @edev:	the extcon device that has the external connecotr.
+ * @nb:		a notifier block to be registered.
  *
- * Returns 0 if success or error number if fail.
+ * Returns 0 if success or error number if fail
  */
 int extcon_unregister_notifier_all(struct extcon_dev *edev,
 				struct notifier_block *nb)
@@ -1036,14 +1045,15 @@ static void dummy_sysfs_dev_release(struct device *dev)
 
 /*
  * extcon_dev_allocate() - Allocate the memory of extcon device.
- * @supported_cable:	the array of the supported external connectors
- *			ending with EXTCON_NONE.
+ * @supported_cable:	Array of supported extcon ending with EXTCON_NONE.
+ *			If supported_cable is NULL, cable name related APIs
+ *			are disabled.
  *
- * Note that this function allocates the memory for extcon device 
- * and initialize default setting for the extcon device.
+ * This function allocates the memory for extcon device without allocating
+ * memory in each extcon provider driver and initialize default setting for
+ * extcon device.
  *
- * Returns the pointer memory of allocated extcon_dev if success
- * or ERR_PTR(err) if fail.
+ * Return the pointer of extcon device if success or ERR_PTR(err) if fail
  */
 struct extcon_dev *extcon_dev_allocate(const unsigned int *supported_cable)
 {
@@ -1064,7 +1074,7 @@ struct extcon_dev *extcon_dev_allocate(const unsigned int *supported_cable)
 
 /*
  * extcon_dev_free() - Free the memory of extcon device.
- * @edev:	the extcon device
+ * @edev:	the extcon device to free
  */
 void extcon_dev_free(struct extcon_dev *edev)
 {
@@ -1073,18 +1083,13 @@ void extcon_dev_free(struct extcon_dev *edev)
 EXPORT_SYMBOL_GPL(extcon_dev_free);
 
 /**
- * extcon_dev_register() - Register an new extcon device
- * @edev:	the extcon device to be registered
+ * extcon_dev_register() - Register a new extcon device
+ * @edev	: the new extcon device (should be allocated before calling)
  *
  * Among the members of edev struct, please set the "user initializing data"
+ * in any case and set the "optional callbacks" if required. However, please
  * do not set the values of "internal data", which are initialized by
  * this function.
- *
- * Note that before calling this funciton, have to allocate the memory
- * of an extcon device by using the extcon_dev_allocate(). And the extcon
- * dev should include the supported_cable information.
- *
- * Returns 0 if success or error number if fail.
  */
 int extcon_dev_register(struct extcon_dev *edev)
 {
@@ -1291,7 +1296,7 @@ EXPORT_SYMBOL_GPL(extcon_dev_register);
 
 /**
  * extcon_dev_unregister() - Unregister the extcon device.
- * @edev:	the extcon device to be unregistered.
+ * @edev:	the extcon device instance to be unregistered.
  *
  * Note that this does not call kfree(edev) because edev was not allocated
  * by this class.
@@ -1337,11 +1342,11 @@ EXPORT_SYMBOL_GPL(extcon_dev_unregister);
 
 #ifdef CONFIG_OF
 /*
- * extcon_get_edev_by_phandle - Get the extcon device from devicetree.
- * @dev		: the instance to the given device
- * @index	: the index into list of extcon_dev
+ * extcon_get_edev_by_phandle - Get the extcon device from devicetree
+ * @dev - instance to the given device
+ * @index - index into list of extcon_dev
  *
- * Return the pointer of extcon device if success or ERR_PTR(err) if fail.
+ * return the instance of extcon device
  */
 struct extcon_dev *extcon_get_edev_by_phandle(struct device *dev, int index)
 {
@@ -1358,8 +1363,8 @@ struct extcon_dev *extcon_get_edev_by_phandle(struct device *dev, int index)
 
 	node = of_parse_phandle(dev->of_node, "extcon", index);
 	if (!node) {
-		dev_dbg(dev, "failed to get phandle in %pOF node\n",
-			dev->of_node);
+		dev_dbg(dev, "failed to get phandle in %s node\n",
+			dev->of_node->full_name);
 		return ERR_PTR(-ENODEV);
 	}
 
@@ -1406,6 +1411,8 @@ static void __exit extcon_class_exit(void)
 module_exit(extcon_class_exit);
 
 MODULE_AUTHOR("Chanwoo Choi <cw00.choi@samsung.com>");
+MODULE_AUTHOR("Mike Lockwood <lockwood@android.com>");
+MODULE_AUTHOR("Donggeun Kim <dg77.kim@samsung.com>");
 MODULE_AUTHOR("MyungJoo Ham <myungjoo.ham@samsung.com>");
-MODULE_DESCRIPTION("External Connector (extcon) framework");
-MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("External connector (extcon) class driver");
+MODULE_LICENSE("GPL");

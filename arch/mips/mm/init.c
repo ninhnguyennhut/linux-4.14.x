@@ -31,7 +31,6 @@
 #include <linux/gfp.h>
 #include <linux/kcore.h>
 #include <linux/export.h>
-#include <linux/initrd.h>
 
 #include <asm/asm-offsets.h>
 #include <asm/bootinfo.h>

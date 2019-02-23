@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/ext4/ialloc.c
  *
@@ -693,25 +692,24 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
  * somewhat arbitrary...)
  */
 #define RECENTCY_MIN	5
-#define RECENTCY_DIRTY	300
+#define RECENTCY_DIRTY	30
 
 static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
 {
 	struct ext4_group_desc	*gdp;
 	struct ext4_inode	*raw_inode;
 	struct buffer_head	*bh;
-	int inodes_per_block = EXT4_SB(sb)->s_inodes_per_block;
-	int offset, ret = 0;
-	int recentcy = RECENTCY_MIN;
-	u32 dtime, now;
+	unsigned long		dtime, now;
+	int	inodes_per_block = EXT4_SB(sb)->s_inodes_per_block;
+	int	offset, ret = 0, recentcy = RECENTCY_MIN;
 
 	gdp = ext4_get_group_desc(sb, group, NULL);
 	if (unlikely(!gdp))
 		return 0;
 
-	bh = sb_find_get_block(sb, ext4_inode_table(sb, gdp) +
+	bh = sb_getblk(sb, ext4_inode_table(sb, gdp) +
 		       (ino / inodes_per_block));
-	if (!bh || !buffer_uptodate(bh))
+	if (unlikely(!bh) || !buffer_uptodate(bh))
 		/*
 		 * If the block is not in the buffer cache, then it
 		 * must have been written out.
@@ -720,43 +718,16 @@ static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
 
 	offset = (ino % inodes_per_block) * EXT4_INODE_SIZE(sb);
 	raw_inode = (struct ext4_inode *) (bh->b_data + offset);
-
-	/* i_dtime is only 32 bits on disk, but we only care about relative
-	 * times in the range of a few minutes (i.e. long enough to sync a
-	 * recently-deleted inode to disk), so using the low 32 bits of the
-	 * clock (a 68 year range) is enough, see time_before32() */
 	dtime = le32_to_cpu(raw_inode->i_dtime);
-	now = ktime_get_real_seconds();
+	now = get_seconds();
 	if (buffer_dirty(bh))
 		recentcy += RECENTCY_DIRTY;
 
-	if (dtime && time_before32(dtime, now) &&
-	    time_before32(now, dtime + recentcy))
+	if (dtime && (dtime < now) && (now < dtime + recentcy))
 		ret = 1;
 out:
 	brelse(bh);
 	return ret;
-}
-
-static int find_inode_bit(struct super_block *sb, ext4_group_t group,
-			  struct buffer_head *bitmap, unsigned long *ino)
-{
-next:
-	*ino = ext4_find_next_zero_bit((unsigned long *)
-				       bitmap->b_data,
-				       EXT4_INODES_PER_GROUP(sb), *ino);
-	if (*ino >= EXT4_INODES_PER_GROUP(sb))
-		return 0;
-
-	if ((EXT4_SB(sb)->s_journal == NULL) &&
-	    recently_deleted(sb, group, *ino)) {
-		*ino = *ino + 1;
-		if (*ino < EXT4_INODES_PER_GROUP(sb))
-			goto next;
-		return 0;
-	}
-
-	return 1;
 }
 
 /*
@@ -816,8 +787,6 @@ struct inode *__ext4_new_inode(handle_t *handle, struct inode *dir,
 #ifdef CONFIG_EXT4_FS_POSIX_ACL
 		struct posix_acl *p = get_acl(dir, ACL_TYPE_DEFAULT);
 
-		if (IS_ERR(p))
-			return ERR_CAST(p);
 		if (p) {
 			int acl_size = p->a_count * sizeof(ext4_acl_entry);
 
@@ -923,13 +892,19 @@ got_group:
 		/*
 		 * Check free inodes count before loading bitmap.
 		 */
-		if (ext4_free_inodes_count(sb, gdp) == 0)
-			goto next_group;
+		if (ext4_free_inodes_count(sb, gdp) == 0) {
+			if (++group == ngroups)
+				group = 0;
+			continue;
+		}
 
 		grp = ext4_get_group_info(sb, group);
 		/* Skip groups with already-known suspicious inode tables */
-		if (EXT4_MB_GRP_IBITMAP_CORRUPT(grp))
-			goto next_group;
+		if (EXT4_MB_GRP_IBITMAP_CORRUPT(grp)) {
+			if (++group == ngroups)
+				group = 0;
+			continue;
+		}
 
 		brelse(inode_bitmap_bh);
 		inode_bitmap_bh = ext4_read_inode_bitmap(sb, group);
@@ -937,20 +912,27 @@ got_group:
 		if (EXT4_MB_GRP_IBITMAP_CORRUPT(grp) ||
 		    IS_ERR(inode_bitmap_bh)) {
 			inode_bitmap_bh = NULL;
-			goto next_group;
+			if (++group == ngroups)
+				group = 0;
+			continue;
 		}
 
 repeat_in_this_group:
-		ret2 = find_inode_bit(sb, group, inode_bitmap_bh, &ino);
-		if (!ret2)
+		ino = ext4_find_next_zero_bit((unsigned long *)
+					      inode_bitmap_bh->b_data,
+					      EXT4_INODES_PER_GROUP(sb), ino);
+		if (ino >= EXT4_INODES_PER_GROUP(sb))
 			goto next_group;
-
-		if (group == 0 && (ino + 1) < EXT4_FIRST_INO(sb)) {
+		if (group == 0 && (ino+1) < EXT4_FIRST_INO(sb)) {
 			ext4_error(sb, "reserved inode found cleared - "
 				   "inode=%lu", ino + 1);
-			goto next_group;
+			continue;
 		}
-
+		if ((EXT4_SB(sb)->s_journal == NULL) &&
+		    recently_deleted(sb, group, ino)) {
+			ino++;
+			goto next_inode;
+		}
 		if (!handle) {
 			BUG_ON(nblocks <= 0);
 			handle = __ext4_journal_start_sb(dir->i_sb, line_no,
@@ -970,23 +952,11 @@ repeat_in_this_group:
 		}
 		ext4_lock_group(sb, group);
 		ret2 = ext4_test_and_set_bit(ino, inode_bitmap_bh->b_data);
-		if (ret2) {
-			/* Someone already took the bit. Repeat the search
-			 * with lock held.
-			 */
-			ret2 = find_inode_bit(sb, group, inode_bitmap_bh, &ino);
-			if (ret2) {
-				ext4_set_bit(ino, inode_bitmap_bh->b_data);
-				ret2 = 0;
-			} else {
-				ret2 = 1; /* we didn't grab the inode */
-			}
-		}
 		ext4_unlock_group(sb, group);
 		ino++;		/* the inode bitmap is zero-based */
 		if (!ret2)
 			goto got; /* we grabbed the inode! */
-
+next_inode:
 		if (ino < EXT4_INODES_PER_GROUP(sb))
 			goto repeat_in_this_group;
 next_group:
@@ -1385,7 +1355,7 @@ int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
 	int num, ret = 0, used_blks = 0;
 
 	/* This should not happen, but just to be sure check this */
-	if (sb_rdonly(sb)) {
+	if (sb->s_flags & MS_RDONLY) {
 		ret = 1;
 		goto out;
 	}

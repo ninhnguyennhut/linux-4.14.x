@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SELFTESTS_POWERPC_BASIC_ASM_H
 #define _SELFTESTS_POWERPC_BASIC_ASM_H
 

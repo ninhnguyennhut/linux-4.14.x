@@ -852,8 +852,7 @@ struct iowait;
 
 int sdma_send_txreq(struct sdma_engine *sde,
 		    struct iowait *wait,
-		    struct sdma_txreq *tx,
-		    bool pkts_sent);
+		    struct sdma_txreq *tx);
 int sdma_send_txlist(struct sdma_engine *sde,
 		     struct iowait *wait,
 		     struct list_head *tx_list,

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Virtual Memory Map support
  *
@@ -55,9 +54,14 @@ void * __meminit vmemmap_alloc_block(unsigned long size, int node)
 	if (slab_is_available()) {
 		struct page *page;
 
-		page = alloc_pages_node(node,
-			GFP_KERNEL | __GFP_ZERO | __GFP_RETRY_MAYFAIL,
-			get_order(size));
+		if (node_state(node, N_HIGH_MEMORY))
+			page = alloc_pages_node(
+				node, GFP_KERNEL | __GFP_ZERO | __GFP_RETRY_MAYFAIL,
+				get_order(size));
+		else
+			page = alloc_pages(
+				GFP_KERNEL | __GFP_ZERO | __GFP_RETRY_MAYFAIL,
+				get_order(size));
 		if (page)
 			return page_address(page);
 		return NULL;

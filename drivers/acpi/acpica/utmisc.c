@@ -224,7 +224,7 @@ acpi_ut_create_update_state_and_push(union acpi_operand_object *object,
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Walk through a package, including subpackages
+ * DESCRIPTION: Walk through a package
  *
  ******************************************************************************/
 
@@ -236,8 +236,8 @@ acpi_ut_walk_package_tree(union acpi_operand_object *source_object,
 	acpi_status status = AE_OK;
 	union acpi_generic_state *state_list = NULL;
 	union acpi_generic_state *state;
-	union acpi_operand_object *this_source_obj;
 	u32 this_index;
+	union acpi_operand_object *this_source_obj;
 
 	ACPI_FUNCTION_TRACE(ut_walk_package_tree);
 
@@ -251,10 +251,8 @@ acpi_ut_walk_package_tree(union acpi_operand_object *source_object,
 		/* Get one element of the package */
 
 		this_index = state->pkg.index;
-		this_source_obj =
+		this_source_obj = (union acpi_operand_object *)
 		    state->pkg.source_object->package.elements[this_index];
-		state->pkg.this_target_obj =
-		    &state->pkg.source_object->package.elements[this_index];
 
 		/*
 		 * Check for:
@@ -340,8 +338,6 @@ acpi_ut_walk_package_tree(union acpi_operand_object *source_object,
 	}
 
 	/* We should never get here */
-
-	ACPI_ERROR((AE_INFO, "State list did not terminate correctly"));
 
 	return_ACPI_STATUS(AE_AML_INTERNAL);
 }

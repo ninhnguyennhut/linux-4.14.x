@@ -110,13 +110,6 @@ static const struct pmc_reg_map spt_reg_map = {
 	.pfear_sts = spt_pfear_map,
 	.mphy_sts = spt_mphy_map,
 	.pll_sts = spt_pll_map,
-	.slp_s0_offset = SPT_PMC_SLP_S0_RES_COUNTER_OFFSET,
-	.ltr_ignore_offset = SPT_PMC_LTR_IGNORE_OFFSET,
-	.regmap_length = SPT_PMC_MMIO_REG_LEN,
-	.ppfear0_offset = SPT_PMC_XRAM_PPFEAR0A,
-	.ppfear_buckets = SPT_PPFEAR_NUM_ENTRIES,
-	.pm_cfg_offset = SPT_PMC_PM_CFG_OFFSET,
-	.pm_read_disable_bit = SPT_PMC_READ_DISABLE_BIT,
 };
 
 static const struct pci_device_id pmc_pci_ids[] = {
@@ -164,13 +157,12 @@ static inline u32 pmc_core_adjust_slp_s0_step(u32 value)
 int intel_pmc_slp_s0_counter_read(u32 *data)
 {
 	struct pmc_dev *pmcdev = &pmc;
-	const struct pmc_reg_map *map = pmcdev->map;
 	u32 value;
 
 	if (!pmcdev->has_slp_s0_res)
 		return -EACCES;
 
-	value = pmc_core_reg_read(pmcdev, map->slp_s0_offset);
+	value = pmc_core_reg_read(pmcdev, SPT_PMC_SLP_S0_RES_COUNTER_OFFSET);
 	*data = pmc_core_adjust_slp_s0_step(value);
 
 	return 0;
@@ -180,10 +172,9 @@ EXPORT_SYMBOL_GPL(intel_pmc_slp_s0_counter_read);
 static int pmc_core_dev_state_get(void *data, u64 *val)
 {
 	struct pmc_dev *pmcdev = data;
-	const struct pmc_reg_map *map = pmcdev->map;
 	u32 value;
 
-	value = pmc_core_reg_read(pmcdev, map->slp_s0_offset);
+	value = pmc_core_reg_read(pmcdev, SPT_PMC_SLP_S0_RES_COUNTER_OFFSET);
 	*val = pmc_core_adjust_slp_s0_step(value);
 
 	return 0;
@@ -196,8 +187,8 @@ static int pmc_core_check_read_lock_bit(void)
 	struct pmc_dev *pmcdev = &pmc;
 	u32 value;
 
-	value = pmc_core_reg_read(pmcdev, pmcdev->map->pm_cfg_offset);
-	return value & BIT(pmcdev->map->pm_read_disable_bit);
+	value = pmc_core_reg_read(pmcdev, SPT_PMC_PM_CFG_OFFSET);
+	return value & BIT(SPT_PMC_READ_DISABLE_BIT);
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -213,13 +204,12 @@ static int pmc_core_ppfear_sts_show(struct seq_file *s, void *unused)
 {
 	struct pmc_dev *pmcdev = s->private;
 	const struct pmc_bit_map *map = pmcdev->map->pfear_sts;
-	u8 pf_regs[PPFEAR_MAX_NUM_ENTRIES];
+	u8 pf_regs[NUM_ENTRIES];
 	int index, iter;
 
-	iter = pmcdev->map->ppfear0_offset;
+	iter = SPT_PMC_XRAM_PPFEAR0A;
 
-	for (index = 0; index < pmcdev->map->ppfear_buckets &&
-	     index < PPFEAR_MAX_NUM_ENTRIES; index++, iter++)
+	for (index = 0; index < NUM_ENTRIES; index++, iter++)
 		pf_regs[index] = pmc_core_reg_read_byte(pmcdev, iter);
 
 	for (index = 0; map[index].name; index++)
@@ -386,7 +376,6 @@ static ssize_t pmc_core_ltr_ignore_write(struct file *file, const char __user
 *userbuf, size_t count, loff_t *ppos)
 {
 	struct pmc_dev *pmcdev = &pmc;
-	const struct pmc_reg_map *map = pmcdev->map;
 	u32 val, buf_size, fd;
 	int err = 0;
 
@@ -403,9 +392,9 @@ static ssize_t pmc_core_ltr_ignore_write(struct file *file, const char __user
 		goto out_unlock;
 	}
 
-	fd = pmc_core_reg_read(pmcdev, map->ltr_ignore_offset);
+	fd = pmc_core_reg_read(pmcdev, SPT_PMC_LTR_IGNORE_OFFSET);
 	fd |= (1U << val);
-	pmc_core_reg_write(pmcdev, map->ltr_ignore_offset, fd);
+	pmc_core_reg_write(pmcdev, SPT_PMC_LTR_IGNORE_OFFSET, fd);
 
 out_unlock:
 	mutex_unlock(&pmcdev->lock);
@@ -541,8 +530,8 @@ static int pmc_core_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 
 	mutex_init(&pmcdev->lock);
-	pmcdev->map = map;
 	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit();
+	pmcdev->map = map;
 
 	err = pmc_core_dbgfs_register(pmcdev);
 	if (err < 0)

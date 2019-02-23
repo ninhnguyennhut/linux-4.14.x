@@ -254,10 +254,9 @@ static dma_addr_t i915_stolen_to_dma(struct drm_i915_private *dev_priv)
 		 * This is a BIOS w/a: Some BIOS wrap stolen in the root
 		 * PCI bus, but have an off-by-one error. Hence retry the
 		 * reservation starting from 1 instead of 0.
-		 * There's also BIOS with off-by-one on the other end.
 		 */
 		r = devm_request_mem_region(dev_priv->drm.dev, base + 1,
-					    ggtt->stolen_size - 2,
+					    ggtt->stolen_size - 1,
 					    "Graphics Stolen Memory");
 		/*
 		 * GEN3 firmware likes to smash pci bridges into the stolen
@@ -580,7 +579,6 @@ _i915_gem_object_create_stolen(struct drm_i915_private *dev_priv,
 			       struct drm_mm_node *stolen)
 {
 	struct drm_i915_gem_object *obj;
-	unsigned int cache_level;
 
 	obj = i915_gem_object_alloc(dev_priv);
 	if (obj == NULL)
@@ -591,8 +589,8 @@ _i915_gem_object_create_stolen(struct drm_i915_private *dev_priv,
 
 	obj->stolen = stolen;
 	obj->base.read_domains = I915_GEM_DOMAIN_CPU | I915_GEM_DOMAIN_GTT;
-	cache_level = HAS_LLC(dev_priv) ? I915_CACHE_LLC : I915_CACHE_NONE;
-	i915_gem_object_set_cache_coherency(obj, cache_level);
+	obj->cache_level = HAS_LLC(dev_priv) ? I915_CACHE_LLC : I915_CACHE_NONE;
+	obj->cache_coherent = true; /* assumptions! more like cache_oblivious */
 
 	if (i915_gem_object_pin_pages(obj))
 		goto cleanup;

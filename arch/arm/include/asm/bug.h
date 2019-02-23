@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASMARM_BUG_H
 #define _ASMARM_BUG_H
 

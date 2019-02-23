@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #define RW_MM_CFG	0
 #define RW_MM_KBASE_LO	1
 #define RW_MM_KBASE_HI	2

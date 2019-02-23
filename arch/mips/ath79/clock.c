@@ -487,16 +487,17 @@ static void __init ath79_clocks_init_dt_ng(struct device_node *np)
 {
 	struct clk *ref_clk;
 	void __iomem *pll_base;
+	const char *dnfn = of_node_full_name(np);
 
 	ref_clk = of_clk_get(np, 0);
 	if (IS_ERR(ref_clk)) {
-		pr_err("%pOF: of_clk_get failed\n", np);
+		pr_err("%s: of_clk_get failed\n", dnfn);
 		goto err;
 	}
 
 	pll_base = of_iomap(np, 0);
 	if (!pll_base) {
-		pr_err("%pOF: can't map pll registers\n", np);
+		pr_err("%s: can't map pll registers\n", dnfn);
 		goto err_clk;
 	}
 
@@ -505,12 +506,12 @@ static void __init ath79_clocks_init_dt_ng(struct device_node *np)
 	else if (of_device_is_compatible(np, "qca,ar9330-pll"))
 		ar9330_clk_init(ref_clk, pll_base);
 	else {
-		pr_err("%pOF: could not find any appropriate clk_init()\n", np);
+		pr_err("%s: could not find any appropriate clk_init()\n", dnfn);
 		goto err_iounmap;
 	}
 
 	if (of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data)) {
-		pr_err("%pOF: could not register clk provider\n", np);
+		pr_err("%s: could not register clk provider\n", dnfn);
 		goto err_iounmap;
 	}
 

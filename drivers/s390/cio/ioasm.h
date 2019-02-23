@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef S390_CIO_IOASM_H
 #define S390_CIO_IOASM_H
 

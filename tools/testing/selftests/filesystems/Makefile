@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 TEST_PROGS := dnotify_test
 all: $(TEST_PROGS)
 

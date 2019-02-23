@@ -192,9 +192,6 @@ unsigned long efi_entry(void *handle, efi_system_table_t *sys_table,
 		goto fail_free_cmdline;
 	}
 
-	/* Ask the firmware to clear memory on unclean shutdown */
-	efi_enable_reset_attack_mitigation(sys_table);
-
 	secure_boot = efi_get_secureboot(sys_table);
 
 	/*
@@ -238,8 +235,7 @@ unsigned long efi_entry(void *handle, efi_system_table_t *sys_table,
 
 	efi_random_get_seed(sys_table);
 
-	/* hibernation expects the runtime regions to stay in the same place */
-	if (!IS_ENABLED(CONFIG_HIBERNATION) && !nokaslr()) {
+	if (!nokaslr()) {
 		/*
 		 * Randomize the base of the UEFI runtime services region.
 		 * Preserve the 2 MB alignment of the region by taking a
@@ -350,9 +346,7 @@ void efi_get_virtmap(efi_memory_desc_t *memory_map, unsigned long map_size,
 	 * The easiest way to find adjacent regions is to sort the memory map
 	 * before traversing it.
 	 */
-	if (IS_ENABLED(CONFIG_ARM64))
-		sort(memory_map, map_size / desc_size, desc_size, cmp_mem_desc,
-		     NULL);
+	sort(memory_map, map_size / desc_size, desc_size, cmp_mem_desc, NULL);
 
 	for (l = 0; l < map_size; l += desc_size, prev = in) {
 		u64 paddr, size;
@@ -369,8 +363,7 @@ void efi_get_virtmap(efi_memory_desc_t *memory_map, unsigned long map_size,
 		 * a 4k page size kernel to kexec a 64k page size kernel and
 		 * vice versa.
 		 */
-		if ((IS_ENABLED(CONFIG_ARM64) &&
-		     !regions_are_adjacent(prev, in)) ||
+		if (!regions_are_adjacent(prev, in) ||
 		    !regions_have_compatible_memory_type_attrs(prev, in)) {
 
 			paddr = round_down(in->phys_addr, SZ_64K);

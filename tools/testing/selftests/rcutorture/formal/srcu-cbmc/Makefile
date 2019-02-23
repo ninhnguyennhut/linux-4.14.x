@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 all: srcu.c store_buffering
 
 LINUX_SOURCE = ../../../../../..

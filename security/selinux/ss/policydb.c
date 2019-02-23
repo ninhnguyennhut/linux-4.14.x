@@ -1,7 +1,7 @@
 /*
  * Implementation of the policy database.
  *
- * Author : Stephen Smalley, <sds@tycho.nsa.gov>
+ * Author : Stephen Smalley, <sds@epoch.ncsc.mil>
  */
 
 /*

@@ -497,11 +497,6 @@ static void univ8250_rsa_support(struct uart_ops *ops)
 #define univ8250_rsa_support(x)		do { } while (0)
 #endif /* CONFIG_SERIAL_8250_RSA */
 
-static inline void serial8250_apply_quirks(struct uart_8250_port *up)
-{
-	up->port.quirks |= skip_txen_test ? UPQ_NO_TXEN_TEST : 0;
-}
-
 static void __init serial8250_isa_init_ports(void)
 {
 	struct uart_8250_port *up;
@@ -582,7 +577,9 @@ serial8250_register_ports(struct uart_driver *drv, struct device *dev)
 
 		up->port.dev = dev;
 
-		serial8250_apply_quirks(up);
+		if (skip_txen_test)
+			up->port.flags |= UPF_NO_TXEN_TEST;
+
 		uart_add_one_port(drv, &up->port);
 	}
 }
@@ -1009,6 +1006,9 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 		if (up->port.dev)
 			uart->port.dev = up->port.dev;
 
+		if (skip_txen_test)
+			uart->port.flags |= UPF_NO_TXEN_TEST;
+
 		if (up->port.flags & UPF_FIXED_TYPE)
 			uart->port.type = up->port.type;
 
@@ -1048,7 +1048,6 @@ int serial8250_register_8250_port(struct uart_8250_port *up)
 				serial8250_isa_config(0, &uart->port,
 						&uart->capabilities);
 
-			serial8250_apply_quirks(uart);
 			ret = uart_add_one_port(&serial8250_reg,
 						&uart->port);
 			if (ret == 0)
@@ -1093,10 +1092,11 @@ void serial8250_unregister_port(int line)
 	uart_remove_one_port(&serial8250_reg, &uart->port);
 	if (serial8250_isa_devs) {
 		uart->port.flags &= ~UPF_BOOT_AUTOCONF;
+		if (skip_txen_test)
+			uart->port.flags |= UPF_NO_TXEN_TEST;
 		uart->port.type = PORT_UNKNOWN;
 		uart->port.dev = &serial8250_isa_devs->dev;
 		uart->capabilities = 0;
-		serial8250_apply_quirks(uart);
 		uart_add_one_port(&serial8250_reg, &uart->port);
 	} else {
 		uart->port.dev = NULL;

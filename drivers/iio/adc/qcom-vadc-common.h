@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Code shared between the different Qualcomm PMIC voltage ADCs
  */

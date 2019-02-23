@@ -36,7 +36,7 @@
 
 #include "vbox_drv.h"
 
-static int vbox_modeset = -1;
+int vbox_modeset = -1;
 
 MODULE_PARM_DESC(modeset, "Disable/Enable modesetting");
 module_param_named(modeset, vbox_modeset, int, 0400);
@@ -232,6 +232,7 @@ static struct drm_driver driver = {
 	.lastclose = vbox_driver_lastclose,
 	.master_set = vbox_master_set,
 	.master_drop = vbox_master_drop,
+	.set_busid = drm_pci_set_busid,
 
 	.fops = &vbox_fops,
 	.irq_handler = vbox_irq_handler,
@@ -269,12 +270,12 @@ static int __init vbox_init(void)
 	if (vbox_modeset == 0)
 		return -EINVAL;
 
-	return pci_register_driver(&vbox_pci_driver);
+	return drm_pci_init(&driver, &vbox_pci_driver);
 }
 
 static void __exit vbox_exit(void)
 {
-	pci_unregister_driver(&vbox_pci_driver);
+	drm_pci_exit(&driver, &vbox_pci_driver);
 }
 
 module_init(vbox_init);

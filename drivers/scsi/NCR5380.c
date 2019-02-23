@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * NCR 5380 generic driver routines.  These should make it *trivial*
  * to implement 5380 SCSI drivers under Linux with a non-trantor
@@ -2297,13 +2296,13 @@ out:
 
 
 /**
- * NCR5380_host_reset - reset the SCSI host
+ * NCR5380_bus_reset - reset the SCSI bus
  * @cmd: SCSI command undergoing EH
  *
  * Returns SUCCESS
  */
 
-static int NCR5380_host_reset(struct scsi_cmnd *cmd)
+static int NCR5380_bus_reset(struct scsi_cmnd *cmd)
 {
 	struct Scsi_Host *instance = cmd->device->host;
 	struct NCR5380_hostdata *hostdata = shost_priv(instance);

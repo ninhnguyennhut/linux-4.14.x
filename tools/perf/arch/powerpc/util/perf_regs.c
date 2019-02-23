@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <errno.h>
 #include <string.h>
 #include <regex.h>

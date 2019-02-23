@@ -25,6 +25,8 @@
 #include <linux/module.h>
 #include <linux/usb.h>
 
+/* Version Information */
+#define DRIVER_VERSION "v1.1"
 #define DRIVER_AUTHOR "Sam Hocevar, sam@zoy.org"
 #define DRIVER_DESC "PlayStation 2 Trance Vibrator driver"
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SPEAKUP_SERIAL_H
 #define _SPEAKUP_SERIAL_H
 

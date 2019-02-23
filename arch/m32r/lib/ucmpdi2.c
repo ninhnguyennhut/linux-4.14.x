@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "libgcc.h"
 
 int __ucmpdi2(unsigned long long a, unsigned long long b)

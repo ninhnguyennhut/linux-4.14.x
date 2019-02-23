@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * File:	portdrv.h
  * Purpose:	PCI Express Port Bus Driver's Internal Data Structures

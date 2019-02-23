@@ -1824,14 +1824,21 @@ static int cik_common_suspend(void *handle)
 {
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
+	amdgpu_amdkfd_suspend(adev);
+
 	return cik_common_hw_fini(adev);
 }
 
 static int cik_common_resume(void *handle)
 {
+	int r;
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
 
-	return cik_common_hw_init(adev);
+	r = cik_common_hw_init(adev);
+	if (r)
+		return r;
+
+	return amdgpu_amdkfd_resume(adev);
 }
 
 static bool cik_common_is_idle(void *handle)

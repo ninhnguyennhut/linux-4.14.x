@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_CRYPTO_DEV_NITROX_CNN55XX) += n5pf.o
 
 n5pf-objs := nitrox_main.o \

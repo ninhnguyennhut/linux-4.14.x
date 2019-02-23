@@ -182,13 +182,11 @@ out:
 static int esp_input_tail(struct xfrm_state *x, struct sk_buff *skb)
 {
 	struct crypto_aead *aead = x->data;
-	struct xfrm_offload *xo = xfrm_offload(skb);
 
 	if (!pskb_may_pull(skb, sizeof(struct ip_esp_hdr) + crypto_aead_ivsize(aead)))
 		return -EINVAL;
 
-	if (!(xo->flags & CRYPTO_DONE))
-		skb->ip_summed = CHECKSUM_NONE;
+	skb->ip_summed = CHECKSUM_NONE;
 
 	return esp_input_done2(skb, 0);
 }
@@ -259,7 +257,7 @@ static int esp_xmit(struct xfrm_state *x, struct sk_buff *skb,  netdev_features_
 	esp.seqno = cpu_to_be64(xo->seq.low + ((u64)xo->seq.hi << 32));
 
 	err = esp_output_tail(x, skb, &esp);
-	if (err)
+	if (err < 0)
 		return err;
 
 	secpath_reset(skb);
@@ -305,4 +303,3 @@ module_init(esp4_offload_init);
 module_exit(esp4_offload_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Steffen Klassert <steffen.klassert@secunet.com>");
-MODULE_ALIAS_XFRM_OFFLOAD_TYPE(AF_INET, XFRM_PROTO_ESP);

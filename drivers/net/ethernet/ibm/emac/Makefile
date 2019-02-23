@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for the PowerPC 4xx on-chip ethernet driver
 #

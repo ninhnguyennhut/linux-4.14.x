@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Common bits for X2APIC cluster/physical modes.
  */

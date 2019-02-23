@@ -83,8 +83,8 @@
 /* Forward declarations for internal helper functions. */
 static int sctp_writeable(struct sock *sk);
 static void sctp_wfree(struct sk_buff *skb);
-static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,
-				size_t msg_len, struct sock **orig_sk);
+static int sctp_wait_for_sndbuf(struct sctp_association *, long *timeo_p,
+				size_t msg_len);
 static int sctp_wait_for_packet(struct sock *sk, int *err, long *timeo_p);
 static int sctp_wait_for_connect(struct sctp_association *, long *timeo_p);
 static int sctp_wait_for_accept(struct sock *sk, long timeo);
@@ -100,9 +100,8 @@ static int sctp_send_asconf(struct sctp_association *asoc,
 			    struct sctp_chunk *chunk);
 static int sctp_do_bind(struct sock *, union sctp_addr *, int);
 static int sctp_autobind(struct sock *sk);
-static void sctp_sock_migrate(struct sock *oldsk, struct sock *newsk,
-			      struct sctp_association *assoc,
-			      enum sctp_socket_type type);
+static void sctp_sock_migrate(struct sock *, struct sock *,
+			      struct sctp_association *, sctp_socket_type_t);
 
 static unsigned long sctp_memory_pressure;
 static atomic_long_t sctp_memory_allocated;
@@ -168,36 +167,6 @@ static inline void sctp_set_owner_w(struct sctp_chunk *chunk)
 	refcount_add(sizeof(struct sctp_chunk), &sk->sk_wmem_alloc);
 	sk->sk_wmem_queued += chunk->skb->truesize;
 	sk_mem_charge(sk, chunk->skb->truesize);
-}
-
-static void sctp_clear_owner_w(struct sctp_chunk *chunk)
-{
-	skb_orphan(chunk->skb);
-}
-
-static void sctp_for_each_tx_datachunk(struct sctp_association *asoc,
-				       void (*cb)(struct sctp_chunk *))
-
-{
-	struct sctp_outq *q = &asoc->outqueue;
-	struct sctp_transport *t;
-	struct sctp_chunk *chunk;
-
-	list_for_each_entry(t, &asoc->peer.transport_addr_list, transports)
-		list_for_each_entry(chunk, &t->transmitted, transmitted_list)
-			cb(chunk);
-
-	list_for_each_entry(chunk, &q->retransmit, transmitted_list)
-		cb(chunk);
-
-	list_for_each_entry(chunk, &q->sacked, transmitted_list)
-		cb(chunk);
-
-	list_for_each_entry(chunk, &q->abandoned, transmitted_list)
-		cb(chunk);
-
-	list_for_each_entry(chunk, &q->out_chunk_list, list)
-		cb(chunk);
 }
 
 /* Verify that this is a valid address. */
@@ -1086,7 +1055,7 @@ static int __sctp_connect(struct sock *sk,
 	struct sctp_association *asoc2;
 	struct sctp_transport *transport;
 	union sctp_addr to;
-	enum sctp_scope scope;
+	sctp_scope_t scope;
 	long timeo;
 	int err = 0;
 	int addrcnt = 0;
@@ -1624,8 +1593,7 @@ static int sctp_error(struct sock *sk, int flags, int err)
  */
 /* BUG:  We do not implement the equivalent of sk_stream_wait_memory(). */
 
-static int sctp_msghdr_parse(const struct msghdr *msg,
-			     struct sctp_cmsgs *cmsgs);
+static int sctp_msghdr_parse(const struct msghdr *, sctp_cmsgs_t *);
 
 static int sctp_sendmsg(struct sock *sk, struct msghdr *msg, size_t msg_len)
 {
@@ -1641,8 +1609,8 @@ static int sctp_sendmsg(struct sock *sk, struct msghdr *msg, size_t msg_len)
 	struct sctp_sndrcvinfo *sinfo;
 	struct sctp_initmsg *sinit;
 	sctp_assoc_t associd = 0;
-	struct sctp_cmsgs cmsgs = { NULL };
-	enum sctp_scope scope;
+	sctp_cmsgs_t cmsgs = { NULL };
+	sctp_scope_t scope;
 	bool fill_sinfo_ttl = false, wait_connect = false;
 	struct sctp_datamsg *datamsg;
 	int msg_flags = msg->msg_flags;
@@ -1962,16 +1930,9 @@ static int sctp_sendmsg(struct sock *sk, struct msghdr *msg, size_t msg_len)
 
 	timeo = sock_sndtimeo(sk, msg->msg_flags & MSG_DONTWAIT);
 	if (!sctp_wspace(asoc)) {
-		/* sk can be changed by peel off when waiting for buf. */
-		err = sctp_wait_for_sndbuf(asoc, &timeo, msg_len, &sk);
-		if (err) {
-			if (err == -ESRCH) {
-				/* asoc is already dead. */
-				new_asoc = NULL;
-				err = -EPIPE;
-			}
+		err = sctp_wait_for_sndbuf(asoc, &timeo, msg_len);
+		if (err)
 			goto out_free;
-		}
 	}
 
 	/* If an address is passed with the sendto/sendmsg call, it is used
@@ -3874,16 +3835,12 @@ static int sctp_setsockopt_reset_streams(struct sock *sk,
 	struct sctp_association *asoc;
 	int retval = -EINVAL;
 
-	if (optlen < sizeof(*params))
+	if (optlen < sizeof(struct sctp_reset_streams))
 		return -EINVAL;
 
 	params = memdup_user(optval, optlen);
 	if (IS_ERR(params))
 		return PTR_ERR(params);
-
-	if (params->srs_number_streams * sizeof(__u16) >
-	    optlen - sizeof(*params))
-		goto out;
 
 	asoc = sctp_id2assoc(sk, params->srs_assoc_id);
 	if (!asoc)
@@ -4417,7 +4374,7 @@ static int sctp_init_sock(struct sock *sk)
 	SCTP_DBG_OBJCNT_INC(sock);
 
 	local_bh_disable();
-	sk_sockets_allocated_inc(sk);
+	percpu_counter_inc(&sctp_sockets_allocated);
 	sock_prot_inuse_add(net, sk->sk_prot, 1);
 
 	/* Nothing can fail after this block, otherwise
@@ -4461,7 +4418,7 @@ static void sctp_destroy_sock(struct sock *sk)
 	}
 	sctp_endpoint_free(sp->ep);
 	local_bh_disable();
-	sk_sockets_allocated_dec(sk);
+	percpu_counter_dec(&sctp_sockets_allocated);
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
 	local_bh_enable();
 }
@@ -4581,7 +4538,8 @@ int sctp_get_sctp_info(struct sock *sk, struct sctp_association *asoc,
 	info->sctpi_ictrlchunks = asoc->stats.ictrlchunks;
 
 	prim = asoc->peer.primary_path;
-	memcpy(&info->sctpi_p_address, &prim->ipaddr, sizeof(prim->ipaddr));
+	memcpy(&info->sctpi_p_address, &prim->ipaddr,
+	       sizeof(struct sockaddr_storage));
 	info->sctpi_p_state = prim->state;
 	info->sctpi_p_cwnd = prim->cwnd;
 	info->sctpi_p_srtt = prim->srtt;
@@ -4699,39 +4657,29 @@ int sctp_transport_lookup_process(int (*cb)(struct sctp_transport *, void *),
 EXPORT_SYMBOL_GPL(sctp_transport_lookup_process);
 
 int sctp_for_each_transport(int (*cb)(struct sctp_transport *, void *),
-			    int (*cb_done)(struct sctp_transport *, void *),
-			    struct net *net, int *pos, void *p) {
+			    struct net *net, int pos, void *p) {
 	struct rhashtable_iter hti;
-	struct sctp_transport *tsp;
-	int ret;
+	void *obj;
+	int err;
 
-again:
-	ret = sctp_transport_walk_start(&hti);
-	if (ret)
-		return ret;
+	err = sctp_transport_walk_start(&hti);
+	if (err)
+		return err;
 
-	tsp = sctp_transport_get_idx(net, &hti, *pos + 1);
-	for (; !IS_ERR_OR_NULL(tsp); tsp = sctp_transport_get_next(net, &hti)) {
-		if (!sctp_transport_hold(tsp))
+	obj = sctp_transport_get_idx(net, &hti, pos + 1);
+	for (; !IS_ERR_OR_NULL(obj); obj = sctp_transport_get_next(net, &hti)) {
+		struct sctp_transport *transport = obj;
+
+		if (!sctp_transport_hold(transport))
 			continue;
-		ret = cb(tsp, p);
-		if (ret)
+		err = cb(transport, p);
+		sctp_transport_put(transport);
+		if (err)
 			break;
-		(*pos)++;
-		sctp_transport_put(tsp);
 	}
 	sctp_transport_walk_stop(&hti);
 
-	if (ret) {
-		if (cb_done && !cb_done(tsp, p)) {
-			(*pos)++;
-			sctp_transport_put(tsp);
-			goto again;
-		}
-		sctp_transport_put(tsp);
-	}
-
-	return ret;
+	return err;
 }
 EXPORT_SYMBOL_GPL(sctp_for_each_transport);
 
@@ -4947,12 +4895,14 @@ int sctp_do_peeloff(struct sock *sk, sctp_assoc_t id, struct socket **sockp)
 	struct socket *sock;
 	int err = 0;
 
-	/* Do not peel off from one netns to another one. */
-	if (!net_eq(current->nsproxy->net_ns, sock_net(sk)))
-		return -EINVAL;
-
 	if (!asoc)
 		return -EINVAL;
+
+	/* If there is a thread waiting on more sndbuf space for
+	 * sending on this asoc, it cannot be peeled.
+	 */
+	if (waitqueue_active(&asoc->wait))
+		return -EBUSY;
 
 	/* An association cannot be branched off from an already peeled-off
 	 * socket, nor is this supported for tcp style sockets.
@@ -7495,10 +7445,10 @@ static int sctp_autobind(struct sock *sk)
  * msg_control
  * points here
  */
-static int sctp_msghdr_parse(const struct msghdr *msg, struct sctp_cmsgs *cmsgs)
+static int sctp_msghdr_parse(const struct msghdr *msg, sctp_cmsgs_t *cmsgs)
 {
-	struct msghdr *my_msg = (struct msghdr *)msg;
 	struct cmsghdr *cmsg;
+	struct msghdr *my_msg = (struct msghdr *)msg;
 
 	for_each_cmsghdr(cmsg, my_msg) {
 		if (!CMSG_OK(my_msg, cmsg))
@@ -7827,7 +7777,7 @@ void sctp_sock_rfree(struct sk_buff *skb)
 
 /* Helper function to wait for space in the sndbuf.  */
 static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,
-				size_t msg_len, struct sock **orig_sk)
+				size_t msg_len)
 {
 	struct sock *sk = asoc->base.sk;
 	int err = 0;
@@ -7844,11 +7794,10 @@ static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,
 	for (;;) {
 		prepare_to_wait_exclusive(&asoc->wait, &wait,
 					  TASK_INTERRUPTIBLE);
-		if (asoc->base.dead)
-			goto do_dead;
 		if (!*timeo_p)
 			goto do_nonblock;
-		if (sk->sk_err || asoc->state >= SCTP_STATE_SHUTDOWN_PENDING)
+		if (sk->sk_err || asoc->state >= SCTP_STATE_SHUTDOWN_PENDING ||
+		    asoc->base.dead)
 			goto do_error;
 		if (signal_pending(current))
 			goto do_interrupted;
@@ -7861,27 +7810,17 @@ static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,
 		release_sock(sk);
 		current_timeo = schedule_timeout(current_timeo);
 		lock_sock(sk);
-		if (sk != asoc->base.sk) {
-			release_sock(sk);
-			sk = asoc->base.sk;
-			lock_sock(sk);
-		}
 
 		*timeo_p = current_timeo;
 	}
 
 out:
-	*orig_sk = sk;
 	finish_wait(&asoc->wait, &wait);
 
 	/* Release the association's refcnt.  */
 	sctp_association_put(asoc);
 
 	return err;
-
-do_dead:
-	err = -ESRCH;
-	goto out;
 
 do_error:
 	err = -EPIPE;
@@ -8146,7 +8085,7 @@ static inline void sctp_copy_descendant(struct sock *sk_to,
  */
 static void sctp_sock_migrate(struct sock *oldsk, struct sock *newsk,
 			      struct sctp_association *assoc,
-			      enum sctp_socket_type type)
+			      sctp_socket_type_t type)
 {
 	struct sctp_sock *oldsp = sctp_sk(oldsk);
 	struct sctp_sock *newsp = sctp_sk(newsk);
@@ -8258,9 +8197,7 @@ static void sctp_sock_migrate(struct sock *oldsk, struct sock *newsk,
 	 * paths won't try to lock it and then oldsk.
 	 */
 	lock_sock_nested(newsk, SINGLE_DEPTH_NESTING);
-	sctp_for_each_tx_datachunk(assoc, sctp_clear_owner_w);
 	sctp_assoc_migrate(assoc, newsk);
-	sctp_for_each_tx_datachunk(assoc, sctp_set_owner_w);
 
 	/* If the association on the newsk is already closed before accept()
 	 * is called, set RCV_SHUTDOWN flag.

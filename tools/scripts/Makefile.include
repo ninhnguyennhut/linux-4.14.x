@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 ifneq ($(O),)
 ifeq ($(origin O), command line)
 	dummy := $(if $(shell test -d $(O) || echo $(O)),$(error O=$(O) does not exist),)
@@ -40,9 +39,7 @@ EXTRA_WARNINGS += -Wundef
 EXTRA_WARNINGS += -Wwrite-strings
 EXTRA_WARNINGS += -Wformat
 
-CC_NO_CLANG := $(shell $(CC) -dM -E -x c /dev/null | grep -Fq "__clang__"; echo $$?)
-
-ifeq ($(CC_NO_CLANG), 1)
+ifneq ($(CC), clang)
 EXTRA_WARNINGS += -Wstrict-aliasing=3
 endif
 

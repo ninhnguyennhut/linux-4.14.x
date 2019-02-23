@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM fs_dax
 
@@ -191,6 +190,8 @@ DEFINE_EVENT(dax_pte_fault_class, name, \
 
 DEFINE_PTE_FAULT_EVENT(dax_pte_fault);
 DEFINE_PTE_FAULT_EVENT(dax_pte_fault_done);
+DEFINE_PTE_FAULT_EVENT(dax_pfn_mkwrite_no_entry);
+DEFINE_PTE_FAULT_EVENT(dax_pfn_mkwrite);
 DEFINE_PTE_FAULT_EVENT(dax_load_hole);
 
 TRACE_EVENT(dax_insert_mapping,

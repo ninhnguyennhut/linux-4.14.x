@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_SCORE_SWITCH_TO_H
 #define _ASM_SCORE_SWITCH_TO_H
 

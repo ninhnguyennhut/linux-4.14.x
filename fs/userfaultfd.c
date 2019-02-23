@@ -109,24 +109,27 @@ static int userfaultfd_wake_function(wait_queue_entry_t *wq, unsigned mode,
 		goto out;
 	WRITE_ONCE(uwq->waken, true);
 	/*
-	 * The Program-Order guarantees provided by the scheduler
-	 * ensure uwq->waken is visible before the task is woken.
+	 * The implicit smp_mb__before_spinlock in try_to_wake_up()
+	 * renders uwq->waken visible to other CPUs before the task is
+	 * waken.
 	 */
 	ret = wake_up_state(wq->private, mode);
-	if (ret) {
+	if (ret)
 		/*
 		 * Wake only once, autoremove behavior.
 		 *
-		 * After the effect of list_del_init is visible to the other
-		 * CPUs, the waitqueue may disappear from under us, see the
-		 * !list_empty_careful() in handle_userfault().
-		 *
-		 * try_to_wake_up() has an implicit smp_mb(), and the
-		 * wq->private is read before calling the extern function
-		 * "wake_up_state" (which in turns calls try_to_wake_up).
+		 * After the effect of list_del_init is visible to the
+		 * other CPUs, the waitqueue may disappear from under
+		 * us, see the !list_empty_careful() in
+		 * handle_userfault(). try_to_wake_up() has an
+		 * implicit smp_mb__before_spinlock, and the
+		 * wq->private is read before calling the extern
+		 * function "wake_up_state" (which in turns calls
+		 * try_to_wake_up). While the spin_lock;spin_unlock;
+		 * wouldn't be enough, the smp_mb__before_spinlock is
+		 * enough to avoid an explicit smp_mb() here.
 		 */
 		list_del_init(&wq->entry);
-	}
 out:
 	return ret;
 }
@@ -178,8 +181,7 @@ static inline void msg_init(struct uffd_msg *msg)
 
 static inline struct uffd_msg userfault_msg(unsigned long address,
 					    unsigned int flags,
-					    unsigned long reason,
-					    unsigned int features)
+					    unsigned long reason)
 {
 	struct uffd_msg msg;
 	msg_init(&msg);
@@ -203,8 +205,6 @@ static inline struct uffd_msg userfault_msg(unsigned long address,
 		 * write protect fault.
 		 */
 		msg.arg.pagefault.flags |= UFFD_PAGEFAULT_FLAG_WP;
-	if (features & UFFD_FEATURE_THREAD_ID)
-		msg.arg.pagefault.feat.ptid = task_pid_vnr(current);
 	return msg;
 }
 
@@ -373,34 +373,13 @@ int handle_userfault(struct vm_fault *vmf, unsigned long reason)
 	VM_BUG_ON(reason & ~(VM_UFFD_MISSING|VM_UFFD_WP));
 	VM_BUG_ON(!(reason & VM_UFFD_MISSING) ^ !!(reason & VM_UFFD_WP));
 
-	if (ctx->features & UFFD_FEATURE_SIGBUS)
-		goto out;
-
 	/*
 	 * If it's already released don't get it. This avoids to loop
 	 * in __get_user_pages if userfaultfd_release waits on the
 	 * caller of handle_userfault to release the mmap_sem.
 	 */
-	if (unlikely(ACCESS_ONCE(ctx->released))) {
-		/*
-		 * Don't return VM_FAULT_SIGBUS in this case, so a non
-		 * cooperative manager can close the uffd after the
-		 * last UFFDIO_COPY, without risking to trigger an
-		 * involuntary SIGBUS if the process was starting the
-		 * userfaultfd while the userfaultfd was still armed
-		 * (but after the last UFFDIO_COPY). If the uffd
-		 * wasn't already closed when the userfault reached
-		 * this point, that would normally be solved by
-		 * userfaultfd_must_wait returning 'false'.
-		 *
-		 * If we were to return VM_FAULT_SIGBUS here, the non
-		 * cooperative manager would be instead forced to
-		 * always call UFFDIO_UNREGISTER before it can safely
-		 * close the uffd.
-		 */
-		ret = VM_FAULT_NOPAGE;
+	if (unlikely(ACCESS_ONCE(ctx->released)))
 		goto out;
-	}
 
 	/*
 	 * Check that we can return VM_FAULT_RETRY.
@@ -443,8 +422,7 @@ int handle_userfault(struct vm_fault *vmf, unsigned long reason)
 
 	init_waitqueue_func_entry(&uwq.wq, userfaultfd_wake_function);
 	uwq.wq.private = current;
-	uwq.msg = userfault_msg(vmf->address, vmf->flags, reason,
-			ctx->features);
+	uwq.msg = userfault_msg(vmf->address, vmf->flags, reason);
 	uwq.ctx = ctx;
 	uwq.waken = false;
 
@@ -570,14 +548,11 @@ out:
 static void userfaultfd_event_wait_completion(struct userfaultfd_ctx *ctx,
 					      struct userfaultfd_wait_queue *ewq)
 {
-	struct userfaultfd_ctx *release_new_ctx;
-
 	if (WARN_ON_ONCE(current->flags & PF_EXITING))
 		goto out;
 
 	ewq->ctx = ctx;
 	init_waitqueue_entry(&ewq->wq, current);
-	release_new_ctx = NULL;
 
 	spin_lock(&ctx->event_wqh.lock);
 	/*
@@ -591,12 +566,6 @@ static void userfaultfd_event_wait_completion(struct userfaultfd_ctx *ctx,
 			break;
 		if (ACCESS_ONCE(ctx->released) ||
 		    fatal_signal_pending(current)) {
-			/*
-			 * &ewq->wq may be queued in fork_event, but
-			 * __remove_wait_queue ignores the head
-			 * parameter. It would be a problem if it
-			 * didn't.
-			 */
 			__remove_wait_queue(&ctx->event_wqh, &ewq->wq);
 			if (ewq->msg.event == UFFD_EVENT_FORK) {
 				struct userfaultfd_ctx *new;
@@ -604,7 +573,8 @@ static void userfaultfd_event_wait_completion(struct userfaultfd_ctx *ctx,
 				new = (struct userfaultfd_ctx *)
 					(unsigned long)
 					ewq->msg.arg.reserved.reserved1;
-				release_new_ctx = new;
+
+				userfaultfd_ctx_put(new);
 			}
 			break;
 		}
@@ -618,20 +588,6 @@ static void userfaultfd_event_wait_completion(struct userfaultfd_ctx *ctx,
 	}
 	__set_current_state(TASK_RUNNING);
 	spin_unlock(&ctx->event_wqh.lock);
-
-	if (release_new_ctx) {
-		struct vm_area_struct *vma;
-		struct mm_struct *mm = release_new_ctx->mm;
-
-		/* the various vma->vm_userfaultfd_ctx still points to it */
-		down_write(&mm->mmap_sem);
-		for (vma = mm->mmap; vma; vma = vma->vm_next)
-			if (vma->vm_userfaultfd_ctx.ctx == release_new_ctx)
-				vma->vm_userfaultfd_ctx = NULL_VM_UFFD_CTX;
-		up_write(&mm->mmap_sem);
-
-		userfaultfd_ctx_put(release_new_ctx);
-	}
 
 	/*
 	 * ctx may go away after this if the userfault pseudo fd is
@@ -1083,12 +1039,6 @@ static ssize_t userfaultfd_ctx_read(struct userfaultfd_ctx *ctx, int no_wait,
 					(unsigned long)
 					uwq->msg.arg.reserved.reserved1;
 				list_move(&uwq->wq.entry, &fork_event);
-				/*
-				 * fork_nctx can be freed as soon as
-				 * we drop the lock, unless we take a
-				 * reference on it.
-				 */
-				userfaultfd_ctx_get(fork_nctx);
 				spin_unlock(&ctx->event_wqh.lock);
 				ret = 0;
 				break;
@@ -1119,53 +1069,19 @@ static ssize_t userfaultfd_ctx_read(struct userfaultfd_ctx *ctx, int no_wait,
 
 	if (!ret && msg->event == UFFD_EVENT_FORK) {
 		ret = resolve_userfault_fork(ctx, fork_nctx, msg);
-		spin_lock(&ctx->event_wqh.lock);
-		if (!list_empty(&fork_event)) {
-			/*
-			 * The fork thread didn't abort, so we can
-			 * drop the temporary refcount.
-			 */
-			userfaultfd_ctx_put(fork_nctx);
 
-			uwq = list_first_entry(&fork_event,
-					       typeof(*uwq),
-					       wq.entry);
-			/*
-			 * If fork_event list wasn't empty and in turn
-			 * the event wasn't already released by fork
-			 * (the event is allocated on fork kernel
-			 * stack), put the event back to its place in
-			 * the event_wq. fork_event head will be freed
-			 * as soon as we return so the event cannot
-			 * stay queued there no matter the current
-			 * "ret" value.
-			 */
-			list_del(&uwq->wq.entry);
-			__add_wait_queue(&ctx->event_wqh, &uwq->wq);
-
-			/*
-			 * Leave the event in the waitqueue and report
-			 * error to userland if we failed to resolve
-			 * the userfault fork.
-			 */
-			if (likely(!ret))
+		if (!ret) {
+			spin_lock(&ctx->event_wqh.lock);
+			if (!list_empty(&fork_event)) {
+				uwq = list_first_entry(&fork_event,
+						       typeof(*uwq),
+						       wq.entry);
+				list_del(&uwq->wq.entry);
+				__add_wait_queue(&ctx->event_wqh, &uwq->wq);
 				userfaultfd_event_complete(ctx, uwq);
-		} else {
-			/*
-			 * Here the fork thread aborted and the
-			 * refcount from the fork thread on fork_nctx
-			 * has already been released. We still hold
-			 * the reference we took before releasing the
-			 * lock above. If resolve_userfault_fork
-			 * failed we've to drop it because the
-			 * fork_nctx has to be freed in such case. If
-			 * it succeeded we'll hold it because the new
-			 * uffd references it.
-			 */
-			if (ret)
-				userfaultfd_ctx_put(fork_nctx);
+			}
+			spin_unlock(&ctx->event_wqh.lock);
 		}
-		spin_unlock(&ctx->event_wqh.lock);
 	}
 
 	return ret;
@@ -1281,7 +1197,7 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 	struct uffdio_register __user *user_uffdio_register;
 	unsigned long vm_flags, new_flags;
 	bool found;
-	bool basic_ioctls;
+	bool non_anon_pages;
 	unsigned long start, end, vma_end;
 
 	user_uffdio_register = (struct uffdio_register __user *) arg;
@@ -1347,7 +1263,7 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 	 * Search for not compatible vmas.
 	 */
 	found = false;
-	basic_ioctls = false;
+	non_anon_pages = false;
 	for (cur = vma; cur && cur->vm_start < end; cur = cur->vm_next) {
 		cond_resched();
 
@@ -1386,8 +1302,8 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 		/*
 		 * Note vmas containing huge pages
 		 */
-		if (is_vm_hugetlb_page(cur))
-			basic_ioctls = true;
+		if (is_vm_hugetlb_page(cur) || vma_is_shmem(cur))
+			non_anon_pages = true;
 
 		found = true;
 	}
@@ -1458,7 +1374,7 @@ out_unlock:
 		 * userland which ioctls methods are guaranteed to
 		 * succeed on this range.
 		 */
-		if (put_user(basic_ioctls ? UFFD_API_RANGE_IOCTLS_BASIC :
+		if (put_user(non_anon_pages ? UFFD_API_RANGE_IOCTLS_BASIC :
 			     UFFD_API_RANGE_IOCTLS,
 			     &user_uffdio_register->ioctls))
 			ret = -EFAULT;

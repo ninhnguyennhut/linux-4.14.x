@@ -89,14 +89,7 @@ acpi_size acpi_ns_get_pathname_length(struct acpi_namespace_node *node)
 {
 	acpi_size size;
 
-	/* Validate the Node */
-
-	if (ACPI_GET_DESCRIPTOR_TYPE(node) != ACPI_DESC_TYPE_NAMED) {
-		ACPI_ERROR((AE_INFO,
-			    "Invalid/cached reference target node: %p, descriptor type %d",
-			    node, ACPI_GET_DESCRIPTOR_TYPE(node)));
-		return (0);
-	}
+	ACPI_FUNCTION_ENTRY();
 
 	size = acpi_ns_build_normalized_path(node, NULL, 0, FALSE);
 	return (size);

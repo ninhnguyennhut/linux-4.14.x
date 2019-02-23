@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*lcs.h*/
 
 #include <linux/interrupt.h>

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 atomisp-objs += \
 	atomisp_drvfs.o \
 	atomisp_file.o \

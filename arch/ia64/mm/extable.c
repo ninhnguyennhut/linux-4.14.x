@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Kernel exception handling table support.  Derived from arch/alpha/mm/extable.c.
  *

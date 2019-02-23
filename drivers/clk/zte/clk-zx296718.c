@@ -451,7 +451,7 @@ static struct zx_clk_fixed_factor top_ffactor_clk[] = {
 	FFACTOR(0, "emmc_mux_div2",	"emmc_mux", 1, 2, CLK_SET_RATE_PARENT),
 };
 
-static const struct clk_div_table noc_div_table[] = {
+static struct clk_div_table noc_div_table[] = {
 	{ .val = 1, .div = 2, },
 	{ .val = 3, .div = 4, },
 };
@@ -644,7 +644,7 @@ static int __init top_clocks_init(struct device_node *np)
 	return 0;
 }
 
-static const struct clk_div_table common_even_div_table[] = {
+static struct clk_div_table common_even_div_table[] = {
 	{ .val = 0, .div = 1, },
 	{ .val = 1, .div = 2, },
 	{ .val = 3, .div = 4, },
@@ -656,7 +656,7 @@ static const struct clk_div_table common_even_div_table[] = {
 	{ .val = 15, .div = 16, },
 };
 
-static const struct clk_div_table common_div_table[] = {
+static struct clk_div_table common_div_table[] = {
 	{ .val = 0, .div = 1, },
 	{ .val = 1, .div = 2, },
 	{ .val = 2, .div = 3, },

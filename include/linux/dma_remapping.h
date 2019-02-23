@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _DMA_REMAPPING_H
 #define _DMA_REMAPPING_H
 

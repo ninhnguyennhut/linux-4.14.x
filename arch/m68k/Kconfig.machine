@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 comment "Machine Types"
 
 if M68KCLASSIC

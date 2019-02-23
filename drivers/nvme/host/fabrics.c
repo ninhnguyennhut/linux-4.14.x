@@ -22,7 +22,7 @@
 #include "fabrics.h"
 
 static LIST_HEAD(nvmf_transports);
-static DECLARE_RWSEM(nvmf_transports_rwsem);
+static DEFINE_MUTEX(nvmf_transports_mutex);
 
 static LIST_HEAD(nvmf_hosts);
 static DEFINE_MUTEX(nvmf_hosts_mutex);
@@ -75,7 +75,7 @@ static struct nvmf_host *nvmf_host_default(void)
 
 	kref_init(&host->ref);
 	snprintf(host->nqn, NVMF_NQN_SIZE,
-		"nqn.2014-08.org.nvmexpress:uuid:%pUb", &host->id);
+		"nqn.2014-08.org.nvmexpress:NVMf:uuid:%pUb", &host->id);
 
 	mutex_lock(&nvmf_hosts_mutex);
 	list_add_tail(&host->list, &nvmf_hosts);
@@ -495,9 +495,9 @@ int nvmf_register_transport(struct nvmf_transport_ops *ops)
 	if (!ops->create_ctrl)
 		return -EINVAL;
 
-	down_write(&nvmf_transports_rwsem);
+	mutex_lock(&nvmf_transports_mutex);
 	list_add_tail(&ops->entry, &nvmf_transports);
-	up_write(&nvmf_transports_rwsem);
+	mutex_unlock(&nvmf_transports_mutex);
 
 	return 0;
 }
@@ -514,9 +514,9 @@ EXPORT_SYMBOL_GPL(nvmf_register_transport);
  */
 void nvmf_unregister_transport(struct nvmf_transport_ops *ops)
 {
-	down_write(&nvmf_transports_rwsem);
+	mutex_lock(&nvmf_transports_mutex);
 	list_del(&ops->entry);
-	up_write(&nvmf_transports_rwsem);
+	mutex_unlock(&nvmf_transports_mutex);
 }
 EXPORT_SYMBOL_GPL(nvmf_unregister_transport);
 
@@ -525,7 +525,7 @@ static struct nvmf_transport_ops *nvmf_lookup_transport(
 {
 	struct nvmf_transport_ops *ops;
 
-	lockdep_assert_held(&nvmf_transports_rwsem);
+	lockdep_assert_held(&nvmf_transports_mutex);
 
 	list_for_each_entry(ops, &nvmf_transports, entry) {
 		if (strcmp(ops->name, opts->transport) == 0)
@@ -565,7 +565,6 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 	opts->queue_size = NVMF_DEF_QUEUE_SIZE;
 	opts->nr_io_queues = num_online_cpus();
 	opts->reconnect_delay = NVMF_DEF_RECONNECT_DELAY;
-	opts->kato = NVME_DEFAULT_KATO;
 
 	options = o = kstrdup(buf, GFP_KERNEL);
 	if (!options)
@@ -656,22 +655,21 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 				goto out;
 			}
 
+			if (opts->discovery_nqn) {
+				pr_err("Discovery controllers cannot accept keep_alive_tmo != 0\n");
+				ret = -EINVAL;
+				goto out;
+			}
+
 			if (token < 0) {
 				pr_err("Invalid keep_alive_tmo %d\n", token);
 				ret = -EINVAL;
 				goto out;
-			} else if (token == 0 && !opts->discovery_nqn) {
+			} else if (token == 0) {
 				/* Allowed for debug */
 				pr_warn("keep_alive_tmo 0 won't execute keep alives!!!\n");
 			}
 			opts->kato = token;
-
-			if (opts->discovery_nqn && opts->kato) {
-				pr_err("Discovery controllers cannot accept KATO != 0\n");
-				ret = -EINVAL;
-				goto out;
-			}
-
 			break;
 		case NVMF_OPT_CTRL_LOSS_TMO:
 			if (match_int(args, &token)) {
@@ -737,7 +735,6 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 				goto out;
 			}
 			if (uuid_parse(p, &hostid)) {
-				pr_err("Invalid hostid %s\n", p);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -764,6 +761,8 @@ static int nvmf_parse_options(struct nvmf_ctrl_options *opts,
 	uuid_copy(&opts->host->id, &hostid);
 
 out:
+	if (!opts->discovery_nqn && !opts->kato)
+		opts->kato = NVME_DEFAULT_KATO;
 	kfree(options);
 	return ret;
 }
@@ -851,7 +850,7 @@ nvmf_create_ctrl(struct device *dev, const char *buf, size_t count)
 		goto out_free_opts;
 	opts->mask &= ~NVMF_REQUIRED_OPTS;
 
-	down_read(&nvmf_transports_rwsem);
+	mutex_lock(&nvmf_transports_mutex);
 	ops = nvmf_lookup_transport(opts);
 	if (!ops) {
 		pr_info("no handler found for transport %s.\n",
@@ -878,16 +877,16 @@ nvmf_create_ctrl(struct device *dev, const char *buf, size_t count)
 		dev_warn(ctrl->device,
 			"controller returned incorrect NQN: \"%s\".\n",
 			ctrl->subnqn);
-		up_read(&nvmf_transports_rwsem);
+		mutex_unlock(&nvmf_transports_mutex);
 		ctrl->ops->delete_ctrl(ctrl);
 		return ERR_PTR(-EINVAL);
 	}
 
-	up_read(&nvmf_transports_rwsem);
+	mutex_unlock(&nvmf_transports_mutex);
 	return ctrl;
 
 out_unlock:
-	up_read(&nvmf_transports_rwsem);
+	mutex_unlock(&nvmf_transports_mutex);
 out_free_opts:
 	nvmf_free_options(opts);
 	return ERR_PTR(ret);

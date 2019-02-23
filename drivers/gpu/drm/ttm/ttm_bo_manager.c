@@ -136,12 +136,13 @@ static int ttm_bo_man_takedown(struct ttm_mem_type_manager *man)
 }
 
 static void ttm_bo_man_debug(struct ttm_mem_type_manager *man,
-			     struct drm_printer *printer)
+			     const char *prefix)
 {
 	struct ttm_range_manager *rman = (struct ttm_range_manager *) man->priv;
+	struct drm_printer p = drm_debug_printer(prefix);
 
 	spin_lock(&rman->lock);
-	drm_mm_print(&rman->mm, printer);
+	drm_mm_print(&rman->mm, &p);
 	spin_unlock(&rman->lock);
 }
 

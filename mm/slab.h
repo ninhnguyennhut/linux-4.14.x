@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef MM_SLAB_H
 #define MM_SLAB_H
 /*
@@ -44,7 +43,6 @@ struct kmem_cache {
 #include <linux/kasan.h>
 #include <linux/kmemleak.h>
 #include <linux/random.h>
-#include <linux/sched/mm.h>
 
 /*
  * State of the slab allocator.
@@ -259,7 +257,7 @@ cache_from_memcg_idx(struct kmem_cache *s, int idx)
 	 * memcg_caches issues a write barrier to match this (see
 	 * memcg_create_kmem_cache()).
 	 */
-	cachep = READ_ONCE(arr->entries[idx]);
+	cachep = lockless_dereference(arr->entries[idx]);
 	rcu_read_unlock();
 
 	return cachep;
@@ -414,10 +412,7 @@ static inline struct kmem_cache *slab_pre_alloc_hook(struct kmem_cache *s,
 						     gfp_t flags)
 {
 	flags &= gfp_allowed_mask;
-
-	fs_reclaim_acquire(flags);
-	fs_reclaim_release(flags);
-
+	lockdep_trace_alloc(flags);
 	might_sleep_if(gfpflags_allow_blocking(flags));
 
 	if (should_failslab(s, flags))

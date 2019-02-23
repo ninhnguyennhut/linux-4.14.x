@@ -109,17 +109,13 @@ static int snd_cs4231_probe(struct device *dev, unsigned int n)
 	if (error < 0)
 		goto out;
 
-	strlcpy(card->driver, "CS4231", sizeof(card->driver));
-	strlcpy(card->shortname, chip->pcm->name, sizeof(card->shortname));
+	strcpy(card->driver, "CS4231");
+	strcpy(card->shortname, chip->pcm->name);
 
-	if (dma2[n] < 0)
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s at 0x%lx, irq %d, dma %d",
-			 chip->pcm->name, chip->port, irq[n], dma1[n]);
-	else
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s at 0x%lx, irq %d, dma %d&%d",
-			 chip->pcm->name, chip->port, irq[n], dma1[n], dma2[n]);
+	sprintf(card->longname, "%s at 0x%lx, irq %d, dma %d",
+		chip->pcm->name, chip->port, irq[n], dma1[n]);
+	if (dma2[n] >= 0)
+		sprintf(card->longname + strlen(card->longname), "&%d", dma2[n]);
 
 	error = snd_wss_mixer(chip);
 	if (error < 0)

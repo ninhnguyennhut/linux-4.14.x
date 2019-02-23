@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NITROX_CSR_H
 #define __NITROX_CSR_H
 

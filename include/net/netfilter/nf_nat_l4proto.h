@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Header for use in defining a given protocol. */
 #ifndef _NF_NAT_L4PROTO_H
 #define _NF_NAT_L4PROTO_H

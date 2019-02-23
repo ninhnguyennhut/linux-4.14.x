@@ -44,7 +44,12 @@ static bool match_devname(struct v4l2_subdev *sd,
 
 static bool match_fwnode(struct v4l2_subdev *sd, struct v4l2_async_subdev *asd)
 {
-	return sd->fwnode == asd->match.fwnode.fwnode;
+	if (!is_of_node(sd->fwnode) || !is_of_node(asd->match.fwnode.fwnode))
+		return sd->fwnode == asd->match.fwnode.fwnode;
+
+	return !of_node_cmp(of_node_full_name(to_of_node(sd->fwnode)),
+			    of_node_full_name(
+				    to_of_node(asd->match.fwnode.fwnode)));
 }
 
 static bool match_custom(struct v4l2_subdev *sd, struct v4l2_async_subdev *asd)

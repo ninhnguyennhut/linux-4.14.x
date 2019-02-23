@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_MEMORY_HOTPLUG_H
 #define __LINUX_MEMORY_HOTPLUG_H
 
@@ -133,17 +132,6 @@ extern int __remove_pages(struct zone *zone, unsigned long start_pfn,
 /* reasonably generic interface to expand the physical pages */
 extern int __add_pages(int nid, unsigned long start_pfn,
 	unsigned long nr_pages, bool want_memblock);
-
-#ifndef CONFIG_ARCH_HAS_ADD_PAGES
-static inline int add_pages(int nid, unsigned long start_pfn,
-			    unsigned long nr_pages, bool want_memblock)
-{
-	return __add_pages(nid, start_pfn, nr_pages, want_memblock);
-}
-#else /* ARCH_HAS_ADD_PAGES */
-int add_pages(int nid, unsigned long start_pfn,
-	      unsigned long nr_pages, bool want_memblock);
-#endif /* ARCH_HAS_ADD_PAGES */
 
 #ifdef CONFIG_NUMA
 extern int memory_add_physaddr_to_nid(u64 start);
@@ -331,6 +319,6 @@ extern struct page *sparse_decode_mem_map(unsigned long coded_mem_map,
 					  unsigned long pnum);
 extern bool allow_online_pfn_range(int nid, unsigned long pfn, unsigned long nr_pages,
 		int online_type);
-extern struct zone *zone_for_pfn_range(int online_type, int nid, unsigned start_pfn,
+extern struct zone *default_zone_for_pfn(int nid, unsigned long pfn,
 		unsigned long nr_pages);
 #endif /* __LINUX_MEMORY_HOTPLUG_H */

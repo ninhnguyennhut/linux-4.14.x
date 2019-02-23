@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "print_binary.h"
 #include <linux/log2.h>
 #include "sane_ctype.h"

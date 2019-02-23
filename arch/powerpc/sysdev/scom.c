@@ -194,13 +194,12 @@ static int scom_debug_init_one(struct dentry *root, struct device_node *dn,
 
 	ent->dn = of_node_get(dn);
 	snprintf(ent->name, 16, "%08x", i);
-	ent->path.data = (void*)kasprintf(GFP_KERNEL, "%pOF", dn);
-	ent->path.size = strlen((char *)ent->path.data);
+	ent->path.data = (void*) dn->full_name;
+	ent->path.size = strlen(dn->full_name);
 
 	dir = debugfs_create_dir(ent->name, root);
 	if (!dir) {
 		of_node_put(dn);
-		kfree(ent->path.data);
 		kfree(ent);
 		return -1;
 	}

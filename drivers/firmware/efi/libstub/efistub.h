@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef _DRIVERS_FIRMWARE_EFI_EFISTUB_H
 #define _DRIVERS_FIRMWARE_EFI_EFISTUB_H

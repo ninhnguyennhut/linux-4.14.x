@@ -117,7 +117,7 @@
 			};
 		};
 
-		pcie {
+		pcie-controller {
 			status = "okay";
 			/*
 			 * One PCIe units is accessible through

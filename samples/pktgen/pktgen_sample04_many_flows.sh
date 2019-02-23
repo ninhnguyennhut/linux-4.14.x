@@ -1,5 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 #
 # Script example for many flows testing
 #

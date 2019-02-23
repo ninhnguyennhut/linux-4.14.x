@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Include in trace.c */
 
 #include <uapi/linux/sched/types.h>
@@ -274,7 +273,7 @@ static int trace_selftest_ops(struct trace_array *tr, int cnt)
 		goto out_free;
 	if (cnt > 1) {
 		if (trace_selftest_test_global_cnt == 0)
-			goto out_free;
+			goto out;
 	}
 	if (trace_selftest_test_dyn_cnt == 0)
 		goto out_free;

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __strmux_defs_asm_h
 #define __strmux_defs_asm_h
 

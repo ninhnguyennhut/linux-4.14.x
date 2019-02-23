@@ -378,7 +378,7 @@ xfs_symlink(
 		xfs_trans_set_sync(tp);
 	}
 
-	error = xfs_defer_finish(&tp, &dfops);
+	error = xfs_defer_finish(&tp, &dfops, NULL);
 	if (error)
 		goto out_bmap_cancel;
 
@@ -497,8 +497,7 @@ xfs_inactive_symlink_rmt(
 	/*
 	 * Commit the first transaction.  This logs the EFI and the inode.
 	 */
-	xfs_defer_ijoin(&dfops, ip);
-	error = xfs_defer_finish(&tp, &dfops);
+	error = xfs_defer_finish(&tp, &dfops, ip);
 	if (error)
 		goto error_bmap_cancel;
 	/*

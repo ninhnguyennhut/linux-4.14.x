@@ -364,14 +364,8 @@ static void stmmac_eee_ctrl_timer(unsigned long arg)
 bool stmmac_eee_init(struct stmmac_priv *priv)
 {
 	struct net_device *ndev = priv->dev;
-	int interface = priv->plat->interface;
 	unsigned long flags;
 	bool ret = false;
-
-	if ((interface != PHY_INTERFACE_MODE_MII) &&
-	    (interface != PHY_INTERFACE_MODE_GMII) &&
-	    !phy_interface_mode_is_rgmii(interface))
-		goto out;
 
 	/* Using PCS we cannot dial with the phy registers at this stage
 	 * so we do not support extra feature like EEE.
@@ -479,18 +473,19 @@ static void stmmac_get_rx_hwtstamp(struct stmmac_priv *priv, struct dma_desc *p,
 				   struct dma_desc *np, struct sk_buff *skb)
 {
 	struct skb_shared_hwtstamps *shhwtstamp = NULL;
-	struct dma_desc *desc = p;
 	u64 ns;
 
 	if (!priv->hwts_rx_en)
 		return;
-	/* For GMAC4, the valid timestamp is from CTX next desc. */
-	if (priv->plat->has_gmac4)
-		desc = np;
 
 	/* Check if timestamp is available */
-	if (priv->hw->desc->get_rx_timestamp_status(desc, priv->adv_ts)) {
-		ns = priv->hw->desc->get_timestamp(desc, priv->adv_ts);
+	if (priv->hw->desc->get_rx_timestamp_status(p, priv->adv_ts)) {
+		/* For GMAC4, the valid timestamp is from CTX next desc. */
+		if (priv->plat->has_gmac4)
+			ns = priv->hw->desc->get_timestamp(np, priv->adv_ts);
+		else
+			ns = priv->hw->desc->get_timestamp(p, priv->adv_ts);
+
 		netdev_dbg(priv->dev, "get valid RX hw timestamp %llu\n", ns);
 		shhwtstamp = skb_hwtstamps(skb);
 		memset(shhwtstamp, 0, sizeof(struct skb_shared_hwtstamps));
@@ -1805,13 +1800,12 @@ static void stmmac_tx_clean(struct stmmac_priv *priv, u32 queue)
 {
 	struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
 	unsigned int bytes_compl = 0, pkts_compl = 0;
-	unsigned int entry;
+	unsigned int entry = tx_q->dirty_tx;
 
 	netif_tx_lock(priv->dev);
 
 	priv->xstats.tx_clean++;
 
-	entry = tx_q->dirty_tx;
 	while (entry != tx_q->cur_tx) {
 		struct sk_buff *skb = tx_q->tx_skbuff[entry];
 		struct dma_desc *p;
@@ -2570,7 +2564,6 @@ static int stmmac_open(struct net_device *dev)
 
 	priv->dma_buf_sz = STMMAC_ALIGN(buf_sz);
 	priv->rx_copybreak = STMMAC_RX_COPYBREAK;
-	priv->mss = 0;
 
 	ret = alloc_dma_desc_resources(priv);
 	if (ret < 0) {
@@ -3340,7 +3333,6 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
 				 * them in stmmac_rx_refill() function so that
 				 * device can reuse it.
 				 */
-				dev_kfree_skb_any(rx_q->rx_skbuff[entry]);
 				rx_q->rx_skbuff[entry] = NULL;
 				dma_unmap_single(priv->device,
 						 rx_q->rx_skbuff_dma[entry],

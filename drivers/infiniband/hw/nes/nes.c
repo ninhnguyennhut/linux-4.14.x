@@ -63,6 +63,7 @@
 MODULE_AUTHOR("NetEffect");
 MODULE_DESCRIPTION("NetEffect RNIC Low-level iWARP Driver");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_VERSION(DRV_VERSION);
 
 int interrupt_mod_interval = 0;
 
@@ -101,7 +102,7 @@ static unsigned int ee_flsh_adapter;
 static unsigned int sysfs_nonidx_addr;
 static unsigned int sysfs_idx_addr;
 
-static const struct pci_device_id nes_pci_table[] = {
+static struct pci_device_id nes_pci_table[] = {
 	{ PCI_VDEVICE(NETEFFECT, PCI_DEVICE_ID_NETEFFECT_NE020), },
 	{ PCI_VDEVICE(NETEFFECT, PCI_DEVICE_ID_NETEFFECT_NE020_KR), },
 	{0}
@@ -807,6 +808,13 @@ static void nes_remove(struct pci_dev *pcidev)
 }
 
 
+static struct pci_driver nes_pci_driver = {
+	.name = DRV_NAME,
+	.id_table = nes_pci_table,
+	.probe = nes_probe,
+	.remove = nes_remove,
+};
+
 static ssize_t adapter_show(struct device_driver *ddp, char *buf)
 {
 	unsigned int  devfn = 0xffffffff;
@@ -1148,29 +1156,35 @@ static DRIVER_ATTR_RW(idx_addr);
 static DRIVER_ATTR_RW(idx_data);
 static DRIVER_ATTR_RW(wqm_quanta);
 
-static struct attribute *nes_attrs[] = {
-	&driver_attr_adapter.attr,
-	&driver_attr_eeprom_cmd.attr,
-	&driver_attr_eeprom_data.attr,
-	&driver_attr_flash_cmd.attr,
-	&driver_attr_flash_data.attr,
-	&driver_attr_nonidx_addr.attr,
-	&driver_attr_nonidx_data.attr,
-	&driver_attr_idx_addr.attr,
-	&driver_attr_idx_data.attr,
-	&driver_attr_wqm_quanta.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(nes);
+static int nes_create_driver_sysfs(struct pci_driver *drv)
+{
+	int error;
+	error  = driver_create_file(&drv->driver, &driver_attr_adapter);
+	error |= driver_create_file(&drv->driver, &driver_attr_eeprom_cmd);
+	error |= driver_create_file(&drv->driver, &driver_attr_eeprom_data);
+	error |= driver_create_file(&drv->driver, &driver_attr_flash_cmd);
+	error |= driver_create_file(&drv->driver, &driver_attr_flash_data);
+	error |= driver_create_file(&drv->driver, &driver_attr_nonidx_addr);
+	error |= driver_create_file(&drv->driver, &driver_attr_nonidx_data);
+	error |= driver_create_file(&drv->driver, &driver_attr_idx_addr);
+	error |= driver_create_file(&drv->driver, &driver_attr_idx_data);
+	error |= driver_create_file(&drv->driver, &driver_attr_wqm_quanta);
+	return error;
+}
 
-static struct pci_driver nes_pci_driver = {
-	.name = DRV_NAME,
-	.id_table = nes_pci_table,
-	.probe = nes_probe,
-	.remove = nes_remove,
-	.groups = nes_groups,
-};
-
+static void nes_remove_driver_sysfs(struct pci_driver *drv)
+{
+	driver_remove_file(&drv->driver, &driver_attr_adapter);
+	driver_remove_file(&drv->driver, &driver_attr_eeprom_cmd);
+	driver_remove_file(&drv->driver, &driver_attr_eeprom_data);
+	driver_remove_file(&drv->driver, &driver_attr_flash_cmd);
+	driver_remove_file(&drv->driver, &driver_attr_flash_data);
+	driver_remove_file(&drv->driver, &driver_attr_nonidx_addr);
+	driver_remove_file(&drv->driver, &driver_attr_nonidx_data);
+	driver_remove_file(&drv->driver, &driver_attr_idx_addr);
+	driver_remove_file(&drv->driver, &driver_attr_idx_data);
+	driver_remove_file(&drv->driver, &driver_attr_wqm_quanta);
+}
 
 /**
  * nes_init_module - module initialization entry point
@@ -1178,13 +1192,20 @@ static struct pci_driver nes_pci_driver = {
 static int __init nes_init_module(void)
 {
 	int retval;
+	int retval1;
 
 	retval = nes_cm_start();
 	if (retval) {
 		printk(KERN_ERR PFX "Unable to start NetEffect iWARP CM.\n");
 		return retval;
 	}
-	return pci_register_driver(&nes_pci_driver);
+	retval = pci_register_driver(&nes_pci_driver);
+	if (retval >= 0) {
+		retval1 = nes_create_driver_sysfs(&nes_pci_driver);
+		if (retval1 < 0)
+			printk(KERN_ERR PFX "Unable to create NetEffect sys files.\n");
+	}
+	return retval;
 }
 
 
@@ -1194,6 +1215,7 @@ static int __init nes_init_module(void)
 static void __exit nes_exit_module(void)
 {
 	nes_cm_stop();
+	nes_remove_driver_sysfs(&nes_pci_driver);
 
 	pci_unregister_driver(&nes_pci_driver);
 }

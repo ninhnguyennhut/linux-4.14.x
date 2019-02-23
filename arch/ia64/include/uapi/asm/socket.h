@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _ASM_IA64_SOCKET_H
 #define _ASM_IA64_SOCKET_H
 
@@ -111,7 +110,5 @@
 #define SCM_TIMESTAMPING_PKTINFO	58
 
 #define SO_PEERGROUPS		59
-
-#define SO_ZEROCOPY		60
 
 #endif /* _ASM_IA64_SOCKET_H */

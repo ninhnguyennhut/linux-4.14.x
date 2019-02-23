@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/list.h>
 #include <linux/compiler.h>
 #include <sys/types.h>
@@ -471,36 +470,17 @@ static void pmu_read_sysfs(void)
 	closedir(dir);
 }
 
-static struct cpu_map *__pmu_cpumask(const char *path)
-{
-	FILE *file;
-	struct cpu_map *cpus;
-
-	file = fopen(path, "r");
-	if (!file)
-		return NULL;
-
-	cpus = cpu_map__read(file);
-	fclose(file);
-	return cpus;
-}
-
-/*
- * Uncore PMUs have a "cpumask" file under sysfs. CPU PMUs (e.g. on arm/arm64)
- * may have a "cpus" file.
- */
-#define CPUS_TEMPLATE_UNCORE	"%s/bus/event_source/devices/%s/cpumask"
-#define CPUS_TEMPLATE_CPU	"%s/bus/event_source/devices/%s/cpus"
-
 static struct cpu_map *pmu_cpumask(const char *name)
 {
+	struct stat st;
 	char path[PATH_MAX];
+	FILE *file;
 	struct cpu_map *cpus;
 	const char *sysfs = sysfs__mountpoint();
 	const char *templates[] = {
-		CPUS_TEMPLATE_UNCORE,
-		CPUS_TEMPLATE_CPU,
-		NULL
+		 "%s/bus/event_source/devices/%s/cpumask",
+		 "%s/bus/event_source/devices/%s/cpus",
+		 NULL
 	};
 	const char **template;
 
@@ -509,25 +489,20 @@ static struct cpu_map *pmu_cpumask(const char *name)
 
 	for (template = templates; *template; template++) {
 		snprintf(path, PATH_MAX, *template, sysfs, name);
-		cpus = __pmu_cpumask(path);
-		if (cpus)
-			return cpus;
+		if (stat(path, &st) == 0)
+			break;
 	}
 
-	return NULL;
-}
+	if (!*template)
+		return NULL;
 
-static bool pmu_is_uncore(const char *name)
-{
-	char path[PATH_MAX];
-	struct cpu_map *cpus;
-	const char *sysfs = sysfs__mountpoint();
+	file = fopen(path, "r");
+	if (!file)
+		return NULL;
 
-	snprintf(path, PATH_MAX, CPUS_TEMPLATE_UNCORE, sysfs, name);
-	cpus = __pmu_cpumask(path);
-	cpu_map__put(cpus);
-
-	return !!cpus;
+	cpus = cpu_map__read(file);
+	fclose(file);
+	return cpus;
 }
 
 /*
@@ -641,8 +616,6 @@ static struct perf_pmu *pmu_lookup(const char *name)
 		return NULL;
 
 	pmu->cpus = pmu_cpumask(name);
-
-	pmu->is_uncore = pmu_is_uncore(name);
 
 	INIT_LIST_HEAD(&pmu->format);
 	INIT_LIST_HEAD(&pmu->aliases);

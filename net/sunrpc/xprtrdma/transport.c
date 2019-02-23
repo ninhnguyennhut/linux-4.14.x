@@ -149,7 +149,7 @@ static struct ctl_table sunrpc_table[] = {
 
 #endif
 
-static const struct rpc_xprt_ops xprt_rdma_procs;
+static struct rpc_xprt_ops xprt_rdma_procs;	/*forward reference */
 
 static void
 xprt_rdma_format_addresses4(struct rpc_xprt *xprt, struct sockaddr *sap)
@@ -559,7 +559,6 @@ rpcrdma_get_rdmabuf(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req,
 
 	r_xprt->rx_stats.hardway_register_count += size;
 	req->rl_rdmabuf = rb;
-	xdr_buf_init(&req->rl_hdrbuf, rb->rg_base, rdmab_length(rb));
 	return true;
 }
 
@@ -685,8 +684,9 @@ xprt_rdma_free(struct rpc_task *task)
 
 	dprintk("RPC:       %s: called on 0x%p\n", __func__, req->rl_reply);
 
+	rpcrdma_remove_req(&r_xprt->rx_buf, req);
 	if (!list_empty(&req->rl_registered))
-		ia->ri_ops->ro_unmap_sync(r_xprt, &req->rl_registered);
+		ia->ri_ops->ro_unmap_safe(r_xprt, req, !RPC_IS_ASYNC(task));
 	rpcrdma_unmap_sges(ia, req);
 	rpcrdma_buffer_put(req);
 }
@@ -730,7 +730,7 @@ xprt_rdma_send_request(struct rpc_task *task)
 	if (unlikely(!list_empty(&req->rl_registered)))
 		r_xprt->rx_ia.ri_ops->ro_unmap_safe(r_xprt, req, false);
 
-	rc = rpcrdma_marshal_req(r_xprt, rqst);
+	rc = rpcrdma_marshal_req(rqst);
 	if (rc < 0)
 		goto failed_marshal;
 
@@ -811,7 +811,7 @@ xprt_rdma_disable_swap(struct rpc_xprt *xprt)
  * Plumbing for rpc transport switch and kernel module
  */
 
-static const struct rpc_xprt_ops xprt_rdma_procs = {
+static struct rpc_xprt_ops xprt_rdma_procs = {
 	.reserve_xprt		= xprt_reserve_xprt_cong,
 	.release_xprt		= xprt_release_xprt_cong, /* sunrpc/xprt.c */
 	.alloc_slot		= xprt_alloc_slot,

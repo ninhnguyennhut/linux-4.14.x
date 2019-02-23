@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Simple testcode to download by the rescue block.
  * Just lights some LEDs to show it was downloaded correctly.

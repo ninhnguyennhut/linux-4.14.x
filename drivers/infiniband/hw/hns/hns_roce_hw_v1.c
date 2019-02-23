@@ -1001,11 +1001,6 @@ static void hns_roce_v1_mr_free_work_fn(struct work_struct *work)
 		}
 	}
 
-	if (!ne) {
-		dev_err(dev, "Reseved loop qp is absent!\n");
-		goto free_work;
-	}
-
 	do {
 		ret = hns_roce_v1_poll_cq(&mr_free_cq->ib_cq, ne, wc);
 		if (ret < 0) {
@@ -2028,6 +2023,7 @@ int hns_roce_v1_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 	struct hns_roce_cq *hr_cq = to_hr_cq(ibcq);
 	u32 notification_flag;
 	u32 doorbell[2];
+	int ret = 0;
 
 	notification_flag = (flags & IB_CQ_SOLICITED_MASK) ==
 			    IB_CQ_SOLICITED ? CQ_DB_REQ_NOT : CQ_DB_REQ_NOT_SOL;
@@ -2047,7 +2043,7 @@ int hns_roce_v1_req_notify_cq(struct ib_cq *ibcq, enum ib_cq_notify_flags flags)
 
 	hns_roce_write64_k(doorbell, hr_cq->cq_db_l);
 
-	return 0;
+	return ret;
 }
 
 static int hns_roce_v1_poll_one(struct hns_roce_cq *hr_cq,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __XEN_PMU_H
 #define __XEN_PMU_H
 

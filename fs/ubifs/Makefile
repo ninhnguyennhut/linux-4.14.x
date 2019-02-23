@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_UBIFS_FS) += ubifs.o
 
 ubifs-y += shrinker.o journal.o file.o dir.o super.o sb.o io.o

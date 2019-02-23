@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Q40 master Chip Control
  * RTC stuff merged for compactness.

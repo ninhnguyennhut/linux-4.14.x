@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * A hack to create a platform device from a DMI entry.  This will
  * allow autoloading of the IPMI drive based on SMBIOS entries.

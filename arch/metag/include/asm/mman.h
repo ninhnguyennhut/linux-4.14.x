@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __METAG_MMAN_H__
 #define __METAG_MMAN_H__
 

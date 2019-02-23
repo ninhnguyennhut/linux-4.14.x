@@ -206,15 +206,6 @@ struct mtd_pairing_scheme {
 
 struct module;	/* only needed for owner field in mtd_info */
 
-/**
- * struct mtd_debug_info - debugging information for an MTD device.
- *
- * @dfs_dir: direntry object of the MTD device debugfs directory
- */
-struct mtd_debug_info {
-	struct dentry *dfs_dir;
-};
-
 struct mtd_info {
 	u_char type;
 	uint32_t flags;
@@ -355,7 +346,6 @@ struct mtd_info {
 	struct module *owner;
 	struct device dev;
 	int usecount;
-	struct mtd_debug_info dbg;
 };
 
 int mtd_ooblayout_ecc(struct mtd_info *mtd, int section,

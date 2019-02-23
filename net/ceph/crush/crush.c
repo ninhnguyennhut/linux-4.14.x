@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #ifdef __KERNEL__
 # include <linux/slab.h>
 # include <linux/crush/crush.h>

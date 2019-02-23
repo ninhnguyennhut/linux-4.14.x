@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVBIOS_GPIO_H__
 #define __NVBIOS_GPIO_H__
 enum dcb_gpio_func_name {

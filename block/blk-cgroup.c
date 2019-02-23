@@ -1067,7 +1067,7 @@ blkcg_css_alloc(struct cgroup_subsys_state *parent_css)
 		blkcg = kzalloc(sizeof(*blkcg), GFP_KERNEL);
 		if (!blkcg) {
 			ret = ERR_PTR(-ENOMEM);
-			goto unlock;
+			goto free_blkcg;
 		}
 	}
 
@@ -1111,10 +1111,8 @@ free_pd_blkcg:
 	for (i--; i >= 0; i--)
 		if (blkcg->cpd[i])
 			blkcg_policy[i]->cpd_free_fn(blkcg->cpd[i]);
-
-	if (blkcg != &blkcg_root)
-		kfree(blkcg);
-unlock:
+free_blkcg:
+	kfree(blkcg);
 	mutex_unlock(&blkcg_pol_mutex);
 	return ret;
 }

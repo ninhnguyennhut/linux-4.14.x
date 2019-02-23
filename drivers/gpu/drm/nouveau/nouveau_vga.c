@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/vgaarb.h>
 #include <linux/vga_switcheroo.h>
 

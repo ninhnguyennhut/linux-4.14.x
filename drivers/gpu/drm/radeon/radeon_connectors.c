@@ -773,15 +773,12 @@ static int radeon_connector_set_property(struct drm_connector *connector, struct
 
 		if (connector->encoder->crtc) {
 			struct drm_crtc *crtc  = connector->encoder->crtc;
+			const struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
 			struct radeon_crtc *radeon_crtc = to_radeon_crtc(crtc);
 
 			radeon_crtc->output_csc = radeon_encoder->output_csc;
 
-			/*
-			 * Our .gamma_set assumes the .gamma_store has been
-			 * prefilled and don't care about its arguments.
-			 */
-			crtc->funcs->gamma_set(crtc, NULL, NULL, NULL, 0, NULL);
+			(*crtc_funcs->load_lut)(crtc);
 		}
 	}
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Wrapper functions for accessing the file_struct fd array.
  */

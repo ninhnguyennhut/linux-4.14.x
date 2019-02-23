@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * irq_domain - IRQ translation domains
  *
@@ -266,11 +265,9 @@ static inline struct fwnode_handle *of_node_to_fwnode(struct device_node *node)
 	return node ? &node->fwnode : NULL;
 }
 
-extern const struct fwnode_operations irqchip_fwnode_ops;
-
 static inline bool is_fwnode_irqchip(struct fwnode_handle *fwnode)
 {
-	return fwnode && fwnode->ops == &irqchip_fwnode_ops;
+	return fwnode && fwnode->type == FWNODE_IRQCHIP;
 }
 
 extern void irq_domain_update_bus_token(struct irq_domain *domain,
@@ -462,9 +459,6 @@ extern void irq_domain_free_irqs_common(struct irq_domain *domain,
 					unsigned int nr_irqs);
 extern void irq_domain_free_irqs_top(struct irq_domain *domain,
 				     unsigned int virq, unsigned int nr_irqs);
-
-extern int irq_domain_push_irq(struct irq_domain *domain, int virq, void *arg);
-extern int irq_domain_pop_irq(struct irq_domain *domain, int virq);
 
 extern int irq_domain_alloc_irqs_parent(struct irq_domain *domain,
 					unsigned int irq_base,

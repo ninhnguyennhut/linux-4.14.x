@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  S390 version
  *    Copyright IBM Corp. 1999
@@ -136,7 +135,7 @@ static void dump_pagetable(unsigned long asce, unsigned long address)
 	pr_alert("AS:%016lx ", asce);
 	switch (asce & _ASCE_TYPE_MASK) {
 	case _ASCE_TYPE_REGION1:
-		table += (address & _REGION1_INDEX) >> _REGION1_SHIFT;
+		table = table + ((address >> 53) & 0x7ff);
 		if (bad_address(table))
 			goto bad;
 		pr_cont("R1:%016lx ", *table);
@@ -145,7 +144,7 @@ static void dump_pagetable(unsigned long asce, unsigned long address)
 		table = (unsigned long *)(*table & _REGION_ENTRY_ORIGIN);
 		/* fallthrough */
 	case _ASCE_TYPE_REGION2:
-		table += (address & _REGION2_INDEX) >> _REGION2_SHIFT;
+		table = table + ((address >> 42) & 0x7ff);
 		if (bad_address(table))
 			goto bad;
 		pr_cont("R2:%016lx ", *table);
@@ -154,7 +153,7 @@ static void dump_pagetable(unsigned long asce, unsigned long address)
 		table = (unsigned long *)(*table & _REGION_ENTRY_ORIGIN);
 		/* fallthrough */
 	case _ASCE_TYPE_REGION3:
-		table += (address & _REGION3_INDEX) >> _REGION3_SHIFT;
+		table = table + ((address >> 31) & 0x7ff);
 		if (bad_address(table))
 			goto bad;
 		pr_cont("R3:%016lx ", *table);
@@ -163,7 +162,7 @@ static void dump_pagetable(unsigned long asce, unsigned long address)
 		table = (unsigned long *)(*table & _REGION_ENTRY_ORIGIN);
 		/* fallthrough */
 	case _ASCE_TYPE_SEGMENT:
-		table += (address & _SEGMENT_INDEX) >> _SEGMENT_SHIFT;
+		table = table + ((address >> 20) & 0x7ff);
 		if (bad_address(table))
 			goto bad;
 		pr_cont("S:%016lx ", *table);
@@ -171,7 +170,7 @@ static void dump_pagetable(unsigned long asce, unsigned long address)
 			goto out;
 		table = (unsigned long *)(*table & _SEGMENT_ENTRY_ORIGIN);
 	}
-	table += (address & _PAGE_INDEX) >> _PAGE_SHIFT;
+	table = table + ((address >> 12) & 0xff);
 	if (bad_address(table))
 		goto bad;
 	pr_cont("P:%016lx ", *table);

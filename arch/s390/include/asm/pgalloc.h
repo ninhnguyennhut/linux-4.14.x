@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  S390 version
  *    Copyright IBM Corp. 1999, 2000
@@ -15,8 +14,6 @@
 #include <linux/threads.h>
 #include <linux/gfp.h>
 #include <linux/mm.h>
-
-#define CRST_ALLOC_ORDER 2
 
 unsigned long *crst_table_alloc(struct mm_struct *);
 void crst_table_free(struct mm_struct *, unsigned long *);
@@ -45,16 +42,16 @@ static inline void clear_table(unsigned long *s, unsigned long val, size_t n)
 
 static inline void crst_table_init(unsigned long *crst, unsigned long entry)
 {
-	clear_table(crst, entry, _CRST_TABLE_SIZE);
+	clear_table(crst, entry, sizeof(unsigned long)*2048);
 }
 
 static inline unsigned long pgd_entry_type(struct mm_struct *mm)
 {
-	if (mm->context.asce_limit <= _REGION3_SIZE)
+	if (mm->context.asce_limit <= (1UL << 31))
 		return _SEGMENT_ENTRY_EMPTY;
-	if (mm->context.asce_limit <= _REGION2_SIZE)
+	if (mm->context.asce_limit <= (1UL << 42))
 		return _REGION3_ENTRY_EMPTY;
-	if (mm->context.asce_limit <= _REGION1_SIZE)
+	if (mm->context.asce_limit <= (1UL << 53))
 		return _REGION2_ENTRY_EMPTY;
 	return _REGION1_ENTRY_EMPTY;
 }
@@ -122,7 +119,7 @@ static inline pgd_t *pgd_alloc(struct mm_struct *mm)
 
 	if (!table)
 		return NULL;
-	if (mm->context.asce_limit == _REGION3_SIZE) {
+	if (mm->context.asce_limit == (1UL << 31)) {
 		/* Forking a compat process with 2 page table levels */
 		if (!pgtable_pmd_page_ctor(virt_to_page(table))) {
 			crst_table_free(mm, table);
@@ -134,7 +131,7 @@ static inline pgd_t *pgd_alloc(struct mm_struct *mm)
 
 static inline void pgd_free(struct mm_struct *mm, pgd_t *pgd)
 {
-	if (mm->context.asce_limit == _REGION3_SIZE)
+	if (mm->context.asce_limit == (1UL << 31))
 		pgtable_pmd_page_dtor(virt_to_page(pgd));
 	crst_table_free(mm, (unsigned long *) pgd);
 }
@@ -160,9 +157,5 @@ static inline void pmd_populate(struct mm_struct *mm,
 #define pte_free(mm, pte) page_table_free(mm, (unsigned long *) pte)
 
 extern void rcu_table_freelist_finish(void);
-
-void vmem_map_init(void);
-void *vmem_crst_alloc(unsigned long val);
-pte_t *vmem_pte_alloc(void);
 
 #endif /* _S390_PGALLOC_H */

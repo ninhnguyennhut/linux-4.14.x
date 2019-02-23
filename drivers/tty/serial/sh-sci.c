@@ -1491,14 +1491,6 @@ static void sci_request_dma(struct uart_port *port)
 		return;
 
 	s->cookie_tx = -EINVAL;
-
-	/*
-	 * Don't request a dma channel if no channel was specified
-	 * in the device tree.
-	 */
-	if (!of_find_property(port->dev->of_node, "dmas", NULL))
-		return;
-
 	chan = sci_request_dma_chan(port, DMA_MEM_TO_DEV);
 	dev_dbg(port->dev, "%s: TX: got channel %p\n", __func__, chan);
 	if (chan) {
@@ -3081,7 +3073,8 @@ static struct plat_sci_port *sci_parse_dt(struct platform_device *pdev,
 	p->type = SCI_OF_TYPE(match->data);
 	p->regtype = SCI_OF_REGTYPE(match->data);
 
-	sp->has_rtscts = of_property_read_bool(np, "uart-has-rtscts");
+	if (of_find_property(np, "uart-has-rtscts", NULL))
+		sp->has_rtscts = true;
 
 	return p;
 }

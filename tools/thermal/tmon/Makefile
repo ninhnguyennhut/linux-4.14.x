@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 VERSION = 1.0
 
 BINDIR=usr/bin

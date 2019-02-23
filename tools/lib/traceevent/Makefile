@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # trace-cmd version
 EP_VERSION = 1
 EP_PATCHLEVEL = 1

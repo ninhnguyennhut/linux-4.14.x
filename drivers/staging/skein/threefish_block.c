@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/bitops.h>
 #include "threefish_api.h"
 

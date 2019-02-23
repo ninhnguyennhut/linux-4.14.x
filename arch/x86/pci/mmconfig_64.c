@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * mmconfig.c - Low-level direct PCI config space access via MMCONFIG
  *

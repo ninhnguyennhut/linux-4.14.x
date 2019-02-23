@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __l2cache_defs_h
 #define __l2cache_defs_h
 

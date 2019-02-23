@@ -75,7 +75,7 @@
 #define SIZE_vio_device_id 64 /* sizeof(struct vio_device_id) */
 #define OFF_vio_device_id_type 0 /* offsetof(struct vio_device_id, type) */
 #define OFF_vio_device_id_compat 32 /* offsetof(struct vio_device_id, compat) */
-#define SIZE_input_device_id 164 /* sizeof(struct input_device_id) */
+#define SIZE_input_device_id 160 /* sizeof(struct input_device_id) */
 #define OFF_input_device_id_flags 0 /* offsetof(struct input_device_id, flags) */
 #define OFF_input_device_id_bustype 4 /* offsetof(struct input_device_id, bustype) */
 #define OFF_input_device_id_vendor 6 /* offsetof(struct input_device_id, vendor) */

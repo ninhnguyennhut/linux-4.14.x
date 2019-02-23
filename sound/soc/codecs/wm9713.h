@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * wm9713.h  --  WM9713 Soc Audio driver
  */

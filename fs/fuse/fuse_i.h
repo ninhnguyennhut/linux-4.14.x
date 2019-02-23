@@ -252,15 +252,16 @@ struct fuse_io_priv {
 	bool should_dirty;
 	int err;
 	struct kiocb *iocb;
+	struct file *file;
 	struct completion *done;
 	bool blocking;
 };
 
-#define FUSE_IO_PRIV_SYNC(i) \
+#define FUSE_IO_PRIV_SYNC(f) \
 {					\
 	.refcnt = KREF_INIT(1),		\
 	.async = 0,			\
-	.iocb = i,			\
+	.file = f,			\
 }
 
 /**
@@ -904,7 +905,8 @@ u64 fuse_lock_owner_id(struct fuse_conn *fc, fl_owner_t id);
 
 void fuse_update_ctime(struct inode *inode);
 
-int fuse_update_attributes(struct inode *inode, struct file *file);
+int fuse_update_attributes(struct inode *inode, struct kstat *stat,
+			   struct file *file, bool *refreshed);
 
 void fuse_flush_writepages(struct inode *inode);
 

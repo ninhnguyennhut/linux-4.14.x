@@ -726,7 +726,7 @@ static int wmt_mci_get_cd(struct mmc_host *mmc)
 	return !(cd ^ priv->cd_inverted);
 }
 
-static const struct mmc_host_ops wmt_mci_ops = {
+static struct mmc_host_ops wmt_mci_ops = {
 	.request = wmt_mci_request,
 	.set_ios = wmt_mci_set_ios,
 	.get_ro = wmt_mci_get_ro,
@@ -856,9 +856,7 @@ static int wmt_mci_probe(struct platform_device *pdev)
 		goto fail5;
 	}
 
-	ret = clk_prepare_enable(priv->clk_sdmmc);
-	if (ret)
-		goto fail6;
+	clk_prepare_enable(priv->clk_sdmmc);
 
 	/* configure the controller to a known 'ready' state */
 	wmt_reset_hardware(mmc);
@@ -868,8 +866,6 @@ static int wmt_mci_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "WMT SDHC Controller initialized\n");
 
 	return 0;
-fail6:
-	clk_put(priv->clk_sdmmc);
 fail5:
 	free_irq(dma_irq, priv);
 fail4:

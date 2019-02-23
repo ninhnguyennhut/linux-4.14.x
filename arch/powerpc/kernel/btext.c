@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Procedures for drawing on the screen early on in the boot process.
  *
@@ -254,7 +253,7 @@ int __init btext_find_display(int allow_nonstdout)
 
 	for_each_node_by_type(np, "display") {
 		if (of_get_property(np, "linux,opened", NULL)) {
-			printk("trying %pOF ...\n", np);
+			printk("trying %s ...\n", np->full_name);
 			rc = btext_initialize(np);
 			printk("result: %d\n", rc);
 		}

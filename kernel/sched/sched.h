@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #include <linux/sched.h>
 #include <linux/sched/autogroup.h>
@@ -427,7 +426,8 @@ struct cfs_rq {
 	u64 min_vruntime_copy;
 #endif
 
-	struct rb_root_cached tasks_timeline;
+	struct rb_root tasks_timeline;
+	struct rb_node *rb_leftmost;
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
@@ -502,7 +502,7 @@ static inline int rt_bandwidth_enabled(void)
 }
 
 /* RT IPI pull logic requires IRQ_WORK */
-#if defined(CONFIG_IRQ_WORK) && defined(CONFIG_SMP)
+#ifdef CONFIG_IRQ_WORK
 # define HAVE_RT_PUSH_IPI
 #endif
 
@@ -524,6 +524,12 @@ struct rt_rq {
 	unsigned long rt_nr_total;
 	int overloaded;
 	struct plist_head pushable_tasks;
+#ifdef HAVE_RT_PUSH_IPI
+	int push_flags;
+	int push_cpu;
+	struct irq_work push_work;
+	raw_spinlock_t push_lock;
+#endif
 #endif /* CONFIG_SMP */
 	int rt_queued;
 
@@ -544,7 +550,8 @@ struct rt_rq {
 /* Deadline class' related fields in a runqueue */
 struct dl_rq {
 	/* runqueue is an rbtree, ordered by deadline */
-	struct rb_root_cached root;
+	struct rb_root rb_root;
+	struct rb_node *rb_leftmost;
 
 	unsigned long dl_nr_running;
 
@@ -568,7 +575,8 @@ struct dl_rq {
 	 * an rb-tree, ordered by tasks' deadlines, with caching
 	 * of the leftmost (earliest deadline) element.
 	 */
-	struct rb_root_cached pushable_dl_tasks_root;
+	struct rb_root pushable_dl_tasks_root;
+	struct rb_node *pushable_dl_tasks_leftmost;
 #else
 	struct dl_bw dl_bw;
 #endif
@@ -632,19 +640,6 @@ struct root_domain {
 	struct dl_bw dl_bw;
 	struct cpudl cpudl;
 
-#ifdef HAVE_RT_PUSH_IPI
-	/*
-	 * For IPI pull requests, loop across the rto_mask.
-	 */
-	struct irq_work rto_push_work;
-	raw_spinlock_t rto_lock;
-	/* These are only updated and read within rto_lock */
-	int rto_loop;
-	int rto_cpu;
-	/* These atomics are updated outside of a lock */
-	atomic_t rto_loop_next;
-	atomic_t rto_loop_start;
-#endif
 	/*
 	 * The "RT overload" flag: it gets set if a CPU has more than
 	 * one runnable RT task.
@@ -662,9 +657,6 @@ extern void init_defrootdomain(void);
 extern int sched_init_domains(const struct cpumask *cpu_map);
 extern void rq_attach_root(struct rq *rq, struct root_domain *rd);
 
-#ifdef HAVE_RT_PUSH_IPI
-extern void rto_push_irq_work_func(struct irq_work *work);
-#endif
 #endif /* CONFIG_SMP */
 
 /*
@@ -777,7 +769,7 @@ struct rq {
 #ifdef CONFIG_SCHED_HRTICK
 #ifdef CONFIG_SMP
 	int hrtick_csd_pending;
-	call_single_data_t hrtick_csd;
+	struct call_single_data hrtick_csd;
 #endif
 	struct hrtimer hrtick_timer;
 #endif
@@ -1128,13 +1120,9 @@ extern int group_balance_cpu(struct sched_group *sg);
 
 #if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_SYSCTL)
 void register_sched_domain_sysctl(void);
-void dirty_sched_domain_sysctl(int cpu);
 void unregister_sched_domain_sysctl(void);
 #else
 static inline void register_sched_domain_sysctl(void)
-{
-}
-static inline void dirty_sched_domain_sysctl(int cpu)
 {
 }
 static inline void unregister_sched_domain_sysctl(void)
@@ -1962,8 +1950,6 @@ extern struct sched_entity *__pick_first_entity(struct cfs_rq *cfs_rq);
 extern struct sched_entity *__pick_last_entity(struct cfs_rq *cfs_rq);
 
 #ifdef	CONFIG_SCHED_DEBUG
-extern bool sched_debug_enabled;
-
 extern void print_cfs_stats(struct seq_file *m, int cpu);
 extern void print_rt_stats(struct seq_file *m, int cpu);
 extern void print_dl_stats(struct seq_file *m, int cpu);
@@ -2084,13 +2070,19 @@ static inline void cpufreq_update_util(struct rq *rq, unsigned int flags)
 {
 	struct update_util_data *data;
 
-	data = rcu_dereference_sched(*per_cpu_ptr(&cpufreq_update_util_data,
-						  cpu_of(rq)));
+	data = rcu_dereference_sched(*this_cpu_ptr(&cpufreq_update_util_data));
 	if (data)
 		data->func(data, rq_clock(rq), flags);
 }
+
+static inline void cpufreq_update_this_cpu(struct rq *rq, unsigned int flags)
+{
+	if (cpu_of(rq) == smp_processor_id())
+		cpufreq_update_util(rq, flags);
+}
 #else
 static inline void cpufreq_update_util(struct rq *rq, unsigned int flags) {}
+static inline void cpufreq_update_this_cpu(struct rq *rq, unsigned int flags) {}
 #endif /* CONFIG_CPU_FREQ */
 
 #ifdef arch_scale_freq_capacity

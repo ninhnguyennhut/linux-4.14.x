@@ -76,8 +76,7 @@
 #include "iwl-config.h"
 #include "fw/img.h"
 #include "iwl-op-mode.h"
-#include "fw/api/cmdhdr.h"
-#include "fw/api/txq.h"
+#include "fw/api.h"
 
 /**
  * DOC: Transport layer - what is it ?
@@ -117,7 +116,6 @@
 #define FH_RSCSR_FRAME_INVALID		0x55550000
 #define FH_RSCSR_FRAME_ALIGN		0x40
 #define FH_RSCSR_RPA_EN			BIT(25)
-#define FH_RSCSR_RADA_EN		BIT(26)
 #define FH_RSCSR_RXQ_POS		16
 #define FH_RSCSR_RXQ_MASK		0x3F0000
 
@@ -129,8 +127,7 @@ struct iwl_rx_packet {
 	 * 31:    flag flush RB request
 	 * 30:    flag ignore TC (terminal counter) request
 	 * 29:    flag fast IRQ request
-	 * 28-27: Reserved
-	 * 26:    RADA enabled
+	 * 28-26: Reserved
 	 * 25:    Offload enabled
 	 * 24:    RPF enabled
 	 * 23:    RSS enabled

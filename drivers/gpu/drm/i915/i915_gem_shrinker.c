@@ -136,7 +136,6 @@ static bool unsafe_drop_pages(struct drm_i915_gem_object *obj)
  * i915_gem_shrink - Shrink buffer object caches
  * @dev_priv: i915 device
  * @target: amount of memory to make available, in pages
- * @nr_scanned: optional output for number of pages scanned (incremental)
  * @flags: control flags for selecting cache types
  *
  * This function is the main interface to the shrinker. It will try to release
@@ -159,9 +158,7 @@ static bool unsafe_drop_pages(struct drm_i915_gem_object *obj)
  */
 unsigned long
 i915_gem_shrink(struct drm_i915_private *dev_priv,
-		unsigned long target,
-		unsigned long *nr_scanned,
-		unsigned flags)
+		unsigned long target, unsigned flags)
 {
 	const struct {
 		struct list_head *list;
@@ -172,7 +169,6 @@ i915_gem_shrink(struct drm_i915_private *dev_priv,
 		{ NULL, 0 },
 	}, *phase;
 	unsigned long count = 0;
-	unsigned long scanned = 0;
 	bool unlock;
 
 	if (!shrinker_lock(dev_priv, &unlock))
@@ -253,7 +249,6 @@ i915_gem_shrink(struct drm_i915_private *dev_priv,
 					count += obj->base.size >> PAGE_SHIFT;
 				}
 				mutex_unlock(&obj->mm.lock);
-				scanned += obj->base.size >> PAGE_SHIFT;
 			}
 		}
 		list_splice_tail(&still_in_list, phase->list);
@@ -266,8 +261,6 @@ i915_gem_shrink(struct drm_i915_private *dev_priv,
 
 	shrinker_unlock(dev_priv, unlock);
 
-	if (nr_scanned)
-		*nr_scanned += scanned;
 	return count;
 }
 
@@ -290,7 +283,7 @@ unsigned long i915_gem_shrink_all(struct drm_i915_private *dev_priv)
 	unsigned long freed;
 
 	intel_runtime_pm_get(dev_priv);
-	freed = i915_gem_shrink(dev_priv, -1UL, NULL,
+	freed = i915_gem_shrink(dev_priv, -1UL,
 				I915_SHRINK_BOUND |
 				I915_SHRINK_UNBOUND |
 				I915_SHRINK_ACTIVE);
@@ -336,28 +329,23 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
 	unsigned long freed;
 	bool unlock;
 
-	sc->nr_scanned = 0;
-
 	if (!shrinker_lock(dev_priv, &unlock))
 		return SHRINK_STOP;
 
 	freed = i915_gem_shrink(dev_priv,
 				sc->nr_to_scan,
-				&sc->nr_scanned,
 				I915_SHRINK_BOUND |
 				I915_SHRINK_UNBOUND |
 				I915_SHRINK_PURGEABLE);
 	if (freed < sc->nr_to_scan)
 		freed += i915_gem_shrink(dev_priv,
-					 sc->nr_to_scan - sc->nr_scanned,
-					 &sc->nr_scanned,
+					 sc->nr_to_scan - freed,
 					 I915_SHRINK_BOUND |
 					 I915_SHRINK_UNBOUND);
 	if (freed < sc->nr_to_scan && current_is_kswapd()) {
 		intel_runtime_pm_get(dev_priv);
 		freed += i915_gem_shrink(dev_priv,
-					 sc->nr_to_scan - sc->nr_scanned,
-					 &sc->nr_scanned,
+					 sc->nr_to_scan - freed,
 					 I915_SHRINK_ACTIVE |
 					 I915_SHRINK_BOUND |
 					 I915_SHRINK_UNBOUND);
@@ -366,7 +354,7 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
 
 	shrinker_unlock(dev_priv, unlock);
 
-	return sc->nr_scanned ? freed : SHRINK_STOP;
+	return freed;
 }
 
 static bool
@@ -465,7 +453,7 @@ i915_gem_shrinker_vmap(struct notifier_block *nb, unsigned long event, void *ptr
 		goto out;
 
 	intel_runtime_pm_get(dev_priv);
-	freed_pages += i915_gem_shrink(dev_priv, -1UL, NULL,
+	freed_pages += i915_gem_shrink(dev_priv, -1UL,
 				       I915_SHRINK_BOUND |
 				       I915_SHRINK_UNBOUND |
 				       I915_SHRINK_ACTIVE |

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # UAPI Header export list
 include include/uapi/asm-generic/Kbuild.asm
 

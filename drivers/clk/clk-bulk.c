@@ -105,7 +105,6 @@ err:
 
 	return  ret;
 }
-EXPORT_SYMBOL_GPL(clk_bulk_prepare);
 
 #endif /* CONFIG_HAVE_CLK_PREPARE */
 

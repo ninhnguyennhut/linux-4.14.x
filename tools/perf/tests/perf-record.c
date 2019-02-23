@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <errno.h>
 #include <inttypes.h>
 /* For the CLR_() macros */
@@ -38,7 +37,7 @@ realloc:
 	return cpu;
 }
 
-int test__PERF_RECORD(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__PERF_RECORD(int subtest __maybe_unused)
 {
 	struct record_opts opts = {
 		.target = {

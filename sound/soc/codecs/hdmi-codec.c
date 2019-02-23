@@ -67,14 +67,14 @@ struct hdmi_codec_cea_spk_alloc {
 };
 
 /* Channel maps  stereo HDMI */
-static const struct snd_pcm_chmap_elem hdmi_codec_stereo_chmaps[] = {
+const struct snd_pcm_chmap_elem hdmi_codec_stereo_chmaps[] = {
 	{ .channels = 2,
 	  .map = { SNDRV_CHMAP_FL, SNDRV_CHMAP_FR } },
 	{ }
 };
 
 /* Channel maps for multi-channel playbacks, up to 8 n_ch */
-static const struct snd_pcm_chmap_elem hdmi_codec_8ch_chmaps[] = {
+const struct snd_pcm_chmap_elem hdmi_codec_8ch_chmaps[] = {
 	{ .channels = 2, /* CA_ID 0x00 */
 	  .map = { SNDRV_CHMAP_FL, SNDRV_CHMAP_FR } },
 	{ .channels = 4, /* CA_ID 0x01 */
@@ -326,7 +326,7 @@ static int hdmi_eld_ctl_get(struct snd_kcontrol *kcontrol,
 static unsigned long hdmi_codec_spk_mask_from_alloc(int spk_alloc)
 {
 	int i;
-	static const unsigned long hdmi_codec_eld_spk_alloc_bits[] = {
+	const unsigned long hdmi_codec_eld_spk_alloc_bits[] = {
 		[0] = FL | FR, [1] = LFE, [2] = FC, [3] = RL | RR,
 		[4] = RC, [5] = FLC | FRC, [6] = RLC | RRC,
 	};
@@ -340,7 +340,7 @@ static unsigned long hdmi_codec_spk_mask_from_alloc(int spk_alloc)
 	return spk_mask;
 }
 
-static void hdmi_codec_eld_chmap(struct hdmi_codec_priv *hcp)
+void hdmi_codec_eld_chmap(struct hdmi_codec_priv *hcp)
 {
 	u8 spk_alloc;
 	unsigned long spk_mask;
@@ -398,6 +398,18 @@ static int hdmi_codec_chmap_ctl_get(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
+
+static const struct snd_kcontrol_new hdmi_controls[] = {
+	{
+		.access = SNDRV_CTL_ELEM_ACCESS_READ |
+			  SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+		.iface = SNDRV_CTL_ELEM_IFACE_PCM,
+		.name = "ELD",
+		.info = hdmi_eld_ctl_info,
+		.get = hdmi_eld_ctl_get,
+	},
+};
 
 static int hdmi_codec_new_stream(struct snd_pcm_substream *substream,
 				 struct snd_soc_dai *dai)
@@ -656,16 +668,6 @@ static int hdmi_codec_pcm_new(struct snd_soc_pcm_runtime *rtd,
 {
 	struct snd_soc_dai_driver *drv = dai->driver;
 	struct hdmi_codec_priv *hcp = snd_soc_dai_get_drvdata(dai);
-	struct snd_kcontrol *kctl;
-	struct snd_kcontrol_new hdmi_eld_ctl = {
-		.access	= SNDRV_CTL_ELEM_ACCESS_READ |
-			  SNDRV_CTL_ELEM_ACCESS_VOLATILE,
-		.iface	= SNDRV_CTL_ELEM_IFACE_PCM,
-		.name	= "ELD",
-		.info	= hdmi_eld_ctl_info,
-		.get	= hdmi_eld_ctl_get,
-		.device	= rtd->pcm->device,
-	};
 	int ret;
 
 	dev_dbg(dai->dev, "%s()\n", __func__);
@@ -684,19 +686,14 @@ static int hdmi_codec_pcm_new(struct snd_soc_pcm_runtime *rtd,
 	hcp->chmap_info->chmap = hdmi_codec_stereo_chmaps;
 	hcp->chmap_idx = HDMI_CODEC_CHMAP_IDX_UNKNOWN;
 
-	/* add ELD ctl with the device number corresponding to the PCM stream */
-	kctl = snd_ctl_new1(&hdmi_eld_ctl, dai->component);
-	if (!kctl)
-		return -ENOMEM;
-
-	return snd_ctl_add(rtd->card->snd_card, kctl);
+	return 0;
 }
 
-static const struct snd_soc_dai_driver hdmi_i2s_dai = {
+static struct snd_soc_dai_driver hdmi_i2s_dai = {
 	.name = "i2s-hifi",
 	.id = DAI_ID_I2S,
 	.playback = {
-		.stream_name = "I2S Playback",
+		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 8,
 		.rates = HDMI_RATES,
@@ -711,7 +708,7 @@ static const struct snd_soc_dai_driver hdmi_spdif_dai = {
 	.name = "spdif-hifi",
 	.id = DAI_ID_SPDIF,
 	.playback = {
-		.stream_name = "SPDIF Playback",
+		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = HDMI_RATES,
@@ -733,8 +730,10 @@ static int hdmi_of_xlate_dai_id(struct snd_soc_component *component,
 	return ret;
 }
 
-static const struct snd_soc_codec_driver hdmi_codec = {
+static struct snd_soc_codec_driver hdmi_codec = {
 	.component_driver = {
+		.controls		= hdmi_controls,
+		.num_controls		= ARRAY_SIZE(hdmi_controls),
 		.dapm_widgets		= hdmi_widgets,
 		.num_dapm_widgets	= ARRAY_SIZE(hdmi_widgets),
 		.dapm_routes		= hdmi_routes,

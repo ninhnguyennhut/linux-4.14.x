@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * PC-Speaker driver for Linux
  *
@@ -286,7 +285,7 @@ static snd_pcm_uframes_t snd_pcsp_playback_pointer(struct snd_pcm_substream
 	return bytes_to_frames(substream->runtime, pos);
 }
 
-static const struct snd_pcm_hardware snd_pcsp_playback = {
+static struct snd_pcm_hardware snd_pcsp_playback = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED |
 		 SNDRV_PCM_INFO_HALF_DUPLEX |
 		 SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID),

@@ -904,21 +904,15 @@ static const struct nla_policy nft_ct_helper_policy[NFTA_CT_HELPER_MAX + 1] = {
 	[NFTA_CT_HELPER_L4PROTO] = { .type = NLA_U8 },
 };
 
-static struct nft_object_type nft_ct_helper_obj_type;
-static const struct nft_object_ops nft_ct_helper_obj_ops = {
-	.type		= &nft_ct_helper_obj_type,
+static struct nft_object_type nft_ct_helper_obj __read_mostly = {
+	.type		= NFT_OBJECT_CT_HELPER,
 	.size		= sizeof(struct nft_ct_helper_obj),
+	.maxattr	= NFTA_CT_HELPER_MAX,
+	.policy		= nft_ct_helper_policy,
 	.eval		= nft_ct_helper_obj_eval,
 	.init		= nft_ct_helper_obj_init,
 	.destroy	= nft_ct_helper_obj_destroy,
 	.dump		= nft_ct_helper_obj_dump,
-};
-
-static struct nft_object_type nft_ct_helper_obj_type __read_mostly = {
-	.type		= NFT_OBJECT_CT_HELPER,
-	.ops		= &nft_ct_helper_obj_ops,
-	.maxattr	= NFTA_CT_HELPER_MAX,
-	.policy		= nft_ct_helper_policy,
 	.owner		= THIS_MODULE,
 };
 
@@ -936,7 +930,7 @@ static int __init nft_ct_module_init(void)
 	if (err < 0)
 		goto err1;
 
-	err = nft_register_obj(&nft_ct_helper_obj_type);
+	err = nft_register_obj(&nft_ct_helper_obj);
 	if (err < 0)
 		goto err2;
 
@@ -951,7 +945,7 @@ err1:
 
 static void __exit nft_ct_module_exit(void)
 {
-	nft_unregister_obj(&nft_ct_helper_obj_type);
+	nft_unregister_obj(&nft_ct_helper_obj);
 	nft_unregister_expr(&nft_notrack_type);
 	nft_unregister_expr(&nft_ct_type);
 }

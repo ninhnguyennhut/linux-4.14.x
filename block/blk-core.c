@@ -280,7 +280,7 @@ EXPORT_SYMBOL(blk_start_queue_async);
 void blk_start_queue(struct request_queue *q)
 {
 	lockdep_assert_held(q->queue_lock);
-	WARN_ON(!in_interrupt() && !irqs_disabled());
+	WARN_ON(!irqs_disabled());
 	WARN_ON_ONCE(q->mq_ops);
 
 	queue_flag_clear(QUEUE_FLAG_STOPPED, q);
@@ -333,13 +333,11 @@ EXPORT_SYMBOL(blk_stop_queue);
 void blk_sync_queue(struct request_queue *q)
 {
 	del_timer_sync(&q->timeout);
-	cancel_work_sync(&q->timeout_work);
 
 	if (q->mq_ops) {
 		struct blk_mq_hw_ctx *hctx;
 		int i;
 
-		cancel_delayed_work_sync(&q->requeue_work);
 		queue_for_each_hw_ctx(q, hctx, i)
 			cancel_delayed_work_sync(&hctx->run_work);
 	} else {
@@ -606,8 +604,8 @@ void blk_set_queue_dying(struct request_queue *q)
 		spin_lock_irq(q->queue_lock);
 		blk_queue_for_each_rl(rl, q) {
 			if (rl->rq_pool) {
-				wake_up_all(&rl->wait[BLK_RW_SYNC]);
-				wake_up_all(&rl->wait[BLK_RW_ASYNC]);
+				wake_up(&rl->wait[BLK_RW_SYNC]);
+				wake_up(&rl->wait[BLK_RW_ASYNC]);
 			}
 		}
 		spin_unlock_irq(q->queue_lock);
@@ -846,7 +844,6 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 	setup_timer(&q->backing_dev_info->laptop_mode_wb_timer,
 		    laptop_mode_timer_fn, (unsigned long) q);
 	setup_timer(&q->timeout, blk_rq_timed_out_timer, (unsigned long) q);
-	INIT_WORK(&q->timeout_work, NULL);
 	INIT_LIST_HEAD(&q->queue_head);
 	INIT_LIST_HEAD(&q->timeout_list);
 	INIT_LIST_HEAD(&q->icq_list);
@@ -857,9 +854,6 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 
 	kobject_init(&q->kobj, &blk_queue_ktype);
 
-#ifdef CONFIG_BLK_DEV_IO_TRACE
-	mutex_init(&q->blk_trace_mutex);
-#endif
 	mutex_init(&q->sysfs_lock);
 	spin_lock_init(&q->__queue_lock);
 
@@ -1475,10 +1469,15 @@ static void add_acct_request(struct request_queue *q, struct request *rq,
 	__elv_add_request(q, rq, where);
 }
 
-static void part_round_stats_single(struct request_queue *q, int cpu,
-				    struct hd_struct *part, unsigned long now,
-				    unsigned int inflight)
+static void part_round_stats_single(int cpu, struct hd_struct *part,
+				    unsigned long now)
 {
+	int inflight;
+
+	if (now == part->stamp)
+		return;
+
+	inflight = part_in_flight(part);
 	if (inflight) {
 		__part_stat_add(cpu, part, time_in_queue,
 				inflight * (now - part->stamp));
@@ -1489,7 +1488,6 @@ static void part_round_stats_single(struct request_queue *q, int cpu,
 
 /**
  * part_round_stats() - Round off the performance stats on a struct disk_stats.
- * @q: target block queue
  * @cpu: cpu number for stats access
  * @part: target partition
  *
@@ -1504,31 +1502,13 @@ static void part_round_stats_single(struct request_queue *q, int cpu,
  * /proc/diskstats.  This accounts immediately for all queue usage up to
  * the current jiffies and restarts the counters again.
  */
-void part_round_stats(struct request_queue *q, int cpu, struct hd_struct *part)
+void part_round_stats(int cpu, struct hd_struct *part)
 {
-	struct hd_struct *part2 = NULL;
 	unsigned long now = jiffies;
-	unsigned int inflight[2];
-	int stats = 0;
 
-	if (part->stamp != now)
-		stats |= 1;
-
-	if (part->partno) {
-		part2 = &part_to_disk(part)->part0;
-		if (part2->stamp != now)
-			stats |= 2;
-	}
-
-	if (!stats)
-		return;
-
-	part_in_flight(q, part, inflight);
-
-	if (stats & 2)
-		part_round_stats_single(q, cpu, part2, now, inflight[1]);
-	if (stats & 1)
-		part_round_stats_single(q, cpu, part, now, inflight[0]);
+	if (part->partno)
+		part_round_stats_single(cpu, &part_to_disk(part)->part0, now);
+	part_round_stats_single(cpu, part, now);
 }
 EXPORT_SYMBOL_GPL(part_round_stats);
 
@@ -1916,15 +1896,40 @@ out_unlock:
 	return BLK_QC_T_NONE;
 }
 
+/*
+ * If bio->bi_dev is a partition, remap the location
+ */
+static inline void blk_partition_remap(struct bio *bio)
+{
+	struct block_device *bdev = bio->bi_bdev;
+
+	/*
+	 * Zone reset does not include bi_size so bio_sectors() is always 0.
+	 * Include a test for the reset op code and perform the remap if needed.
+	 */
+	if (bdev != bdev->bd_contains &&
+	    (bio_sectors(bio) || bio_op(bio) == REQ_OP_ZONE_RESET)) {
+		struct hd_struct *p = bdev->bd_part;
+
+		bio->bi_iter.bi_sector += p->start_sect;
+		bio->bi_bdev = bdev->bd_contains;
+
+		trace_block_bio_remap(bdev_get_queue(bio->bi_bdev), bio,
+				      bdev->bd_dev,
+				      bio->bi_iter.bi_sector - p->start_sect);
+	}
+}
+
 static void handle_bad_sector(struct bio *bio)
 {
 	char b[BDEVNAME_SIZE];
 
 	printk(KERN_INFO "attempt to access beyond end of device\n");
 	printk(KERN_INFO "%s: rw=%d, want=%Lu, limit=%Lu\n",
-			bio_devname(bio, b), bio->bi_opf,
+			bdevname(bio->bi_bdev, b),
+			bio->bi_opf,
 			(unsigned long long)bio_end_sector(bio),
-			(long long)get_capacity(bio->bi_disk));
+			(long long)(i_size_read(bio->bi_bdev->bd_inode) >> 9));
 }
 
 #ifdef CONFIG_FAIL_MAKE_REQUEST
@@ -1963,38 +1968,6 @@ static inline bool should_fail_request(struct hd_struct *part,
 #endif /* CONFIG_FAIL_MAKE_REQUEST */
 
 /*
- * Remap block n of partition p to block n+start(p) of the disk.
- */
-static inline int blk_partition_remap(struct bio *bio)
-{
-	struct hd_struct *p;
-	int ret = 0;
-
-	/*
-	 * Zone reset does not include bi_size so bio_sectors() is always 0.
-	 * Include a test for the reset op code and perform the remap if needed.
-	 */
-	if (!bio->bi_partno ||
-	    (!bio_sectors(bio) && bio_op(bio) != REQ_OP_ZONE_RESET))
-		return 0;
-
-	rcu_read_lock();
-	p = __disk_get_part(bio->bi_disk, bio->bi_partno);
-	if (likely(p && !should_fail_request(p, bio->bi_iter.bi_size))) {
-		bio->bi_iter.bi_sector += p->start_sect;
-		bio->bi_partno = 0;
-		trace_block_bio_remap(bio->bi_disk->queue, bio, part_devt(p),
-				bio->bi_iter.bi_sector - p->start_sect);
-	} else {
-		printk("%s: fail for partition %d\n", __func__, bio->bi_partno);
-		ret = -EIO;
-	}
-	rcu_read_unlock();
-
-	return ret;
-}
-
-/*
  * Check whether this bio extends beyond the end of the device.
  */
 static inline int bio_check_eod(struct bio *bio, unsigned int nr_sectors)
@@ -2005,7 +1978,7 @@ static inline int bio_check_eod(struct bio *bio, unsigned int nr_sectors)
 		return 0;
 
 	/* Test device or partition size, when known. */
-	maxsector = get_capacity(bio->bi_disk);
+	maxsector = i_size_read(bio->bi_bdev->bd_inode) >> 9;
 	if (maxsector) {
 		sector_t sector = bio->bi_iter.bi_sector;
 
@@ -2030,18 +2003,20 @@ generic_make_request_checks(struct bio *bio)
 	int nr_sectors = bio_sectors(bio);
 	blk_status_t status = BLK_STS_IOERR;
 	char b[BDEVNAME_SIZE];
+	struct hd_struct *part;
 
 	might_sleep();
 
 	if (bio_check_eod(bio, nr_sectors))
 		goto end_io;
 
-	q = bio->bi_disk->queue;
+	q = bdev_get_queue(bio->bi_bdev);
 	if (unlikely(!q)) {
 		printk(KERN_ERR
 		       "generic_make_request: Trying to access "
 			"nonexistent block-device %s (%Lu)\n",
-			bio_devname(bio, b), (long long)bio->bi_iter.bi_sector);
+			bdevname(bio->bi_bdev, b),
+			(long long) bio->bi_iter.bi_sector);
 		goto end_io;
 	}
 
@@ -2053,11 +2028,17 @@ generic_make_request_checks(struct bio *bio)
 	if ((bio->bi_opf & REQ_NOWAIT) && !queue_is_rq_based(q))
 		goto not_supported;
 
-	if (should_fail_request(&bio->bi_disk->part0, bio->bi_iter.bi_size))
+	part = bio->bi_bdev->bd_part;
+	if (should_fail_request(part, bio->bi_iter.bi_size) ||
+	    should_fail_request(&part_to_disk(part)->part0,
+				bio->bi_iter.bi_size))
 		goto end_io;
 
-	if (blk_partition_remap(bio))
-		goto end_io;
+	/*
+	 * If this device has partitions, remap block n
+	 * of partition p to block n+start(p) of the disk.
+	 */
+	blk_partition_remap(bio);
 
 	if (bio_check_eod(bio, nr_sectors))
 		goto end_io;
@@ -2086,16 +2067,16 @@ generic_make_request_checks(struct bio *bio)
 			goto not_supported;
 		break;
 	case REQ_OP_WRITE_SAME:
-		if (!q->limits.max_write_same_sectors)
+		if (!bdev_write_same(bio->bi_bdev))
 			goto not_supported;
 		break;
 	case REQ_OP_ZONE_REPORT:
 	case REQ_OP_ZONE_RESET:
-		if (!blk_queue_is_zoned(q))
+		if (!bdev_is_zoned(bio->bi_bdev))
 			goto not_supported;
 		break;
 	case REQ_OP_WRITE_ZEROES:
-		if (!q->limits.max_write_zeroes_sectors)
+		if (!bdev_write_zeroes_sectors(bio->bi_bdev))
 			goto not_supported;
 		break;
 	default:
@@ -2202,7 +2183,7 @@ blk_qc_t generic_make_request(struct bio *bio)
 	bio_list_init(&bio_list_on_stack[0]);
 	current->bio_list = bio_list_on_stack;
 	do {
-		struct request_queue *q = bio->bi_disk->queue;
+		struct request_queue *q = bdev_get_queue(bio->bi_bdev);
 
 		if (likely(blk_queue_enter(q, bio->bi_opf & REQ_NOWAIT) == 0)) {
 			struct bio_list lower, same;
@@ -2220,7 +2201,7 @@ blk_qc_t generic_make_request(struct bio *bio)
 			bio_list_init(&lower);
 			bio_list_init(&same);
 			while ((bio = bio_list_pop(&bio_list_on_stack[0])) != NULL)
-				if (q == bio->bi_disk->queue)
+				if (q == bdev_get_queue(bio->bi_bdev))
 					bio_list_add(&same, bio);
 				else
 					bio_list_add(&lower, bio);
@@ -2263,7 +2244,7 @@ blk_qc_t submit_bio(struct bio *bio)
 		unsigned int count;
 
 		if (unlikely(bio_op(bio) == REQ_OP_WRITE_SAME))
-			count = queue_logical_block_size(bio->bi_disk->queue);
+			count = bdev_logical_block_size(bio->bi_bdev) >> 9;
 		else
 			count = bio_sectors(bio);
 
@@ -2280,7 +2261,8 @@ blk_qc_t submit_bio(struct bio *bio)
 			current->comm, task_pid_nr(current),
 				op_is_write(bio_op(bio)) ? "WRITE" : "READ",
 				(unsigned long long)bio->bi_iter.bi_sector,
-				bio_devname(bio, b), count);
+				bdevname(bio->bi_bdev, b),
+				count);
 		}
 	}
 
@@ -2348,12 +2330,7 @@ blk_status_t blk_insert_cloned_request(struct request_queue *q, struct request *
 	if (q->mq_ops) {
 		if (blk_queue_io_stat(q))
 			blk_account_io_start(rq, true);
-		/*
-		 * Since we have a scheduler attached on the top device,
-		 * bypass a potential scheduler on the bottom device for
-		 * insert.
-		 */
-		blk_mq_request_bypass_insert(rq);
+		blk_mq_sched_insert_request(rq, false, true, false, false);
 		return BLK_STS_OK;
 	}
 
@@ -2454,8 +2431,8 @@ void blk_account_io_done(struct request *req)
 
 		part_stat_inc(cpu, part, ios[rw]);
 		part_stat_add(cpu, part, ticks[rw], duration);
-		part_round_stats(req->q, cpu, part);
-		part_dec_in_flight(req->q, part, rw);
+		part_round_stats(cpu, part);
+		part_dec_in_flight(part, rw);
 
 		hd_struct_put(part);
 		part_stat_unlock();
@@ -2512,8 +2489,8 @@ void blk_account_io_start(struct request *rq, bool new_io)
 			part = &rq->rq_disk->part0;
 			hd_struct_get(part);
 		}
-		part_round_stats(rq->q, cpu, part);
-		part_inc_in_flight(rq->q, part, rw);
+		part_round_stats(cpu, part);
+		part_inc_in_flight(part, rw);
 		rq->part = part;
 	}
 
@@ -2626,7 +2603,7 @@ struct request *blk_peek_request(struct request_queue *q)
 }
 EXPORT_SYMBOL(blk_peek_request);
 
-static void blk_dequeue_request(struct request *rq)
+void blk_dequeue_request(struct request *rq)
 {
 	struct request_queue *q = rq->q;
 
@@ -2653,6 +2630,9 @@ static void blk_dequeue_request(struct request *rq)
  * Description:
  *     Dequeue @req and start timeout timer on it.  This hands off the
  *     request to the driver.
+ *
+ *     Block internal functions which don't want to start timer should
+ *     call blk_dequeue_request().
  */
 void blk_start_request(struct request *req)
 {
@@ -3055,8 +3035,8 @@ void blk_rq_bio_prep(struct request_queue *q, struct request *rq,
 	rq->__data_len = bio->bi_iter.bi_size;
 	rq->bio = rq->biotail = bio;
 
-	if (bio->bi_disk)
-		rq->rq_disk = bio->bi_disk;
+	if (bio->bi_bdev)
+		rq->rq_disk = bio->bi_bdev->bd_disk;
 }
 
 #if ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE

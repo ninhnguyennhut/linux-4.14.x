@@ -244,7 +244,6 @@ static int xen_blkif_disconnect(struct xen_blkif *blkif)
 {
 	struct pending_req *req, *n;
 	unsigned int j, r;
-	bool busy = false;
 
 	for (r = 0; r < blkif->nr_rings; r++) {
 		struct xen_blkif_ring *ring = &blkif->rings[r];
@@ -262,10 +261,8 @@ static int xen_blkif_disconnect(struct xen_blkif *blkif)
 		 * don't have any discard_io or other_io requests. So, checking
 		 * for inflight IO is enough.
 		 */
-		if (atomic_read(&ring->inflight) > 0) {
-			busy = true;
-			continue;
-		}
+		if (atomic_read(&ring->inflight) > 0)
+			return -EBUSY;
 
 		if (ring->irq) {
 			unbind_from_irqhandler(ring->irq, ring);
@@ -303,9 +300,6 @@ static int xen_blkif_disconnect(struct xen_blkif *blkif)
 		WARN_ON(i != (XEN_BLKIF_REQS_PER_PAGE * blkif->nr_ring_pages));
 		ring->active = false;
 	}
-	if (busy)
-		return -EBUSY;
-
 	blkif->nr_ring_pages = 0;
 	/*
 	 * blkif->rings was allocated in connect_ring, so we should free it in
@@ -816,8 +810,7 @@ static void frontend_changed(struct xenbus_device *dev,
 		xenbus_switch_state(dev, XenbusStateClosed);
 		if (xenbus_dev_is_online(dev))
 			break;
-		/* fall through */
-		/* if not online */
+		/* fall through if not online */
 	case XenbusStateUnknown:
 		/* implies xen_blkif_disconnect() via xen_blkbk_remove() */
 		device_unregister(&dev->dev);

@@ -271,10 +271,6 @@
 	status = "okay";
 };
 
-&battery_power_supply {
-	status = "okay";
-};
-
 &reg_dcdc2 {
 	regulator-always-on;
 	regulator-min-microvolt = <1000000>;

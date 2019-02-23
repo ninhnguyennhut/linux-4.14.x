@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XFS_CKSUM_H
 #define _XFS_CKSUM_H 1
 

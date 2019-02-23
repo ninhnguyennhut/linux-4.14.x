@@ -87,10 +87,9 @@
 		};
 
 		watchdog: watchdog@98500000 {
-			compatible = "moxa,moxart-watchdog", "faraday,ftwdt010";
+			compatible = "moxa,moxart-watchdog";
 			reg = <0x98500000 0x10>;
 			clocks = <&clk_apb>;
-			clock-names = "PCLK";
 		};
 
 		sdhci: sdhci@98e00000 {

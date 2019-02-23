@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * PAV alias management for the DASD ECKD discipline
  *

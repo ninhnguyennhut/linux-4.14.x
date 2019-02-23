@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Support for periodic interrupts (100 per second) and for getting
  * the current time from the RTC on Power Macintoshes.

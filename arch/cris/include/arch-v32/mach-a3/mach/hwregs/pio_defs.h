@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __pio_defs_h
 #define __pio_defs_h
 

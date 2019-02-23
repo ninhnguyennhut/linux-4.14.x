@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /dts-v1/;
 
 #include "tegra20-colibri-512.dtsi"

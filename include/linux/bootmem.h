@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Discontiguous memory support, Kanoj Sarcar, SGI, Nov 1999
  */

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef MMC_QUEUE_H
 #define MMC_QUEUE_H
 
@@ -37,23 +36,22 @@ struct mmc_blk_request {
  * enum mmc_drv_op - enumerates the operations in the mmc_queue_req
  * @MMC_DRV_OP_IOCTL: ioctl operation
  * @MMC_DRV_OP_BOOT_WP: write protect boot partitions
- * @MMC_DRV_OP_GET_CARD_STATUS: get card status
- * @MMC_DRV_OP_GET_EXT_CSD: get the EXT CSD from an eMMC card
  */
 enum mmc_drv_op {
 	MMC_DRV_OP_IOCTL,
 	MMC_DRV_OP_BOOT_WP,
-	MMC_DRV_OP_GET_CARD_STATUS,
-	MMC_DRV_OP_GET_EXT_CSD,
 };
 
 struct mmc_queue_req {
 	struct mmc_blk_request	brq;
 	struct scatterlist	*sg;
+	char			*bounce_buf;
+	struct scatterlist	*bounce_sg;
+	unsigned int		bounce_sg_len;
 	struct mmc_async_req	areq;
 	enum mmc_drv_op		drv_op;
 	int			drv_op_result;
-	void			*drv_op_data;
+	struct mmc_blk_ioc_data	**idata;
 	unsigned int		ioc_count;
 };
 
@@ -79,8 +77,11 @@ extern int mmc_init_queue(struct mmc_queue *, struct mmc_card *, spinlock_t *,
 extern void mmc_cleanup_queue(struct mmc_queue *);
 extern void mmc_queue_suspend(struct mmc_queue *);
 extern void mmc_queue_resume(struct mmc_queue *);
+
 extern unsigned int mmc_queue_map_sg(struct mmc_queue *,
 				     struct mmc_queue_req *);
+extern void mmc_queue_bounce_pre(struct mmc_queue_req *);
+extern void mmc_queue_bounce_post(struct mmc_queue_req *);
 
 extern int mmc_access_rpmb(struct mmc_queue *);
 

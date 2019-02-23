@@ -247,15 +247,6 @@ struct exynos_drm_gem *exynos_drm_gem_create(struct drm_device *dev,
 	if (IS_ERR(exynos_gem))
 		return exynos_gem;
 
-	if (!is_drm_iommu_supported(dev) && (flags & EXYNOS_BO_NONCONTIG)) {
-		/*
-		 * when no IOMMU is available, all allocated buffers are
-		 * contiguous anyway, so drop EXYNOS_BO_NONCONTIG flag
-		 */
-		flags &= ~EXYNOS_BO_NONCONTIG;
-		DRM_WARN("Non-contiguous allocation is not supported without IOMMU, falling back to contiguous buffer\n");
-	}
-
 	/* set memory type and cache attribute from user side. */
 	exynos_gem->flags = flags;
 
@@ -295,8 +286,8 @@ int exynos_drm_gem_map_ioctl(struct drm_device *dev, void *data,
 {
 	struct drm_exynos_gem_map *args = data;
 
-	return drm_gem_dumb_map_offset(file_priv, dev, args->handle,
-				       &args->offset);
+	return exynos_drm_gem_dumb_map_offset(file_priv, dev, args->handle,
+					      &args->offset);
 }
 
 dma_addr_t *exynos_drm_gem_get_dma_addr(struct drm_device *dev,
@@ -429,6 +420,32 @@ int exynos_drm_gem_dumb_create(struct drm_file *file_priv,
 	}
 
 	return 0;
+}
+
+int exynos_drm_gem_dumb_map_offset(struct drm_file *file_priv,
+				   struct drm_device *dev, uint32_t handle,
+				   uint64_t *offset)
+{
+	struct drm_gem_object *obj;
+	int ret = 0;
+
+	/*
+	 * get offset of memory allocated for drm framebuffer.
+	 * - this callback would be called by user application
+	 *	with DRM_IOCTL_MODE_MAP_DUMB command.
+	 */
+
+	obj = drm_gem_object_lookup(file_priv, handle);
+	if (!obj) {
+		DRM_ERROR("failed to lookup gem object.\n");
+		return -EINVAL;
+	}
+
+	*offset = drm_vma_node_offset_addr(&obj->vma_node);
+	DRM_DEBUG_KMS("offset = 0x%lx\n", (unsigned long)*offset);
+
+	drm_gem_object_unreference_unlocked(obj);
+	return ret;
 }
 
 int exynos_drm_gem_fault(struct vm_fault *vmf)

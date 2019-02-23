@@ -56,20 +56,16 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/reset-controller.h>
-#include <linux/mfd/syscon.h>
-#include <linux/regmap.h>
 #include <linux/init.h>
-#include <linux/delay.h>
 #include <dt-bindings/clock/gxbb-aoclkc.h>
 #include <dt-bindings/reset/gxbb-aoclkc.h>
-#include "gxbb-aoclk.h"
 
 static DEFINE_SPINLOCK(gxbb_aoclk_lock);
 
 struct gxbb_aoclk_reset_controller {
 	struct reset_controller_dev reset;
 	unsigned int *data;
-	struct regmap *regmap;
+	void __iomem *base;
 };
 
 static int gxbb_aoclk_do_reset(struct reset_controller_dev *rcdev,
@@ -78,8 +74,9 @@ static int gxbb_aoclk_do_reset(struct reset_controller_dev *rcdev,
 	struct gxbb_aoclk_reset_controller *reset =
 		container_of(rcdev, struct gxbb_aoclk_reset_controller, reset);
 
-	return regmap_write(reset->regmap, AO_RTI_GEN_CNTL_REG0,
-			    BIT(reset->data[id]));
+	writel(BIT(reset->data[id]), reset->base);
+
+	return 0;
 }
 
 static const struct reset_control_ops gxbb_aoclk_reset_ops = {
@@ -87,12 +84,13 @@ static const struct reset_control_ops gxbb_aoclk_reset_ops = {
 };
 
 #define GXBB_AO_GATE(_name, _bit)					\
-static struct aoclk_gate_regmap _name##_ao = {				\
+static struct clk_gate _name##_ao = {					\
+	.reg = (void __iomem *)0,					\
 	.bit_idx = (_bit),						\
 	.lock = &gxbb_aoclk_lock,					\
 	.hw.init = &(struct clk_init_data) {				\
 		.name = #_name "_ao",					\
-		.ops = &meson_aoclk_gate_regmap_ops,			\
+		.ops = &clk_gate_ops,					\
 		.parent_names = (const char *[]){ "clk81" },		\
 		.num_parents = 1,					\
 		.flags = (CLK_SET_RATE_PARENT | CLK_IGNORE_UNUSED),	\
@@ -106,17 +104,6 @@ GXBB_AO_GATE(uart1, 3);
 GXBB_AO_GATE(uart2, 5);
 GXBB_AO_GATE(ir_blaster, 6);
 
-static struct aoclk_cec_32k cec_32k_ao = {
-	.lock = &gxbb_aoclk_lock,
-	.hw.init = &(struct clk_init_data) {
-		.name = "cec_32k_ao",
-		.ops = &meson_aoclk_cec_32k_ops,
-		.parent_names = (const char *[]){ "xtal" },
-		.num_parents = 1,
-		.flags = CLK_IGNORE_UNUSED,
-	},
-};
-
 static unsigned int gxbb_aoclk_reset[] = {
 	[RESET_AO_REMOTE] = 16,
 	[RESET_AO_I2C_MASTER] = 18,
@@ -126,7 +113,7 @@ static unsigned int gxbb_aoclk_reset[] = {
 	[RESET_AO_IR_BLASTER] = 23,
 };
 
-static struct aoclk_gate_regmap *gxbb_aoclk_gate[] = {
+static struct clk_gate *gxbb_aoclk_gate[] = {
 	[CLKID_AO_REMOTE] = &remote_ao,
 	[CLKID_AO_I2C_MASTER] = &i2c_master_ao,
 	[CLKID_AO_I2C_SLAVE] = &i2c_slave_ao,
@@ -143,30 +130,30 @@ static struct clk_hw_onecell_data gxbb_aoclk_onecell_data = {
 		[CLKID_AO_UART1] = &uart1_ao.hw,
 		[CLKID_AO_UART2] = &uart2_ao.hw,
 		[CLKID_AO_IR_BLASTER] = &ir_blaster_ao.hw,
-		[CLKID_AO_CEC_32K] = &cec_32k_ao.hw,
 	},
-	.num = 7,
+	.num = ARRAY_SIZE(gxbb_aoclk_gate),
 };
 
 static int gxbb_aoclkc_probe(struct platform_device *pdev)
 {
-	struct gxbb_aoclk_reset_controller *rstc;
-	struct device *dev = &pdev->dev;
-	struct regmap *regmap;
+	struct resource *res;
+	void __iomem *base;
 	int ret, clkid;
+	struct device *dev = &pdev->dev;
+	struct gxbb_aoclk_reset_controller *rstc;
 
 	rstc = devm_kzalloc(dev, sizeof(*rstc), GFP_KERNEL);
 	if (!rstc)
 		return -ENOMEM;
 
-	regmap = syscon_node_to_regmap(of_get_parent(dev->of_node));
-	if (IS_ERR(regmap)) {
-		dev_err(dev, "failed to get regmap\n");
-		return -ENODEV;
-	}
+	/* Generic clocks */
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
 	/* Reset Controller */
-	rstc->regmap = regmap;
+	rstc->base = base;
 	rstc->data = gxbb_aoclk_reset;
 	rstc->reset.ops = &gxbb_aoclk_reset_ops;
 	rstc->reset.nr_resets = ARRAY_SIZE(gxbb_aoclk_reset);
@@ -174,10 +161,10 @@ static int gxbb_aoclkc_probe(struct platform_device *pdev)
 	ret = devm_reset_controller_register(dev, &rstc->reset);
 
 	/*
-	 * Populate regmap and register all clks
+	 * Populate base address and register all clks
 	 */
-	for (clkid = 0; clkid < ARRAY_SIZE(gxbb_aoclk_gate); clkid++) {
-		gxbb_aoclk_gate[clkid]->regmap = regmap;
+	for (clkid = 0; clkid < gxbb_aoclk_onecell_data.num; clkid++) {
+		gxbb_aoclk_gate[clkid]->reg = base;
 
 		ret = devm_clk_hw_register(dev,
 					gxbb_aoclk_onecell_data.hws[clkid]);
@@ -185,18 +172,12 @@ static int gxbb_aoclkc_probe(struct platform_device *pdev)
 			return ret;
 	}
 
-	/* Specific clocks */
-	cec_32k_ao.regmap = regmap;
-	ret = devm_clk_hw_register(dev, &cec_32k_ao.hw);
-	if (ret)
-		return ret;
-
 	return of_clk_add_hw_provider(dev->of_node, of_clk_hw_onecell_get,
 			&gxbb_aoclk_onecell_data);
 }
 
 static const struct of_device_id gxbb_aoclkc_match_table[] = {
-	{ .compatible = "amlogic,meson-gx-aoclkc" },
+	{ .compatible = "amlogic,gxbb-aoclkc" },
 	{ }
 };
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DT_BINDINGS_MEMORY_TEGRA210_MC_H
 #define DT_BINDINGS_MEMORY_TEGRA210_MC_H
 

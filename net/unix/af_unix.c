@@ -1528,11 +1528,24 @@ static inline bool too_many_unix_fds(struct task_struct *p)
 	return false;
 }
 
+#define MAX_RECURSION_LEVEL 4
+
 static int unix_attach_fds(struct scm_cookie *scm, struct sk_buff *skb)
 {
 	int i;
+	unsigned char max_level = 0;
 
 	if (too_many_unix_fds(current))
+		return -ETOOMANYREFS;
+
+	for (i = scm->fp->count - 1; i >= 0; i--) {
+		struct sock *sk = unix_get_socket(scm->fp->fp[i]);
+
+		if (sk)
+			max_level = max(max_level,
+					unix_sk(sk)->recursion_level);
+	}
+	if (unlikely(max_level > MAX_RECURSION_LEVEL))
 		return -ETOOMANYREFS;
 
 	/*
@@ -1546,7 +1559,7 @@ static int unix_attach_fds(struct scm_cookie *scm, struct sk_buff *skb)
 
 	for (i = scm->fp->count - 1; i >= 0; i--)
 		unix_inflight(scm->fp->user, scm->fp->fp[i]);
-	return 0;
+	return max_level;
 }
 
 static int unix_scm_to_skb(struct scm_cookie *scm, struct sk_buff *skb, bool send_fds)
@@ -1636,6 +1649,7 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 	struct sk_buff *skb;
 	long timeo;
 	struct scm_cookie scm;
+	int max_level;
 	int data_len = 0;
 	int sk_locked;
 
@@ -1687,6 +1701,7 @@ static int unix_dgram_sendmsg(struct socket *sock, struct msghdr *msg,
 	err = unix_scm_to_skb(&scm, skb, true);
 	if (err < 0)
 		goto out_free;
+	max_level = err + 1;
 
 	skb_put(skb, len - data_len);
 	skb->data_len = data_len;
@@ -1804,6 +1819,8 @@ restart_locked:
 		__net_timestamp(skb);
 	maybe_add_creds(skb, sock, other);
 	skb_queue_tail(&other->sk_receive_queue, skb);
+	if (max_level > unix_sk(other)->recursion_level)
+		unix_sk(other)->recursion_level = max_level;
 	unix_state_unlock(other);
 	other->sk_data_ready(other);
 	sock_put(other);
@@ -1838,6 +1855,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 	int sent = 0;
 	struct scm_cookie scm;
 	bool fds_sent = false;
+	int max_level;
 	int data_len;
 
 	wait_for_unix_gc();
@@ -1887,6 +1905,7 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 			kfree_skb(skb);
 			goto out_err;
 		}
+		max_level = err + 1;
 		fds_sent = true;
 
 		skb_put(skb, size - data_len);
@@ -1906,6 +1925,8 @@ static int unix_stream_sendmsg(struct socket *sock, struct msghdr *msg,
 
 		maybe_add_creds(skb, sock, other);
 		skb_queue_tail(&other->sk_receive_queue, skb);
+		if (max_level > unix_sk(other)->recursion_level)
+			unix_sk(other)->recursion_level = max_level;
 		unix_state_unlock(other);
 		other->sk_data_ready(other);
 		sent += size;
@@ -2300,6 +2321,7 @@ redo:
 		last_len = last ? last->len : 0;
 again:
 		if (skb == NULL) {
+			unix_sk(sk)->recursion_level = 0;
 			if (copied >= target)
 				goto unlock;
 

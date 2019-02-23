@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Slabinfo: Tool to get reports about slabs
  *

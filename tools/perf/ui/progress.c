@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
-#include <linux/kernel.h>
 #include "../cache.h"
 #include "progress.h"
 
@@ -16,14 +14,10 @@ struct ui_progress_ops *ui_progress__ops = &null_progress__ops;
 
 void ui_progress__update(struct ui_progress *p, u64 adv)
 {
-	u64 last = p->curr;
-
 	p->curr += adv;
 
 	if (p->curr >= p->next) {
-		u64 nr = DIV_ROUND_UP(p->curr - last, p->step);
-
-		p->next += nr * p->step;
+		p->next += p->step;
 		ui_progress__ops->update(p);
 	}
 }
@@ -31,7 +25,7 @@ void ui_progress__update(struct ui_progress *p, u64 adv)
 void ui_progress__init(struct ui_progress *p, u64 total, const char *title)
 {
 	p->curr = 0;
-	p->next = p->step = total / 16 ?: 1;
+	p->next = p->step = total / 16;
 	p->total = total;
 	p->title = title;
 

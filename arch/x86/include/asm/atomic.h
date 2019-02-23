@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_ATOMIC_H
 #define _ASM_X86_ATOMIC_H
 
@@ -198,56 +197,35 @@ static inline int atomic_xchg(atomic_t *v, int new)
 	return xchg(&v->counter, new);
 }
 
-static inline void atomic_and(int i, atomic_t *v)
-{
-	asm volatile(LOCK_PREFIX "andl %1,%0"
-			: "+m" (v->counter)
-			: "ir" (i)
-			: "memory");
+#define ATOMIC_OP(op)							\
+static inline void atomic_##op(int i, atomic_t *v)			\
+{									\
+	asm volatile(LOCK_PREFIX #op"l %1,%0"				\
+			: "+m" (v->counter)				\
+			: "ir" (i)					\
+			: "memory");					\
 }
 
-static inline int atomic_fetch_and(int i, atomic_t *v)
-{
-	int val = atomic_read(v);
-
-	do { } while (!atomic_try_cmpxchg(v, &val, val & i));
-
-	return val;
+#define ATOMIC_FETCH_OP(op, c_op)					\
+static inline int atomic_fetch_##op(int i, atomic_t *v)			\
+{									\
+	int val = atomic_read(v);					\
+	do {								\
+	} while (!atomic_try_cmpxchg(v, &val, val c_op i));		\
+	return val;							\
 }
 
-static inline void atomic_or(int i, atomic_t *v)
-{
-	asm volatile(LOCK_PREFIX "orl %1,%0"
-			: "+m" (v->counter)
-			: "ir" (i)
-			: "memory");
-}
+#define ATOMIC_OPS(op, c_op)						\
+	ATOMIC_OP(op)							\
+	ATOMIC_FETCH_OP(op, c_op)
 
-static inline int atomic_fetch_or(int i, atomic_t *v)
-{
-	int val = atomic_read(v);
+ATOMIC_OPS(and, &)
+ATOMIC_OPS(or , |)
+ATOMIC_OPS(xor, ^)
 
-	do { } while (!atomic_try_cmpxchg(v, &val, val | i));
-
-	return val;
-}
-
-static inline void atomic_xor(int i, atomic_t *v)
-{
-	asm volatile(LOCK_PREFIX "xorl %1,%0"
-			: "+m" (v->counter)
-			: "ir" (i)
-			: "memory");
-}
-
-static inline int atomic_fetch_xor(int i, atomic_t *v)
-{
-	int val = atomic_read(v);
-
-	do { } while (!atomic_try_cmpxchg(v, &val, val ^ i));
-
-	return val;
-}
+#undef ATOMIC_OPS
+#undef ATOMIC_FETCH_OP
+#undef ATOMIC_OP
 
 /**
  * __atomic_add_unless - add unless the number is already a given value
@@ -261,12 +239,10 @@ static inline int atomic_fetch_xor(int i, atomic_t *v)
 static __always_inline int __atomic_add_unless(atomic_t *v, int a, int u)
 {
 	int c = atomic_read(v);
-
 	do {
 		if (unlikely(c == u))
 			break;
 	} while (!atomic_try_cmpxchg(v, &c, c + a));
-
 	return c;
 }
 

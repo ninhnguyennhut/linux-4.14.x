@@ -25,6 +25,12 @@ struct sun4i_plane_desc {
 	       uint32_t                nformats;
 };
 
+static int sun4i_backend_layer_atomic_check(struct drm_plane *plane,
+					    struct drm_plane_state *state)
+{
+	return 0;
+}
+
 static void sun4i_backend_layer_atomic_disable(struct drm_plane *plane,
 					       struct drm_plane_state *old_state)
 {
@@ -46,7 +52,8 @@ static void sun4i_backend_layer_atomic_update(struct drm_plane *plane,
 	sun4i_backend_layer_enable(backend, layer->id, true);
 }
 
-static const struct drm_plane_helper_funcs sun4i_backend_layer_helper_funcs = {
+static struct drm_plane_helper_funcs sun4i_backend_layer_helper_funcs = {
+	.atomic_check	= sun4i_backend_layer_atomic_check,
 	.atomic_disable	= sun4i_backend_layer_atomic_disable,
 	.atomic_update	= sun4i_backend_layer_atomic_update,
 };
@@ -108,7 +115,7 @@ static struct sun4i_layer *sun4i_layer_init_one(struct drm_device *drm,
 	ret = drm_universal_plane_init(drm, &layer->plane, 0,
 				       &sun4i_backend_layer_funcs,
 				       plane->formats, plane->nformats,
-				       NULL, plane->type, NULL);
+				       plane->type, NULL);
 	if (ret) {
 		dev_err(drm->dev, "Couldn't initialize layer\n");
 		return ERR_PTR(ret);

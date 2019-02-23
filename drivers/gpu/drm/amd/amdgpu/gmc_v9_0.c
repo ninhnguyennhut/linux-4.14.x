@@ -23,14 +23,11 @@
 #include <linux/firmware.h>
 #include "amdgpu.h"
 #include "gmc_v9_0.h"
-#include "amdgpu_atomfirmware.h"
 
 #include "vega10/soc15ip.h"
 #include "vega10/HDP/hdp_4_0_offset.h"
 #include "vega10/HDP/hdp_4_0_sh_mask.h"
 #include "vega10/GC/gc_9_0_sh_mask.h"
-#include "vega10/DC/dce_12_0_offset.h"
-#include "vega10/DC/dce_12_0_sh_mask.h"
 #include "vega10/vega10_enum.h"
 
 #include "soc15_common.h"
@@ -395,16 +392,7 @@ static int gmc_v9_0_early_init(void *handle)
 static int gmc_v9_0_late_init(void *handle)
 {
 	struct amdgpu_device *adev = (struct amdgpu_device *)handle;
-	/*
-	 * The latest engine allocation on gfx9 is:
-	 * Engine 0, 1: idle
-	 * Engine 2, 3: firmware
-	 * Engine 4~13: amdgpu ring, subject to change when ring number changes
-	 * Engine 14~15: idle
-	 * Engine 16: kfd tlb invalidation
-	 * Engine 17: Gart flushes
-	 */
-	unsigned vm_inv_eng[AMDGPU_MAX_VMHUBS] = { 4, 4 };
+	unsigned vm_inv_eng[AMDGPU_MAX_VMHUBS] = { 3, 3 };
 	unsigned i;
 
 	for(i = 0; i < adev->num_rings; ++i) {
@@ -417,9 +405,9 @@ static int gmc_v9_0_late_init(void *handle)
 			 ring->funcs->vmhub);
 	}
 
-	/* Engine 16 is used for KFD and 17 for GART flushes */
+	/* Engine 17 is used for GART flushes */
 	for(i = 0; i < AMDGPU_MAX_VMHUBS; ++i)
-		BUG_ON(vm_inv_eng[i] > 16);
+		BUG_ON(vm_inv_eng[i] > 17);
 
 	return amdgpu_irq_get(adev, &adev->mc.vm_fault, 0);
 }
@@ -431,7 +419,8 @@ static void gmc_v9_0_vram_gtt_location(struct amdgpu_device *adev,
 	if (!amdgpu_sriov_vf(adev))
 		base = mmhub_v1_0_get_fb_location(adev);
 	amdgpu_vram_location(adev, &adev->mc, base);
-	amdgpu_gart_location(adev, mc);
+	adev->mc.gtt_base_align = 0;
+	amdgpu_gtt_location(adev, mc);
 	/* base offset of vram pages */
 	if (adev->flags & AMD_IS_APU)
 		adev->vm_manager.vram_base_offset = gfxhub_v1_0_get_mc_fb_offset(adev);
@@ -453,46 +442,43 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 	u32 tmp;
 	int chansize, numchan;
 
-	adev->mc.vram_width = amdgpu_atomfirmware_get_vram_width(adev);
-	if (!adev->mc.vram_width) {
-		/* hbm memory channel size */
-		chansize = 128;
+	/* hbm memory channel size */
+	chansize = 128;
 
-		tmp = RREG32_SOC15(DF, 0, mmDF_CS_AON0_DramBaseAddress0);
-		tmp &= DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK;
-		tmp >>= DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
-		switch (tmp) {
-		case 0:
-		default:
-			numchan = 1;
-			break;
-		case 1:
-			numchan = 2;
-			break;
-		case 2:
-			numchan = 0;
-			break;
-		case 3:
-			numchan = 4;
-			break;
-		case 4:
-			numchan = 0;
-			break;
-		case 5:
-			numchan = 8;
-			break;
-		case 6:
-			numchan = 0;
-			break;
-		case 7:
-			numchan = 16;
-			break;
-		case 8:
-			numchan = 2;
-			break;
-		}
-		adev->mc.vram_width = numchan * chansize;
+	tmp = RREG32_SOC15(DF, 0, mmDF_CS_AON0_DramBaseAddress0);
+	tmp &= DF_CS_AON0_DramBaseAddress0__IntLvNumChan_MASK;
+	tmp >>= DF_CS_AON0_DramBaseAddress0__IntLvNumChan__SHIFT;
+	switch (tmp) {
+	case 0:
+	default:
+		numchan = 1;
+		break;
+	case 1:
+		numchan = 2;
+		break;
+	case 2:
+		numchan = 0;
+		break;
+	case 3:
+		numchan = 4;
+		break;
+	case 4:
+		numchan = 0;
+		break;
+	case 5:
+		numchan = 8;
+		break;
+	case 6:
+		numchan = 0;
+		break;
+	case 7:
+		numchan = 16;
+		break;
+	case 8:
+		numchan = 2;
+		break;
 	}
+	adev->mc.vram_width = numchan * chansize;
 
 	/* Could aper size report 0 ? */
 	adev->mc.aper_base = pci_resource_start(adev->pdev, 0);
@@ -508,20 +494,14 @@ static int gmc_v9_0_mc_init(struct amdgpu_device *adev)
 	if (adev->mc.visible_vram_size > adev->mc.real_vram_size)
 		adev->mc.visible_vram_size = adev->mc.real_vram_size;
 
-	/* set the gart size */
-	if (amdgpu_gart_size == -1) {
-		switch (adev->asic_type) {
-		case CHIP_VEGA10:  /* all engines support GPUVM */
-		default:
-			adev->mc.gart_size = 256ULL << 20;
-			break;
-		case CHIP_RAVEN:   /* DCE SG support */
-			adev->mc.gart_size = 1024ULL << 20;
-			break;
-		}
-	} else {
-		adev->mc.gart_size = (u64)amdgpu_gart_size << 20;
-	}
+	/* unless the user had overridden it, set the gart
+	 * size equal to the 1024 or vram, whichever is larger.
+	 */
+	if (amdgpu_gart_size == -1)
+		adev->mc.gtt_size = max((AMDGPU_DEFAULT_GTT_SIZE_MB << 20),
+					adev->mc.mc_vram_size);
+	else
+		adev->mc.gtt_size = (uint64_t)amdgpu_gart_size << 20;
 
 	gmc_v9_0_vram_gtt_location(adev, &adev->mc);
 
@@ -557,21 +537,10 @@ static int gmc_v9_0_sw_init(void *handle)
 
 	spin_lock_init(&adev->mc.invalidate_lock);
 
-	switch (adev->asic_type) {
-	case CHIP_RAVEN:
+	if (adev->flags & AMD_IS_APU) {
 		adev->mc.vram_type = AMDGPU_VRAM_TYPE_UNKNOWN;
-		if (adev->rev_id == 0x0 || adev->rev_id == 0x1) {
-			adev->vm_manager.vm_size = 1U << 18;
-			adev->vm_manager.block_size = 9;
-			adev->vm_manager.num_level = 3;
-			amdgpu_vm_set_fragment_size(adev, 9);
-		} else {
-			/* vm_size is 64GB for legacy 2-level page support */
-			amdgpu_vm_adjust_size(adev, 64, 9);
-			adev->vm_manager.num_level = 1;
-		}
-		break;
-	case CHIP_VEGA10:
+		amdgpu_vm_adjust_size(adev, 64);
+	} else {
 		/* XXX Don't know how to get VRAM type yet. */
 		adev->mc.vram_type = AMDGPU_VRAM_TYPE_HBM;
 		/*
@@ -581,17 +550,10 @@ static int gmc_v9_0_sw_init(void *handle)
 		 */
 		adev->vm_manager.vm_size = 1U << 18;
 		adev->vm_manager.block_size = 9;
-		adev->vm_manager.num_level = 3;
-		amdgpu_vm_set_fragment_size(adev, 9);
-		break;
-	default:
-		break;
+		DRM_INFO("vm size is %llu GB, block size is %u-bit\n",
+				adev->vm_manager.vm_size,
+				adev->vm_manager.block_size);
 	}
-
-	DRM_INFO("vm size is %llu GB, block size is %u-bit,fragment size is %u-bit\n",
-			adev->vm_manager.vm_size,
-			adev->vm_manager.block_size,
-			adev->vm_manager.fragment_size);
 
 	/* This interrupt is VMC page fault.*/
 	r = amdgpu_irq_add_id(adev, AMDGPU_IH_CLIENTID_VMC, 0,
@@ -657,6 +619,11 @@ static int gmc_v9_0_sw_init(void *handle)
 	adev->vm_manager.id_mgr[AMDGPU_GFXHUB].num_ids = AMDGPU_NUM_OF_VMIDS;
 	adev->vm_manager.id_mgr[AMDGPU_MMHUB].num_ids = AMDGPU_NUM_OF_VMIDS;
 
+	/* TODO: fix num_level for APU when updating vm size and block size */
+	if (adev->flags & AMD_IS_APU)
+		adev->vm_manager.num_level = 1;
+	else
+		adev->vm_manager.num_level = 3;
 	amdgpu_vm_manager_init(adev);
 
 	return 0;
@@ -764,7 +731,7 @@ static int gmc_v9_0_gart_enable(struct amdgpu_device *adev)
 	gmc_v9_0_gart_flush_gpu_tlb(adev, 0);
 
 	DRM_INFO("PCIE GART of %uM enabled (table at 0x%016llX).\n",
-		 (unsigned)(adev->mc.gart_size >> 20),
+		 (unsigned)(adev->mc.gtt_size >> 20),
 		 (unsigned long long)adev->gart.table_addr);
 	adev->gart.ready = true;
 	return 0;
@@ -777,20 +744,6 @@ static int gmc_v9_0_hw_init(void *handle)
 
 	/* The sequence of these two function calls matters.*/
 	gmc_v9_0_init_golden_registers(adev);
-
-	if (adev->mode_info.num_crtc) {
-		u32 tmp;
-
-		/* Lockout access through VGA aperture*/
-		tmp = RREG32_SOC15(DCE, 0, mmVGA_HDP_CONTROL);
-		tmp = REG_SET_FIELD(tmp, VGA_HDP_CONTROL, VGA_MEMORY_DISABLE, 1);
-		WREG32_SOC15(DCE, 0, mmVGA_HDP_CONTROL, tmp);
-
-		/* disable VGA render */
-		tmp = RREG32_SOC15(DCE, 0, mmVGA_RENDER_CONTROL);
-		tmp = REG_SET_FIELD(tmp, VGA_RENDER_CONTROL, VGA_VSTATUS_CNTL, 0);
-		WREG32_SOC15(DCE, 0, mmVGA_RENDER_CONTROL, tmp);
-	}
 
 	r = gmc_v9_0_gart_enable(adev);
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __DRM_RANDOM_H__
 #define __DRM_RANDOM_H__
 

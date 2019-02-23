@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SCSI_SCSI_DEVICE_H
 #define _SCSI_SCSI_DEVICE_H
 
@@ -81,18 +80,6 @@ struct scsi_event {
 	 */
 };
 
-/**
- * struct scsi_vpd - SCSI Vital Product Data
- * @rcu: For kfree_rcu().
- * @len: Length in bytes of @data.
- * @data: VPD data as defined in various T10 SCSI standard documents.
- */
-struct scsi_vpd {
-	struct rcu_head	rcu;
-	int		len;
-	unsigned char	data[];
-};
-
 struct scsi_device {
 	struct Scsi_Host *host;
 	struct request_queue *request_queue;
@@ -124,7 +111,7 @@ struct scsi_device {
 	unsigned sector_size;	/* size in bytes */
 
 	void *hostdata;		/* available to low-level driver */
-	unsigned char type;
+	char type;
 	char scsi_level;
 	char inq_periph_qual;	/* PQ from INQUIRY data */	
 	struct mutex inquiry_mutex;
@@ -135,8 +122,10 @@ struct scsi_device {
 	const char * rev;		/* ... "nullnullnullnull" before scan */
 
 #define SCSI_VPD_PG_LEN                255
-	struct scsi_vpd __rcu *vpd_pg83;
-	struct scsi_vpd __rcu *vpd_pg80;
+	int vpd_pg83_len;
+	unsigned char __rcu *vpd_pg83;
+	int vpd_pg80_len;
+	unsigned char __rcu *vpd_pg80;
 	unsigned char current_tag;	/* current tag */
 	struct scsi_target      *sdev_target;   /* used only for single_lun */
 
@@ -193,7 +182,6 @@ struct scsi_device {
 	unsigned no_dif:1;	/* T10 PI (DIF) should be disabled */
 	unsigned broken_fua:1;		/* Don't set FUA bit */
 	unsigned lun_in_cdb:1;		/* Store LUN bits in CDB[1] */
-	unsigned unmap_limit_for_ws:1;	/* Use the UNMAP limit for WRITE SAME */
 
 	atomic_t disk_events_disable_depth; /* disable depth for disk events */
 

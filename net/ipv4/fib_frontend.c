@@ -1247,46 +1247,35 @@ static int __net_init ip_fib_net_init(struct net *net)
 	int err;
 	size_t size = sizeof(struct hlist_head) * FIB_TABLE_HASHSZ;
 
-	err = fib4_notifier_init(net);
-	if (err)
-		return err;
+	net->ipv4.fib_seq = 0;
 
 	/* Avoid false sharing : Use at least a full cache line */
 	size = max_t(size_t, size, L1_CACHE_BYTES);
 
 	net->ipv4.fib_table_hash = kzalloc(size, GFP_KERNEL);
-	if (!net->ipv4.fib_table_hash) {
-		err = -ENOMEM;
-		goto err_table_hash_alloc;
-	}
+	if (!net->ipv4.fib_table_hash)
+		return -ENOMEM;
 
 	err = fib4_rules_init(net);
 	if (err < 0)
-		goto err_rules_init;
+		goto fail;
 	return 0;
 
-err_rules_init:
+fail:
 	kfree(net->ipv4.fib_table_hash);
-err_table_hash_alloc:
-	fib4_notifier_exit(net);
 	return err;
 }
 
 static void ip_fib_net_exit(struct net *net)
 {
-	int i;
+	unsigned int i;
 
 	rtnl_lock();
 #ifdef CONFIG_IP_MULTIPLE_TABLES
 	RCU_INIT_POINTER(net->ipv4.fib_main, NULL);
 	RCU_INIT_POINTER(net->ipv4.fib_default, NULL);
 #endif
-	/* Destroy the tables in reverse order to guarantee that the
-	 * local table, ID 255, is destroyed before the main table, ID
-	 * 254. This is necessary as the local table may contain
-	 * references to data contained in the main table.
-	 */
-	for (i = FIB_TABLE_HASHSZ - 1; i >= 0; i--) {
+	for (i = 0; i < FIB_TABLE_HASHSZ; i++) {
 		struct hlist_head *head = &net->ipv4.fib_table_hash[i];
 		struct hlist_node *tmp;
 		struct fib_table *tb;
@@ -1303,7 +1292,6 @@ static void ip_fib_net_exit(struct net *net)
 #endif
 	rtnl_unlock();
 	kfree(net->ipv4.fib_table_hash);
-	fib4_notifier_exit(net);
 }
 
 static int __net_init fib_net_init(struct net *net)
@@ -1353,7 +1341,7 @@ void __init ip_fib_init(void)
 	register_netdevice_notifier(&fib_netdev_notifier);
 	register_inetaddr_notifier(&fib_inetaddr_notifier);
 
-	rtnl_register(PF_INET, RTM_NEWROUTE, inet_rtm_newroute, NULL, 0);
-	rtnl_register(PF_INET, RTM_DELROUTE, inet_rtm_delroute, NULL, 0);
-	rtnl_register(PF_INET, RTM_GETROUTE, NULL, inet_dump_fib, 0);
+	rtnl_register(PF_INET, RTM_NEWROUTE, inet_rtm_newroute, NULL, NULL);
+	rtnl_register(PF_INET, RTM_DELROUTE, inet_rtm_delroute, NULL, NULL);
+	rtnl_register(PF_INET, RTM_GETROUTE, NULL, inet_dump_fib, NULL);
 }

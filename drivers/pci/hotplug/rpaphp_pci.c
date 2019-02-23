@@ -95,7 +95,7 @@ int rpaphp_enable_slot(struct slot *slot)
 
 	bus = pci_find_bus_by_node(slot->dn);
 	if (!bus) {
-		err("%s: no pci_bus for dn %pOF\n", __func__, slot->dn);
+		err("%s: no pci_bus for dn %s\n", __func__, slot->dn->full_name);
 		return -EINVAL;
 	}
 
@@ -125,7 +125,7 @@ int rpaphp_enable_slot(struct slot *slot)
 
 		if (rpaphp_debug) {
 			struct pci_dev *dev;
-			dbg("%s: pci_devs of slot[%pOF]\n", __func__, slot->dn);
+			dbg("%s: pci_devs of slot[%s]\n", __func__, slot->dn->full_name);
 			list_for_each_entry(dev, &bus->devices, bus_list)
 				dbg("\t%s\n", pci_name(dev));
 		}

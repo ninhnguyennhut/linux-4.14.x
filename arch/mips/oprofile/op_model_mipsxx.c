@@ -38,9 +38,9 @@ static int perfcount_irq;
 #ifdef CONFIG_MIPS_MT_SMP
 static int cpu_has_mipsmt_pertccounters;
 #define WHAT		(MIPS_PERFCTRL_MT_EN_VPE | \
-			 M_PERFCTL_VPEID(cpu_vpe_id(&current_cpu_data)))
+			 M_PERFCTL_VPEID(cpu_data[smp_processor_id()].vpe_id))
 #define vpe_id()	(cpu_has_mipsmt_pertccounters ? \
-			0 : cpu_vpe_id(&current_cpu_data))
+			0 : cpu_data[smp_processor_id()].vpe_id)
 
 /*
  * The number of bits to shift to convert between counters per core and

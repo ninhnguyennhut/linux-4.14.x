@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _CCU_MUX_H_
 #define _CCU_MUX_H_
 

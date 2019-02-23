@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* power.c: Power management driver.
  *
  * Copyright (C) 1999, 2007, 2008 David S. Miller (davem@davemloft.net)

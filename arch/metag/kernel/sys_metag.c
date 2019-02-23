@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This file contains various random system calls that
  * have a non-standard calling sequence on the Linux/Meta

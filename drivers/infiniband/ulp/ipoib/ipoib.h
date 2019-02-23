@@ -337,7 +337,6 @@ struct ipoib_dev_priv {
 
 	struct rw_semaphore vlan_rwsem;
 	struct mutex mcast_mutex;
-	struct mutex sysfs_mutex;
 
 	struct rb_root  path_tree;
 	struct list_head path_list;
@@ -368,7 +367,7 @@ struct ipoib_dev_priv {
 	u32		  qkey;
 
 	union ib_gid local_gid;
-	u32	     local_lid;
+	u16	     local_lid;
 
 	unsigned int admin_mtu;
 	unsigned int mcast_mtu;

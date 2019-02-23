@@ -33,7 +33,7 @@
 #ifndef __LIBCFS_TRACEFILE_H__
 #define __LIBCFS_TRACEFILE_H__
 
-#include <linux/libcfs/libcfs.h>
+#include "../../include/linux/libcfs/libcfs.h"
 
 enum cfs_trace_buf_type {
 	CFS_TCD_TYPE_PROC = 0,

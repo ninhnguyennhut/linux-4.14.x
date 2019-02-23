@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_NETFILTER_H
 #define __LINUX_NETFILTER_H
 
@@ -73,32 +72,25 @@ struct nf_hook_ops {
 };
 
 struct nf_hook_entry {
+	struct nf_hook_entry __rcu	*next;
 	nf_hookfn			*hook;
 	void				*priv;
+	const struct nf_hook_ops	*orig_ops;
 };
 
-struct nf_hook_entries {
-	u16				num_hook_entries;
-	/* padding */
-	struct nf_hook_entry		hooks[];
-
-	/* trailer: pointers to original orig_ops of each hook.
-	 *
-	 * This is not part of struct nf_hook_entry since its only
-	 * needed in slow path (hook register/unregister).
-	 *
-	 * const struct nf_hook_ops     *orig_ops[]
-	 */
-};
-
-static inline struct nf_hook_ops **nf_hook_entries_get_hook_ops(const struct nf_hook_entries *e)
+static inline void
+nf_hook_entry_init(struct nf_hook_entry *entry,	const struct nf_hook_ops *ops)
 {
-	unsigned int n = e->num_hook_entries;
-	const void *hook_end;
+	entry->next = NULL;
+	entry->hook = ops->hook;
+	entry->priv = ops->priv;
+	entry->orig_ops = ops;
+}
 
-	hook_end = &e->hooks[n]; /* this is *past* ->hooks[]! */
-
-	return (struct nf_hook_ops **)hook_end;
+static inline int
+nf_hook_entry_priority(const struct nf_hook_entry *entry)
+{
+	return entry->orig_ops->priority;
 }
 
 static inline int
@@ -106,6 +98,12 @@ nf_hook_entry_hookfn(const struct nf_hook_entry *entry, struct sk_buff *skb,
 		     struct nf_hook_state *state)
 {
 	return entry->hook(entry->priv, skb, state);
+}
+
+static inline const struct nf_hook_ops *
+nf_hook_entry_ops(const struct nf_hook_entry *entry)
+{
+	return entry->orig_ops;
 }
 
 static inline void nf_hook_state_init(struct nf_hook_state *p,
@@ -170,7 +168,7 @@ extern struct static_key nf_hooks_needed[NFPROTO_NUMPROTO][NF_MAX_HOOKS];
 #endif
 
 int nf_hook_slow(struct sk_buff *skb, struct nf_hook_state *state,
-		 const struct nf_hook_entries *e, unsigned int i);
+		 struct nf_hook_entry *entry);
 
 /**
  *	nf_hook - call a netfilter hook
@@ -184,7 +182,7 @@ static inline int nf_hook(u_int8_t pf, unsigned int hook, struct net *net,
 			  struct net_device *indev, struct net_device *outdev,
 			  int (*okfn)(struct net *, struct sock *, struct sk_buff *))
 {
-	struct nf_hook_entries *hook_head;
+	struct nf_hook_entry *hook_head;
 	int ret = 1;
 
 #ifdef HAVE_JUMP_LABEL
@@ -202,7 +200,7 @@ static inline int nf_hook(u_int8_t pf, unsigned int hook, struct net *net,
 		nf_hook_state_init(&state, hook, pf, indev, outdev,
 				   sk, net, okfn);
 
-		ret = nf_hook_slow(skb, &state, hook_head, 0);
+		ret = nf_hook_slow(skb, &state, hook_head);
 	}
 	rcu_read_unlock();
 

@@ -1,11 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_SECCOMP_H
 #define _LINUX_SECCOMP_H
 
 #include <uapi/linux/seccomp.h>
 
-#define SECCOMP_FILTER_FLAG_MASK	(SECCOMP_FILTER_FLAG_TSYNC | \
-					 SECCOMP_FILTER_FLAG_LOG)
+#define SECCOMP_FILTER_FLAG_MASK	(SECCOMP_FILTER_FLAG_TSYNC)
 
 #ifdef CONFIG_SECCOMP
 

@@ -728,7 +728,8 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 		if (unlikely(in_compat_syscall())) {
 			compat_siginfo_t __user *uinfo = compat_ptr(data);
 
-			if (copy_siginfo_to_user32(uinfo, &info)) {
+			if (copy_siginfo_to_user32(uinfo, &info) ||
+			    __put_user(info.si_code, &uinfo->si_code)) {
 				ret = -EFAULT;
 				break;
 			}
@@ -738,7 +739,8 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 		{
 			siginfo_t __user *uinfo = (siginfo_t __user *) data;
 
-			if (copy_siginfo_to_user(uinfo, &info)) {
+			if (copy_siginfo_to_user(uinfo, &info) ||
+			    __put_user(info.si_code, &uinfo->si_code)) {
 				ret = -EFAULT;
 				break;
 			}

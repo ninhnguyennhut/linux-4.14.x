@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ISCSI_PARAMETERS_H
 #define ISCSI_PARAMETERS_H
 

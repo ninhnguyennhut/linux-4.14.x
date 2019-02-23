@@ -14,7 +14,7 @@
 #include <linux/uaccess.h>
 #include <asm/sections.h>
 
-static const int rodata_test_data = 0xC3;
+const int rodata_test_data = 0xC3;
 
 void rodata_test(void)
 {

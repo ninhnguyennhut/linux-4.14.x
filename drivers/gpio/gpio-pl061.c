@@ -405,7 +405,7 @@ static const struct dev_pm_ops pl061_dev_pm_ops = {
 };
 #endif
 
-static const struct amba_id pl061_ids[] = {
+static struct amba_id pl061_ids[] = {
 	{
 		.id	= 0x00041061,
 		.mask	= 0x000fffff,

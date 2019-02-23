@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * RT-Mutexes: blocking mutual exclusion locks with PI support
  *

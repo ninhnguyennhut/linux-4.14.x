@@ -30,10 +30,11 @@ static const char *iommu_ports[] = {
 static int mdp5_hw_init(struct msm_kms *kms)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
+	struct platform_device *pdev = mdp5_kms->pdev;
 	unsigned long flags;
 
-	pm_runtime_get_sync(dev);
+	pm_runtime_get_sync(&pdev->dev);
+	mdp5_enable(mdp5_kms);
 
 	/* Magic unknown register writes:
 	 *
@@ -65,7 +66,8 @@ static int mdp5_hw_init(struct msm_kms *kms)
 
 	mdp5_ctlm_hw_reset(mdp5_kms->ctlm);
 
-	pm_runtime_put_sync(dev);
+	mdp5_disable(mdp5_kms);
+	pm_runtime_put_sync(&pdev->dev);
 
 	return 0;
 }
@@ -109,9 +111,8 @@ static void mdp5_swap_state(struct msm_kms *kms, struct drm_atomic_state *state)
 static void mdp5_prepare_commit(struct msm_kms *kms, struct drm_atomic_state *state)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
 
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 
 	if (mdp5_kms->smp)
 		mdp5_smp_prepare_commit(mdp5_kms->smp, &mdp5_kms->state->smp);
@@ -120,12 +121,11 @@ static void mdp5_prepare_commit(struct msm_kms *kms, struct drm_atomic_state *st
 static void mdp5_complete_commit(struct msm_kms *kms, struct drm_atomic_state *state)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
 
 	if (mdp5_kms->smp)
 		mdp5_smp_complete_commit(mdp5_kms->smp, &mdp5_kms->state->smp);
 
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 }
 
 static void mdp5_wait_for_crtc_commit_done(struct msm_kms *kms,
@@ -249,9 +249,6 @@ int mdp5_disable(struct mdp5_kms *mdp5_kms)
 {
 	DBG("");
 
-	mdp5_kms->enable_count--;
-	WARN_ON(mdp5_kms->enable_count < 0);
-
 	clk_disable_unprepare(mdp5_kms->ahb_clk);
 	clk_disable_unprepare(mdp5_kms->axi_clk);
 	clk_disable_unprepare(mdp5_kms->core_clk);
@@ -264,8 +261,6 @@ int mdp5_disable(struct mdp5_kms *mdp5_kms)
 int mdp5_enable(struct mdp5_kms *mdp5_kms)
 {
 	DBG("");
-
-	mdp5_kms->enable_count++;
 
 	clk_prepare_enable(mdp5_kms->ahb_clk);
 	clk_prepare_enable(mdp5_kms->axi_clk);
@@ -491,12 +486,11 @@ fail:
 static void read_mdp_hw_revision(struct mdp5_kms *mdp5_kms,
 				 u32 *major, u32 *minor)
 {
-	struct device *dev = &mdp5_kms->pdev->dev;
 	u32 version;
 
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	version = mdp5_read(mdp5_kms, REG_MDP5_HW_VERSION);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 
 	*major = FIELD(version, MDP5_HW_VERSION_MAJOR);
 	*minor = FIELD(version, MDP5_HW_VERSION_MINOR);
@@ -649,7 +643,7 @@ struct msm_kms *mdp5_kms_init(struct drm_device *dev)
 	 * have left things on, in which case we'll start getting faults if
 	 * we don't disable):
 	 */
-	pm_runtime_get_sync(&pdev->dev);
+	mdp5_enable(mdp5_kms);
 	for (i = 0; i < MDP5_INTF_NUM_MAX; i++) {
 		if (mdp5_cfg_intf_is_virtual(config->hw->intf.connect[i]) ||
 		    !config->hw->intf.base[i])
@@ -658,6 +652,7 @@ struct msm_kms *mdp5_kms_init(struct drm_device *dev)
 
 		mdp5_write(mdp5_kms, REG_MDP5_INTF_FRAME_LINE_COUNT_EN(i), 0x3);
 	}
+	mdp5_disable(mdp5_kms);
 	mdelay(16);
 
 	if (config->platform.iommu) {
@@ -682,8 +677,6 @@ struct msm_kms *mdp5_kms_init(struct drm_device *dev)
 			 "no iommu, fallback to phys contig buffers for scanout\n");
 		aspace = NULL;;
 	}
-
-	pm_runtime_put_autosuspend(&pdev->dev);
 
 	ret = modeset_init(mdp5_kms);
 	if (ret) {
@@ -1012,30 +1005,6 @@ static int mdp5_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static __maybe_unused int mdp5_runtime_suspend(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct mdp5_kms *mdp5_kms = platform_get_drvdata(pdev);
-
-	DBG("");
-
-	return mdp5_disable(mdp5_kms);
-}
-
-static __maybe_unused int mdp5_runtime_resume(struct device *dev)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct mdp5_kms *mdp5_kms = platform_get_drvdata(pdev);
-
-	DBG("");
-
-	return mdp5_enable(mdp5_kms);
-}
-
-static const struct dev_pm_ops mdp5_pm_ops = {
-	SET_RUNTIME_PM_OPS(mdp5_runtime_suspend, mdp5_runtime_resume, NULL)
-};
-
 static const struct of_device_id mdp5_dt_match[] = {
 	{ .compatible = "qcom,mdp5", },
 	/* to support downstream DT files */
@@ -1050,7 +1019,6 @@ static struct platform_driver mdp5_driver = {
 	.driver = {
 		.name = "msm_mdp",
 		.of_match_table = mdp5_dt_match,
-		.pm = &mdp5_pm_ops,
 	},
 };
 

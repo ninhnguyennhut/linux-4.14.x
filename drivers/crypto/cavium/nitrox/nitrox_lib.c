@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/cpumask.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>

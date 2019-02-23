@@ -4,7 +4,6 @@
 #include "util/debug.h"
 #define IN_EXPR_Y 1
 #include "expr.h"
-#include "smt.h"
 #include <string.h>
 
 #define MAXIDLEN 256
@@ -23,15 +22,13 @@
 
 %token <num> NUMBER
 %token <id> ID
-%token MIN MAX IF ELSE SMT_ON
-%left MIN MAX IF
 %left '|'
 %left '^'
 %left '&'
 %left '-' '+'
 %left '*' '/' '%'
 %left NEG NOT
-%type <num> expr if_expr
+%type <num> expr
 
 %{
 static int expr__lex(YYSTYPE *res, const char **pp);
@@ -60,33 +57,22 @@ static int lookup_id(struct parse_ctx *ctx, char *id, double *val)
 %}
 %%
 
-all_expr: if_expr			{ *final_val = $1; }
-	;
-
-if_expr:
-	expr IF expr ELSE expr { $$ = $3 ? $1 : $5; }
-	| expr
+all_expr: expr			{ *final_val = $1; }
 	;
 
 expr:	  NUMBER
 	| ID			{ if (lookup_id(ctx, $1, &$$) < 0) {
-					pr_debug("%s not found\n", $1);
+					pr_debug("%s not found", $1);
 					YYABORT;
 				  }
 				}
-	| expr '|' expr		{ $$ = (long)$1 | (long)$3; }
-	| expr '&' expr		{ $$ = (long)$1 & (long)$3; }
-	| expr '^' expr		{ $$ = (long)$1 ^ (long)$3; }
 	| expr '+' expr		{ $$ = $1 + $3; }
 	| expr '-' expr		{ $$ = $1 - $3; }
 	| expr '*' expr		{ $$ = $1 * $3; }
 	| expr '/' expr		{ if ($3 == 0) YYABORT; $$ = $1 / $3; }
 	| expr '%' expr		{ if ((long)$3 == 0) YYABORT; $$ = (long)$1 % (long)$3; }
 	| '-' expr %prec NEG	{ $$ = -$2; }
-	| '(' if_expr ')'	{ $$ = $2; }
-	| MIN '(' expr ',' expr ')' { $$ = $3 < $5 ? $3 : $5; }
-	| MAX '(' expr ',' expr ')' { $$ = $3 > $5 ? $3 : $5; }
-	| SMT_ON		 { $$ = smt_on() > 0; }
+	| '(' expr ')'		{ $$ = $2; }
 	;
 
 %%
@@ -96,47 +82,13 @@ static int expr__symbol(YYSTYPE *res, const char *p, const char **pp)
 	char *dst = res->id;
 	const char *s = p;
 
-	if (*p == '#')
-		*dst++ = *p++;
-
-	while (isalnum(*p) || *p == '_' || *p == '.' || *p == ':' || *p == '@' || *p == '\\') {
+	while (isalnum(*p) || *p == '_' || *p == '.') {
 		if (p - s >= MAXIDLEN)
 			return -1;
-		/*
-		 * Allow @ instead of / to be able to specify pmu/event/ without
-		 * conflicts with normal division.
-		 */
-		if (*p == '@')
-			*dst++ = '/';
-		else if (*p == '\\')
-			*dst++ = *++p;
-		else
-			*dst++ = *p;
-		p++;
+		*dst++ = *p++;
 	}
 	*dst = 0;
 	*pp = p;
-	dst = res->id;
-	switch (dst[0]) {
-	case 'm':
-		if (!strcmp(dst, "min"))
-			return MIN;
-		if (!strcmp(dst, "max"))
-			return MAX;
-		break;
-	case 'i':
-		if (!strcmp(dst, "if"))
-			return IF;
-		break;
-	case 'e':
-		if (!strcmp(dst, "else"))
-			return ELSE;
-		break;
-	case '#':
-		if (!strcasecmp(dst, "#smt_on"))
-			return SMT_ON;
-		break;
-	}
 	return ID;
 }
 
@@ -150,7 +102,6 @@ static int expr__lex(YYSTYPE *res, const char **pp)
 		p++;
 	s = p;
 	switch (*p++) {
-	case '#':
 	case 'a' ... 'z':
 	case 'A' ... 'Z':
 		return expr__symbol(res, p - 1, pp);
@@ -181,19 +132,6 @@ void expr__ctx_init(struct parse_ctx *ctx)
 	ctx->num_ids = 0;
 }
 
-static bool already_seen(const char *val, const char *one, const char **other,
-			 int num_other)
-{
-	int i;
-
-	if (one && !strcasecmp(one, val))
-		return true;
-	for (i = 0; i < num_other; i++)
-		if (!strcasecmp(other[i], val))
-			return true;
-	return false;
-}
-
 int expr__find_other(const char *p, const char *one, const char ***other,
 		     int *num_otherp)
 {
@@ -213,7 +151,7 @@ int expr__find_other(const char *p, const char *one, const char ***other,
 			err = 0;
 			break;
 		}
-		if (tok == ID && !already_seen(val.id, one, *other, num_other)) {
+		if (tok == ID && strcasecmp(one, val.id)) {
 			if (num_other >= EXPR_MAX_OTHER - 1) {
 				pr_debug("Too many extra events in %s\n", orig);
 				break;

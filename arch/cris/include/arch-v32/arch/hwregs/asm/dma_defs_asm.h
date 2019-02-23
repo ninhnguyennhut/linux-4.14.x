@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __dma_defs_asm_h
 #define __dma_defs_asm_h
 

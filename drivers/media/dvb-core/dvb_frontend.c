@@ -141,37 +141,22 @@ struct dvb_frontend_private {
 static void dvb_frontend_invoke_release(struct dvb_frontend *fe,
 					void (*release)(struct dvb_frontend *fe));
 
-static void __dvb_frontend_free(struct dvb_frontend *fe)
-{
-	struct dvb_frontend_private *fepriv = fe->frontend_priv;
-
-	if (fepriv)
-		dvb_free_device(fepriv->dvbdev);
-
-	dvb_frontend_invoke_release(fe, fe->ops.release);
-
-	if (fepriv)
-		kfree(fepriv);
-}
-
 static void dvb_frontend_free(struct kref *ref)
 {
 	struct dvb_frontend *fe =
 		container_of(ref, struct dvb_frontend, refcount);
+	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 
-	__dvb_frontend_free(fe);
+	dvb_free_device(fepriv->dvbdev);
+
+	dvb_frontend_invoke_release(fe, fe->ops.release);
+
+	kfree(fepriv);
 }
 
 static void dvb_frontend_put(struct dvb_frontend *fe)
 {
-	/*
-	 * Check if the frontend was registered, as otherwise
-	 * kref was not initialized yet.
-	 */
-	if (fe->frontend_priv)
-		kref_put(&fe->refcount, dvb_frontend_free);
-	else
-		__dvb_frontend_free(fe);
+	kref_put(&fe->refcount, dvb_frontend_free);
 }
 
 static void dvb_frontend_get(struct dvb_frontend *fe)
@@ -475,7 +460,7 @@ static int dvb_frontend_swzigzag_autotune(struct dvb_frontend *fe, int check_wra
 
 static void dvb_frontend_swzigzag(struct dvb_frontend *fe)
 {
-	enum fe_status s = FE_NONE;
+	enum fe_status s = 0;
 	int retval = 0;
 	struct dvb_frontend_private *fepriv = fe->frontend_priv;
 	struct dtv_frontend_properties *c = &fe->dtv_property_cache, tmp;
@@ -646,7 +631,7 @@ static int dvb_frontend_thread(void *data)
 	struct dvb_frontend *fe = data;
 	struct dtv_frontend_properties *c = &fe->dtv_property_cache;
 	struct dvb_frontend_private *fepriv = fe->frontend_priv;
-	enum fe_status s = FE_NONE;
+	enum fe_status s;
 	enum dvbfe_algo algo;
 	bool re_tune = false;
 	bool semheld = false;
@@ -1014,17 +999,6 @@ static int dvb_frontend_clear_cache(struct dvb_frontend *fe)
 	.set  = s,\
 	.buffer = b \
 }
-
-struct dtv_cmds_h {
-	char	*name;		/* A display name for debugging purposes */
-
-	__u32	cmd;		/* A unique ID */
-
-	/* Flags */
-	__u32	set:1;		/* Either a set or get property */
-	__u32	buffer:1;	/* Does this property use the buffer? */
-	__u32	reserved:30;	/* Align */
-};
 
 static struct dtv_cmds_h dtv_cmds[DTV_MAX_COMMAND + 1] = {
 	_DTV_CMD(DTV_TUNE, 1, 0),

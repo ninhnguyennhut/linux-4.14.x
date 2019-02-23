@@ -158,7 +158,7 @@ int ssi_ivgen_init_sram_pool(struct ssi_drvdata *drvdata)
 void ssi_ivgen_fini(struct ssi_drvdata *drvdata)
 {
 	struct ssi_ivgen_ctx *ivgen_ctx = drvdata->ivgen_handle;
-	struct device *device = &drvdata->plat_dev->dev;
+	struct device *device = &(drvdata->plat_dev->dev);
 
 	if (!ivgen_ctx)
 		return;
@@ -166,8 +166,7 @@ void ssi_ivgen_fini(struct ssi_drvdata *drvdata)
 	if (ivgen_ctx->pool_meta) {
 		memset(ivgen_ctx->pool_meta, 0, SSI_IVPOOL_META_SIZE);
 		dma_free_coherent(device, SSI_IVPOOL_META_SIZE,
-				  ivgen_ctx->pool_meta,
-				  ivgen_ctx->pool_meta_dma);
+			ivgen_ctx->pool_meta, ivgen_ctx->pool_meta_dma);
 	}
 
 	ivgen_ctx->pool = NULL_SRAM_ADDR;
@@ -191,11 +190,10 @@ int ssi_ivgen_init(struct ssi_drvdata *drvdata)
 	int rc;
 
 	/* Allocate "this" context */
-	drvdata->ivgen_handle = kzalloc(sizeof(*drvdata->ivgen_handle),
-					GFP_KERNEL);
+	drvdata->ivgen_handle = kzalloc(sizeof(struct ssi_ivgen_ctx), GFP_KERNEL);
 	if (!drvdata->ivgen_handle) {
 		SSI_LOG_ERR("Not enough memory to allocate IVGEN context "
-			   "(%zu B)\n", sizeof(*drvdata->ivgen_handle));
+			   "(%zu B)\n", sizeof(struct ssi_ivgen_ctx));
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -203,8 +201,7 @@ int ssi_ivgen_init(struct ssi_drvdata *drvdata)
 
 	/* Allocate pool's header for intial enc. key/IV */
 	ivgen_ctx->pool_meta = dma_alloc_coherent(device, SSI_IVPOOL_META_SIZE,
-						  &ivgen_ctx->pool_meta_dma,
-						  GFP_KERNEL);
+			&ivgen_ctx->pool_meta_dma, GFP_KERNEL);
 	if (!ivgen_ctx->pool_meta) {
 		SSI_LOG_ERR("Not enough memory to allocate DMA of pool_meta "
 			   "(%u B)\n", SSI_IVPOOL_META_SIZE);

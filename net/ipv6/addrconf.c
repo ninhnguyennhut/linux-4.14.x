@@ -231,7 +231,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.proxy_ndp		= 0,
 	.accept_source_route	= 0,	/* we do not accept RH0 by default. */
 	.disable_ipv6		= 0,
-	.accept_dad		= 0,
+	.accept_dad		= 1,
 	.suppress_frag_ndisc	= 1,
 	.accept_ra_mtu		= 1,
 	.stable_secret		= {
@@ -303,10 +303,10 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.disable_policy		= 0,
 };
 
-/* Check if link is ready: is it up and is a valid qdisc available */
-static inline bool addrconf_link_ready(const struct net_device *dev)
+/* Check if a valid qdisc is available */
+static inline bool addrconf_qdisc_ok(const struct net_device *dev)
 {
-	return netif_oper_up(dev) && !qdisc_tx_is_noop(dev);
+	return !qdisc_tx_is_noop(dev);
 }
 
 static void addrconf_del_rs_timer(struct inet6_dev *idev)
@@ -451,7 +451,7 @@ static struct inet6_dev *ipv6_add_dev(struct net_device *dev)
 
 	ndev->token = in6addr_any;
 
-	if (netif_running(dev) && addrconf_link_ready(dev))
+	if (netif_running(dev) && addrconf_qdisc_ok(dev))
 		ndev->if_flags |= IF_READY;
 
 	ipv6_mc_init_dev(ndev);
@@ -1399,18 +1399,10 @@ static inline int ipv6_saddr_preferred(int type)
 	return 0;
 }
 
-static bool ipv6_use_optimistic_addr(struct net *net,
-				     struct inet6_dev *idev)
+static inline bool ipv6_use_optimistic_addr(struct inet6_dev *idev)
 {
 #ifdef CONFIG_IPV6_OPTIMISTIC_DAD
-	if (!idev)
-		return false;
-	if (!net->ipv6.devconf_all->optimistic_dad && !idev->cnf.optimistic_dad)
-		return false;
-	if (!net->ipv6.devconf_all->use_optimistic && !idev->cnf.use_optimistic)
-		return false;
-
-	return true;
+	return idev && idev->cnf.optimistic_dad && idev->cnf.use_optimistic;
 #else
 	return false;
 #endif
@@ -1480,7 +1472,7 @@ static int ipv6_get_saddr_eval(struct net *net,
 		/* Rule 3: Avoid deprecated and optimistic addresses */
 		u8 avoid = IFA_F_DEPRECATED;
 
-		if (!ipv6_use_optimistic_addr(net, score->ifa->idev))
+		if (!ipv6_use_optimistic_addr(score->ifa->idev))
 			avoid |= IFA_F_OPTIMISTIC;
 		ret = ipv6_saddr_preferred(score->addr_type) ||
 		      !(score->ifa->flags & avoid);
@@ -2468,8 +2460,7 @@ int addrconf_prefix_rcv_add_addr(struct net *net, struct net_device *dev,
 		int max_addresses = in6_dev->cnf.max_addresses;
 
 #ifdef CONFIG_IPV6_OPTIMISTIC_DAD
-		if ((net->ipv6.devconf_all->optimistic_dad ||
-		     in6_dev->cnf.optimistic_dad) &&
+		if (in6_dev->cnf.optimistic_dad &&
 		    !net->ipv6.devconf_all->forwarding && sllao)
 			addr_flags |= IFA_F_OPTIMISTIC;
 #endif
@@ -3039,6 +3030,9 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 static void init_loopback(struct net_device *dev)
 {
 	struct inet6_dev  *idev;
+	struct net_device *sp_dev;
+	struct inet6_ifaddr *sp_ifa;
+	struct rt6_info *sp_rt;
 
 	/* ::1 */
 
@@ -3051,6 +3045,45 @@ static void init_loopback(struct net_device *dev)
 	}
 
 	add_addr(idev, &in6addr_loopback, 128, IFA_HOST);
+
+	/* Add routes to other interface's IPv6 addresses */
+	for_each_netdev(dev_net(dev), sp_dev) {
+		if (!strcmp(sp_dev->name, dev->name))
+			continue;
+
+		idev = __in6_dev_get(sp_dev);
+		if (!idev)
+			continue;
+
+		read_lock_bh(&idev->lock);
+		list_for_each_entry(sp_ifa, &idev->addr_list, if_list) {
+
+			if (sp_ifa->flags & (IFA_F_DADFAILED | IFA_F_TENTATIVE))
+				continue;
+
+			if (sp_ifa->rt) {
+				/* This dst has been added to garbage list when
+				 * lo device down, release this obsolete dst and
+				 * reallocate a new router for ifa.
+				 */
+				if (!atomic_read(&sp_ifa->rt->rt6i_ref)) {
+					ip6_rt_put(sp_ifa->rt);
+					sp_ifa->rt = NULL;
+				} else {
+					continue;
+				}
+			}
+
+			sp_rt = addrconf_dst_alloc(idev, &sp_ifa->addr, false);
+
+			/* Failure cases are ignored */
+			if (!IS_ERR(sp_rt)) {
+				sp_ifa->rt = sp_rt;
+				ip6_ins_rt(sp_rt);
+			}
+		}
+		read_unlock_bh(&idev->lock);
+	}
 }
 
 void addrconf_add_linklocal(struct inet6_dev *idev,
@@ -3060,8 +3093,7 @@ void addrconf_add_linklocal(struct inet6_dev *idev,
 	u32 addr_flags = flags | IFA_F_PERMANENT;
 
 #ifdef CONFIG_IPV6_OPTIMISTIC_DAD
-	if ((dev_net(idev->dev)->ipv6.devconf_all->optimistic_dad ||
-	     idev->cnf.optimistic_dad) &&
+	if (idev->cnf.optimistic_dad &&
 	    !dev_net(idev->dev)->ipv6.devconf_all->forwarding)
 		addr_flags |= IFA_F_OPTIMISTIC;
 #endif
@@ -3289,11 +3321,11 @@ static void addrconf_gre_config(struct net_device *dev)
 static int fixup_permanent_addr(struct inet6_dev *idev,
 				struct inet6_ifaddr *ifp)
 {
-	/* !rt6i_node means the host route was removed from the
+	/* rt6i_ref == 0 means the host route was removed from the
 	 * FIB, for example, if 'lo' device is taken down. In that
 	 * case regenerate the host route.
 	 */
-	if (!ifp->rt || !ifp->rt->rt6i_node) {
+	if (!ifp->rt || !atomic_read(&ifp->rt->rt6i_ref)) {
 		struct rt6_info *rt, *prev;
 
 		rt = addrconf_dst_alloc(idev, &ifp->addr, false);
@@ -3335,7 +3367,6 @@ static void addrconf_permanent_addr(struct net_device *dev)
 		if ((ifp->flags & IFA_F_PERMANENT) &&
 		    fixup_permanent_addr(idev, ifp) < 0) {
 			write_unlock_bh(&idev->lock);
-			in6_ifa_hold(ifp);
 			ipv6_del_addr(ifp);
 			write_lock_bh(&idev->lock);
 
@@ -3404,7 +3435,7 @@ static int addrconf_notify(struct notifier_block *this, unsigned long event,
 			/* restore routes for permanent addresses */
 			addrconf_permanent_addr(dev);
 
-			if (!addrconf_link_ready(dev)) {
+			if (!addrconf_qdisc_ok(dev)) {
 				/* device is not ready yet. */
 				pr_info("ADDRCONF(NETDEV_UP): %s: link is not ready\n",
 					dev->name);
@@ -3419,7 +3450,7 @@ static int addrconf_notify(struct notifier_block *this, unsigned long event,
 				run_pending = 1;
 			}
 		} else if (event == NETDEV_CHANGE) {
-			if (!addrconf_link_ready(dev)) {
+			if (!addrconf_qdisc_ok(dev)) {
 				/* device is still not ready. */
 				break;
 			}
@@ -3821,8 +3852,7 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 		goto out;
 
 	if (dev->flags&(IFF_NOARP|IFF_LOOPBACK) ||
-	    (dev_net(dev)->ipv6.devconf_all->accept_dad < 1 &&
-	     idev->cnf.accept_dad < 1) ||
+	    idev->cnf.accept_dad < 1 ||
 	    !(ifp->flags&IFA_F_TENTATIVE) ||
 	    ifp->flags & IFA_F_NODAD) {
 		bump_id = ifp->flags & IFA_F_TENTATIVE;
@@ -3853,7 +3883,7 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 	 */
 	if (ifp->flags & IFA_F_OPTIMISTIC) {
 		ip6_ins_rt(ifp->rt);
-		if (ipv6_use_optimistic_addr(dev_net(dev), idev)) {
+		if (ipv6_use_optimistic_addr(idev)) {
 			/* Because optimistic nodes can use this address,
 			 * notify listeners. If DAD fails, RTM_DELADDR is sent.
 			 */
@@ -3909,9 +3939,7 @@ static void addrconf_dad_work(struct work_struct *w)
 		action = DAD_ABORT;
 		ifp->state = INET6_IFADDR_STATE_POSTDAD;
 
-		if ((dev_net(idev->dev)->ipv6.devconf_all->accept_dad > 1 ||
-		     idev->cnf.accept_dad > 1) &&
-		    !idev->cnf.disable_ipv6 &&
+		if (idev->cnf.accept_dad > 1 && !idev->cnf.disable_ipv6 &&
 		    !(ifp->flags & IFA_F_STABLE_PRIVACY)) {
 			struct in6_addr addr;
 
@@ -4954,10 +4982,9 @@ static void inet6_ifa_notify(int event, struct inet6_ifaddr *ifa)
 
 	/* Don't send DELADDR notification for TENTATIVE address,
 	 * since NEWADDR notification is sent only after removing
-	 * TENTATIVE flag, if DAD has not failed.
+	 * TENTATIVE flag.
 	 */
-	if (ifa->flags & IFA_F_TENTATIVE && !(ifa->flags & IFA_F_DADFAILED) &&
-	    event == RTM_DELADDR)
+	if (ifa->flags & IFA_F_TENTATIVE && event == RTM_DELADDR)
 		return;
 
 	skb = nlmsg_new(inet6_ifaddr_msgsize(), GFP_ATOMIC);
@@ -5529,7 +5556,7 @@ static void __ipv6_ifa_notify(int event, struct inet6_ifaddr *ifp)
 		 * our DAD process, so we don't need
 		 * to do it again
 		 */
-		if (!rcu_access_pointer(ifp->rt->rt6i_node))
+		if (!(ifp->rt->rt6i_node))
 			ip6_ins_rt(ifp->rt);
 		if (ifp->idev->cnf.forwarding)
 			addrconf_join_anycast(ifp);
@@ -6578,21 +6605,21 @@ int __init addrconf_init(void)
 	rtnl_af_register(&inet6_ops);
 
 	err = __rtnl_register(PF_INET6, RTM_GETLINK, NULL, inet6_dump_ifinfo,
-			      0);
+			      NULL);
 	if (err < 0)
 		goto errout;
 
 	/* Only the first call to __rtnl_register can fail */
-	__rtnl_register(PF_INET6, RTM_NEWADDR, inet6_rtm_newaddr, NULL, 0);
-	__rtnl_register(PF_INET6, RTM_DELADDR, inet6_rtm_deladdr, NULL, 0);
+	__rtnl_register(PF_INET6, RTM_NEWADDR, inet6_rtm_newaddr, NULL, NULL);
+	__rtnl_register(PF_INET6, RTM_DELADDR, inet6_rtm_deladdr, NULL, NULL);
 	__rtnl_register(PF_INET6, RTM_GETADDR, inet6_rtm_getaddr,
-			inet6_dump_ifaddr, 0);
+			inet6_dump_ifaddr, NULL);
 	__rtnl_register(PF_INET6, RTM_GETMULTICAST, NULL,
-			inet6_dump_ifmcaddr, 0);
+			inet6_dump_ifmcaddr, NULL);
 	__rtnl_register(PF_INET6, RTM_GETANYCAST, NULL,
-			inet6_dump_ifacaddr, 0);
+			inet6_dump_ifacaddr, NULL);
 	__rtnl_register(PF_INET6, RTM_GETNETCONF, inet6_netconf_get_devconf,
-			inet6_netconf_dump_devconf, 0);
+			inet6_netconf_dump_devconf, NULL);
 
 	ipv6_addr_label_rtnl_register();
 

@@ -1622,12 +1622,10 @@ static int etnaviv_gpu_bind(struct device *dev, struct device *master,
 	struct etnaviv_gpu *gpu = dev_get_drvdata(dev);
 	int ret;
 
-	if (IS_ENABLED(CONFIG_THERMAL)) {
-		gpu->cooling = thermal_of_cooling_device_register(dev->of_node,
+	gpu->cooling = thermal_of_cooling_device_register(dev->of_node,
 				(char *)dev_name(dev), gpu, &cooling_ops);
-		if (IS_ERR(gpu->cooling))
-			return PTR_ERR(gpu->cooling);
-	}
+	if (IS_ERR(gpu->cooling))
+		return PTR_ERR(gpu->cooling);
 
 #ifdef CONFIG_PM
 	ret = pm_runtime_get_sync(gpu->dev);

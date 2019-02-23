@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Makefile for Hyper-V tools
 
 CC = $(CROSS_COMPILE)gcc

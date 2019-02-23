@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XFRM_HASH_H
 #define _XFRM_HASH_H
 

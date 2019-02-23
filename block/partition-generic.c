@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Code extracted from drivers/block/genhd.c
  *  Copyright (C) 1991-1998  Linus Torvalds
@@ -113,14 +112,11 @@ ssize_t part_stat_show(struct device *dev,
 		       struct device_attribute *attr, char *buf)
 {
 	struct hd_struct *p = dev_to_part(dev);
-	struct request_queue *q = part_to_disk(p)->queue;
-	unsigned int inflight[2];
 	int cpu;
 
 	cpu = part_stat_lock();
-	part_round_stats(q, cpu, p);
+	part_round_stats(cpu, p);
 	part_stat_unlock();
-	part_in_flight(q, p, inflight);
 	return sprintf(buf,
 		"%8lu %8lu %8llu %8u "
 		"%8lu %8lu %8llu %8u "
@@ -134,7 +130,7 @@ ssize_t part_stat_show(struct device *dev,
 		part_stat_read(p, merges[WRITE]),
 		(unsigned long long)part_stat_read(p, sectors[WRITE]),
 		jiffies_to_msecs(part_stat_read(p, ticks[WRITE])),
-		inflight[0],
+		part_in_flight(p),
 		jiffies_to_msecs(part_stat_read(p, io_ticks)),
 		jiffies_to_msecs(part_stat_read(p, time_in_queue)));
 }
@@ -253,20 +249,15 @@ void __delete_partition(struct percpu_ref *ref)
 	call_rcu(&part->rcu_head, delete_partition_rcu_cb);
 }
 
-/*
- * Must be called either with bd_mutex held, before a disk can be opened or
- * after all disk users are gone.
- */
 void delete_partition(struct gendisk *disk, int partno)
 {
-	struct disk_part_tbl *ptbl =
-		rcu_dereference_protected(disk->part_tbl, 1);
+	struct disk_part_tbl *ptbl = disk->part_tbl;
 	struct hd_struct *part;
 
 	if (partno >= ptbl->len)
 		return;
 
-	part = rcu_dereference_protected(ptbl->part[partno], 1);
+	part = ptbl->part[partno];
 	if (!part)
 		return;
 
@@ -286,10 +277,6 @@ static ssize_t whole_disk_show(struct device *dev,
 static DEVICE_ATTR(whole_disk, S_IRUSR | S_IRGRP | S_IROTH,
 		   whole_disk_show, NULL);
 
-/*
- * Must be called either with bd_mutex held, before a disk can be opened or
- * after all disk users are gone.
- */
 struct hd_struct *add_partition(struct gendisk *disk, int partno,
 				sector_t start, sector_t len, int flags,
 				struct partition_meta_info *info)
@@ -305,7 +292,7 @@ struct hd_struct *add_partition(struct gendisk *disk, int partno,
 	err = disk_expand_part_tbl(disk, partno);
 	if (err)
 		return ERR_PTR(err);
-	ptbl = rcu_dereference_protected(disk->part_tbl, 1);
+	ptbl = disk->part_tbl;
 
 	if (ptbl->part[partno])
 		return ERR_PTR(-EBUSY);
@@ -404,6 +391,7 @@ out_del:
 	device_del(pdev);
 out_put:
 	put_device(pdev);
+	blk_free_devt(devt);
 	return ERR_PTR(err);
 }
 

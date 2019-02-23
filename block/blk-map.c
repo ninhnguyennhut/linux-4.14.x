@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Functions related to mapping data to requests
  */
@@ -12,29 +11,22 @@
 #include "blk.h"
 
 /*
- * Append a bio to a passthrough request.  Only works if the bio can be merged
- * into the request based on the driver constraints.
+ * Append a bio to a passthrough request.  Only works can be merged into
+ * the request based on the driver constraints.
  */
-int blk_rq_append_bio(struct request *rq, struct bio **bio)
+int blk_rq_append_bio(struct request *rq, struct bio *bio)
 {
-	struct bio *orig_bio = *bio;
-
-	blk_queue_bounce(rq->q, bio);
+	blk_queue_bounce(rq->q, &bio);
 
 	if (!rq->bio) {
-		blk_rq_bio_prep(rq->q, rq, *bio);
+		blk_rq_bio_prep(rq->q, rq, bio);
 	} else {
-		if (!ll_back_merge_fn(rq->q, rq, *bio)) {
-			if (orig_bio != *bio) {
-				bio_put(*bio);
-				*bio = orig_bio;
-			}
+		if (!ll_back_merge_fn(rq->q, rq, bio))
 			return -EINVAL;
-		}
 
-		rq->biotail->bi_next = *bio;
-		rq->biotail = *bio;
-		rq->__data_len += (*bio)->bi_iter.bi_size;
+		rq->biotail->bi_next = bio;
+		rq->biotail = bio;
+		rq->__data_len += bio->bi_iter.bi_size;
 	}
 
 	return 0;
@@ -87,12 +79,14 @@ static int __blk_rq_map_user_iov(struct request *rq,
 	 * We link the bounce buffer in and could have to traverse it
 	 * later so we have to get a ref to prevent it from being freed
 	 */
-	ret = blk_rq_append_bio(rq, &bio);
+	ret = blk_rq_append_bio(rq, bio);
+	bio_get(bio);
 	if (ret) {
+		bio_endio(bio);
 		__blk_rq_unmap_user(orig_bio);
+		bio_put(bio);
 		return ret;
 	}
-	bio_get(bio);
 
 	return 0;
 }
@@ -225,7 +219,7 @@ int blk_rq_map_kern(struct request_queue *q, struct request *rq, void *kbuf,
 	int reading = rq_data_dir(rq) == READ;
 	unsigned long addr = (unsigned long) kbuf;
 	int do_copy = 0;
-	struct bio *bio, *orig_bio;
+	struct bio *bio;
 	int ret;
 
 	if (len > (queue_max_hw_sectors(q) << 9))
@@ -248,11 +242,10 @@ int blk_rq_map_kern(struct request_queue *q, struct request *rq, void *kbuf,
 	if (do_copy)
 		rq->rq_flags |= RQF_COPY_USER;
 
-	orig_bio = bio;
-	ret = blk_rq_append_bio(rq, &bio);
+	ret = blk_rq_append_bio(rq, bio);
 	if (unlikely(ret)) {
 		/* request is too big */
-		bio_put(orig_bio);
+		bio_put(bio);
 		return ret;
 	}
 

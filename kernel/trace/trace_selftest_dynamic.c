@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "trace.h"
 
 int DYN_FTRACE_TEST_NAME(void)

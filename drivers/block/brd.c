@@ -294,13 +294,14 @@ out:
 
 static blk_qc_t brd_make_request(struct request_queue *q, struct bio *bio)
 {
-	struct brd_device *brd = bio->bi_disk->private_data;
+	struct block_device *bdev = bio->bi_bdev;
+	struct brd_device *brd = bdev->bd_disk->private_data;
 	struct bio_vec bvec;
 	sector_t sector;
 	struct bvec_iter iter;
 
 	sector = bio->bi_iter.bi_sector;
-	if (bio_end_sector(bio) > get_capacity(bio->bi_disk))
+	if (bio_end_sector(bio) > get_capacity(bdev->bd_disk))
 		goto io_error;
 
 	bio_for_each_segment(bvec, bio, iter) {
@@ -325,11 +326,7 @@ static int brd_rw_page(struct block_device *bdev, sector_t sector,
 		       struct page *page, bool is_write)
 {
 	struct brd_device *brd = bdev->bd_disk->private_data;
-	int err;
-
-	if (PageTransHuge(page))
-		return -ENOTSUPP;
-	err = brd_do_bvec(brd, page, PAGE_SIZE, 0, is_write, sector);
+	int err = brd_do_bvec(brd, page, PAGE_SIZE, 0, is_write, sector);
 	page_endio(page, is_write, err);
 	return err;
 }
@@ -342,7 +339,7 @@ static long __brd_direct_access(struct brd_device *brd, pgoff_t pgoff,
 
 	if (!brd)
 		return -ENODEV;
-	page = brd_insert_page(brd, (sector_t)pgoff << PAGE_SECTORS_SHIFT);
+	page = brd_insert_page(brd, PFN_PHYS(pgoff) / 512);
 	if (!page)
 		return -ENOSPC;
 	*kaddr = page_address(page);

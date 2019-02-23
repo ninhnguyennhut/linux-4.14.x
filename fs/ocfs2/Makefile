@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 ccflags-y := -Ifs/ocfs2
 
 obj-$(CONFIG_OCFS2_FS) += 	\

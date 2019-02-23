@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 TEST_PROGS := signal signal_tm
 
 all: $(TEST_PROGS)

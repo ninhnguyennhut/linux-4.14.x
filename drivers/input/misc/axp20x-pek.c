@@ -29,17 +29,9 @@
 #define AXP20X_PEK_STARTUP_MASK		(0xc0)
 #define AXP20X_PEK_SHUTDOWN_MASK	(0x03)
 
-struct axp20x_info {
-	const struct axp20x_time *startup_time;
-	unsigned int startup_mask;
-	const struct axp20x_time *shutdown_time;
-	unsigned int shutdown_mask;
-};
-
 struct axp20x_pek {
 	struct axp20x_dev *axp20x;
 	struct input_dev *input;
-	struct axp20x_info *info;
 	int irq_dbr;
 	int irq_dbf;
 };
@@ -56,13 +48,6 @@ static const struct axp20x_time startup_time[] = {
 	{ .time = 2000, .idx = 3 },
 };
 
-static const struct axp20x_time axp221_startup_time[] = {
-	{ .time = 128,  .idx = 0 },
-	{ .time = 1000, .idx = 1 },
-	{ .time = 2000, .idx = 2 },
-	{ .time = 3000, .idx = 3 },
-};
-
 static const struct axp20x_time shutdown_time[] = {
 	{ .time = 4000,  .idx = 0 },
 	{ .time = 6000,  .idx = 1 },
@@ -70,25 +55,31 @@ static const struct axp20x_time shutdown_time[] = {
 	{ .time = 10000, .idx = 3 },
 };
 
-static const struct axp20x_info axp20x_info = {
-	.startup_time = startup_time,
-	.startup_mask = AXP20X_PEK_STARTUP_MASK,
-	.shutdown_time = shutdown_time,
-	.shutdown_mask = AXP20X_PEK_SHUTDOWN_MASK,
+struct axp20x_pek_ext_attr {
+	const struct axp20x_time *p_time;
+	unsigned int mask;
 };
 
-static const struct axp20x_info axp221_info = {
-	.startup_time = axp221_startup_time,
-	.startup_mask = AXP20X_PEK_STARTUP_MASK,
-	.shutdown_time = shutdown_time,
-	.shutdown_mask = AXP20X_PEK_SHUTDOWN_MASK,
+static struct axp20x_pek_ext_attr axp20x_pek_startup_ext_attr = {
+	.p_time	= startup_time,
+	.mask	= AXP20X_PEK_STARTUP_MASK,
 };
 
-static ssize_t axp20x_show_attr(struct device *dev,
-				const struct axp20x_time *time,
-				unsigned int mask, char *buf)
+static struct axp20x_pek_ext_attr axp20x_pek_shutdown_ext_attr = {
+	.p_time	= shutdown_time,
+	.mask	= AXP20X_PEK_SHUTDOWN_MASK,
+};
+
+static struct axp20x_pek_ext_attr *get_axp_ext_attr(struct device_attribute *attr)
+{
+	return container_of(attr, struct dev_ext_attribute, attr)->var;
+}
+
+static ssize_t axp20x_show_ext_attr(struct device *dev,
+				    struct device_attribute *attr, char *buf)
 {
 	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
+	struct axp20x_pek_ext_attr *axp20x_ea = get_axp_ext_attr(attr);
 	unsigned int val;
 	int ret, i;
 
@@ -96,42 +87,22 @@ static ssize_t axp20x_show_attr(struct device *dev,
 	if (ret != 0)
 		return ret;
 
-	val &= mask;
-	val >>= ffs(mask) - 1;
+	val &= axp20x_ea->mask;
+	val >>= ffs(axp20x_ea->mask) - 1;
 
 	for (i = 0; i < 4; i++)
-		if (val == time[i].idx)
-			val = time[i].time;
+		if (val == axp20x_ea->p_time[i].idx)
+			val = axp20x_ea->p_time[i].time;
 
 	return sprintf(buf, "%u\n", val);
 }
 
-static ssize_t axp20x_show_attr_startup(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
+static ssize_t axp20x_store_ext_attr(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
-
-	return axp20x_show_attr(dev, axp20x_pek->info->startup_time,
-				axp20x_pek->info->startup_mask, buf);
-}
-
-static ssize_t axp20x_show_attr_shutdown(struct device *dev,
-					 struct device_attribute *attr,
-					 char *buf)
-{
-	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
-
-	return axp20x_show_attr(dev, axp20x_pek->info->shutdown_time,
-				axp20x_pek->info->shutdown_mask, buf);
-}
-
-static ssize_t axp20x_store_attr(struct device *dev,
-				 const struct axp20x_time *time,
-				 unsigned int mask, const char *buf,
-				 size_t count)
-{
-	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
+	struct axp20x_pek_ext_attr *axp20x_ea = get_axp_ext_attr(attr);
 	char val_str[20];
 	size_t len;
 	int ret, i;
@@ -152,52 +123,39 @@ static ssize_t axp20x_store_attr(struct device *dev,
 	for (i = 3; i >= 0; i--) {
 		unsigned int err;
 
-		err = abs(time[i].time - val);
+		err = abs(axp20x_ea->p_time[i].time - val);
 		if (err < best_err) {
 			best_err = err;
-			idx = time[i].idx;
+			idx = axp20x_ea->p_time[i].idx;
 		}
 
 		if (!err)
 			break;
 	}
 
-	idx <<= ffs(mask) - 1;
-	ret = regmap_update_bits(axp20x_pek->axp20x->regmap, AXP20X_PEK_KEY,
-				 mask, idx);
+	idx <<= ffs(axp20x_ea->mask) - 1;
+	ret = regmap_update_bits(axp20x_pek->axp20x->regmap,
+				 AXP20X_PEK_KEY,
+				 axp20x_ea->mask, idx);
 	if (ret != 0)
 		return -EINVAL;
 
 	return count;
 }
 
-static ssize_t axp20x_store_attr_startup(struct device *dev,
-					 struct device_attribute *attr,
-					 const char *buf, size_t count)
-{
-	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
+static struct dev_ext_attribute axp20x_dev_attr_startup = {
+	.attr	= __ATTR(startup, 0644, axp20x_show_ext_attr, axp20x_store_ext_attr),
+	.var	= &axp20x_pek_startup_ext_attr,
+};
 
-	return axp20x_store_attr(dev, axp20x_pek->info->startup_time,
-				 axp20x_pek->info->startup_mask, buf, count);
-}
-
-static ssize_t axp20x_store_attr_shutdown(struct device *dev,
-					  struct device_attribute *attr,
-					  const char *buf, size_t count)
-{
-	struct axp20x_pek *axp20x_pek = dev_get_drvdata(dev);
-
-	return axp20x_store_attr(dev, axp20x_pek->info->shutdown_time,
-				 axp20x_pek->info->shutdown_mask, buf, count);
-}
-
-DEVICE_ATTR(startup, 0644, axp20x_show_attr_startup, axp20x_store_attr_startup);
-DEVICE_ATTR(shutdown, 0644, axp20x_show_attr_shutdown,
-	    axp20x_store_attr_shutdown);
+static struct dev_ext_attribute axp20x_dev_attr_shutdown = {
+	.attr	= __ATTR(shutdown, 0644, axp20x_show_ext_attr, axp20x_store_ext_attr),
+	.var	= &axp20x_pek_shutdown_ext_attr,
+};
 
 static struct attribute *axp20x_attributes[] = {
-	&dev_attr_startup.attr,
-	&dev_attr_shutdown.attr,
+	&axp20x_dev_attr_startup.attr.attr,
+	&axp20x_dev_attr_shutdown.attr.attr,
 	NULL,
 };
 
@@ -222,6 +180,13 @@ static irqreturn_t axp20x_pek_irq(int irq, void *pwr)
 	input_sync(idev);
 
 	return IRQ_HANDLED;
+}
+
+static void axp20x_remove_sysfs_group(void *_data)
+{
+	struct device *dev = _data;
+
+	sysfs_remove_group(&dev->kobj, &axp20x_attribute_group);
 }
 
 static int axp20x_pek_probe_input_device(struct axp20x_pek *axp20x_pek,
@@ -333,13 +298,7 @@ static bool axp20x_pek_should_register_input(struct axp20x_pek *axp20x_pek,
 static int axp20x_pek_probe(struct platform_device *pdev)
 {
 	struct axp20x_pek *axp20x_pek;
-	const struct platform_device_id *match = platform_get_device_id(pdev);
 	int error;
-
-	if (!match) {
-		dev_err(&pdev->dev, "Failed to get platform_device_id\n");
-		return -EINVAL;
-	}
 
 	axp20x_pek = devm_kzalloc(&pdev->dev, sizeof(struct axp20x_pek),
 				  GFP_KERNEL);
@@ -354,11 +313,18 @@ static int axp20x_pek_probe(struct platform_device *pdev)
 			return error;
 	}
 
-	axp20x_pek->info = (struct axp20x_info *)match->driver_data;
-
-	error = devm_device_add_group(&pdev->dev, &axp20x_attribute_group);
+	error = sysfs_create_group(&pdev->dev.kobj, &axp20x_attribute_group);
 	if (error) {
 		dev_err(&pdev->dev, "Failed to create sysfs attributes: %d\n",
+			error);
+		return error;
+	}
+
+	error = devm_add_action(&pdev->dev,
+				axp20x_remove_sysfs_group, &pdev->dev);
+	if (error) {
+		axp20x_remove_sysfs_group(&pdev->dev);
+		dev_err(&pdev->dev, "Failed to add sysfs cleanup action: %d\n",
 			error);
 		return error;
 	}
@@ -392,22 +358,8 @@ static const struct dev_pm_ops axp20x_pek_pm_ops = {
 #endif
 };
 
-static const struct platform_device_id axp_pek_id_match[] = {
-	{
-		.name = "axp20x-pek",
-		.driver_data = (kernel_ulong_t)&axp20x_info,
-	},
-	{
-		.name = "axp221-pek",
-		.driver_data = (kernel_ulong_t)&axp221_info,
-	},
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(platform, axp_pek_id_match);
-
 static struct platform_driver axp20x_pek_driver = {
 	.probe		= axp20x_pek_probe,
-	.id_table	= axp_pek_id_match,
 	.driver		= {
 		.name		= "axp20x-pek",
 		.pm		= &axp20x_pek_pm_ops,
@@ -418,3 +370,4 @@ module_platform_driver(axp20x_pek_driver);
 MODULE_DESCRIPTION("axp20x Power Button");
 MODULE_AUTHOR("Carlo Caione <carlo@caione.org>");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:axp20x-pek");

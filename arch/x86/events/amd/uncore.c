@@ -400,24 +400,11 @@ static int amd_uncore_cpu_starting(unsigned int cpu)
 
 	if (amd_uncore_llc) {
 		unsigned int apicid = cpu_data(cpu).apicid;
-		unsigned int nshared, subleaf, prev_eax = 0;
+		unsigned int nshared;
 
 		uncore = *per_cpu_ptr(amd_uncore_llc, cpu);
-		/*
-		 * Iterate over Cache Topology Definition leaves until no
-		 * more cache descriptions are available.
-		 */
-		for (subleaf = 0; subleaf < 5; subleaf++) {
-			cpuid_count(0x8000001d, subleaf, &eax, &ebx, &ecx, &edx);
-
-			/* EAX[0:4] gives type of cache */
-			if (!(eax & 0x1f))
-				break;
-
-			prev_eax = eax;
-		}
-		nshared = ((prev_eax >> 14) & 0xfff) + 1;
-
+		cpuid_count(0x8000001d, 2, &eax, &ebx, &ecx, &edx);
+		nshared = ((eax >> 14) & 0xfff) + 1;
 		uncore->id = apicid - (apicid % nshared);
 
 		uncore = amd_uncore_find_online_sibling(uncore, amd_uncore_llc);
@@ -568,7 +555,7 @@ static int __init amd_uncore_init(void)
 		ret = 0;
 	}
 
-	if (boot_cpu_has(X86_FEATURE_PERFCTR_LLC)) {
+	if (boot_cpu_has(X86_FEATURE_PERFCTR_L2)) {
 		amd_uncore_llc = alloc_percpu(struct amd_uncore *);
 		if (!amd_uncore_llc) {
 			ret = -ENOMEM;

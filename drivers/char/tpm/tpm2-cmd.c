@@ -899,7 +899,7 @@ static int tpm2_do_selftest(struct tpm_chip *chip)
 		if (rc != TPM2_RC_TESTING)
 			break;
 
-		tpm_msleep(delay_msec);
+		msleep(delay_msec);
 	}
 
 	return rc;

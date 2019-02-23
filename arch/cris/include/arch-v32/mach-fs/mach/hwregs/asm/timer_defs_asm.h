@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __timer_defs_asm_h
 #define __timer_defs_asm_h
 

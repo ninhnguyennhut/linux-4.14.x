@@ -76,7 +76,8 @@ static int __init gef_gpio_probe(struct platform_device *pdev)
 	}
 
 	/* Setup pointers to chip functions */
-	gc->label = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%pOF", pdev->dev.of_node);
+	gc->label = devm_kstrdup(&pdev->dev, pdev->dev.of_node->full_name,
+				     GFP_KERNEL);
 	if (!gc->label) {
 		ret = -ENOMEM;
 		goto err0;
@@ -95,7 +96,8 @@ static int __init gef_gpio_probe(struct platform_device *pdev)
 	return 0;
 err0:
 	iounmap(regs);
-	pr_err("%pOF: GPIO chip registration failed\n", pdev->dev.of_node);
+	pr_err("%s: GPIO chip registration failed\n",
+			pdev->dev.of_node->full_name);
 	return ret;
 };
 

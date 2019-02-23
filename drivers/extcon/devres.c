@@ -1,5 +1,5 @@
 /*
- * drivers/extcon/devres.c - EXTCON device's resource management
+ *  drivers/extcon/devres.c - EXTCON device's resource management
  *
  * Copyright (C) 2016 Samsung Electronics
  * Author: Chanwoo Choi <cw00.choi@samsung.com>
@@ -59,9 +59,10 @@ static void devm_extcon_dev_notifier_all_unreg(struct device *dev, void *res)
 
 /**
  * devm_extcon_dev_allocate - Allocate managed extcon device
- * @dev:		the device owning the extcon device being created
- * @supported_cable:	the array of the supported external connectors
- *			ending with EXTCON_NONE.
+ * @dev:		device owning the extcon device being created
+ * @supported_cable:	Array of supported extcon ending with EXTCON_NONE.
+ *			If supported_cable is NULL, cable name related APIs
+ *			are disabled.
  *
  * This function manages automatically the memory of extcon device using device
  * resource management and simplify the control of freeing the memory of extcon
@@ -96,8 +97,8 @@ EXPORT_SYMBOL_GPL(devm_extcon_dev_allocate);
 
 /**
  * devm_extcon_dev_free() - Resource-managed extcon_dev_unregister()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device to be freed
+ * @dev:	device the extcon belongs to
+ * @edev:	the extcon device to unregister
  *
  * Free the memory that is allocated with devm_extcon_dev_allocate()
  * function.
@@ -111,9 +112,10 @@ EXPORT_SYMBOL_GPL(devm_extcon_dev_free);
 
 /**
  * devm_extcon_dev_register() - Resource-managed extcon_dev_register()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device to be registered
+ * @dev:	device to allocate extcon device
+ * @edev:	the new extcon device to register
  *
+ * Managed extcon_dev_register() function. If extcon device is attached with
  * this function, that extcon device is automatically unregistered on driver
  * detach. Internally this function calls extcon_dev_register() function.
  * To get more information, refer that function.
@@ -147,8 +149,8 @@ EXPORT_SYMBOL_GPL(devm_extcon_dev_register);
 
 /**
  * devm_extcon_dev_unregister() - Resource-managed extcon_dev_unregister()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device to unregistered
+ * @dev:	device the extcon belongs to
+ * @edev:	the extcon device to unregister
  *
  * Unregister extcon device that is registered with devm_extcon_dev_register()
  * function.
@@ -162,10 +164,10 @@ EXPORT_SYMBOL_GPL(devm_extcon_dev_unregister);
 
 /**
  * devm_extcon_register_notifier() - Resource-managed extcon_register_notifier()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device
- * @id:		the unique id among the extcon enumeration
- * @nb:		a notifier block to be registered
+ * @dev:	device to allocate extcon device
+ * @edev:	the extcon device that has the external connecotr.
+ * @id:		the unique id of each external connector in extcon enumeration.
+ * @nb:		a notifier block to be registered.
  *
  * This function manages automatically the notifier of extcon device using
  * device resource management and simplify the control of unregistering
@@ -206,10 +208,10 @@ EXPORT_SYMBOL(devm_extcon_register_notifier);
 /**
  * devm_extcon_unregister_notifier()
 			- Resource-managed extcon_unregister_notifier()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device
- * @id:		the unique id among the extcon enumeration
- * @nb:		a notifier block to be registered
+ * @dev:	device to allocate extcon device
+ * @edev:	the extcon device that has the external connecotr.
+ * @id:		the unique id of each external connector in extcon enumeration.
+ * @nb:		a notifier block to be registered.
  */
 void devm_extcon_unregister_notifier(struct device *dev,
 				struct extcon_dev *edev, unsigned int id,
@@ -223,9 +225,9 @@ EXPORT_SYMBOL(devm_extcon_unregister_notifier);
 /**
  * devm_extcon_register_notifier_all()
  *		- Resource-managed extcon_register_notifier_all()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device
- * @nb:		a notifier block to be registered
+ * @dev:	device to allocate extcon device
+ * @edev:	the extcon device that has the external connecotr.
+ * @nb:		a notifier block to be registered.
  *
  * This function manages automatically the notifier of extcon device using
  * device resource management and simplify the control of unregistering
@@ -261,9 +263,9 @@ EXPORT_SYMBOL(devm_extcon_register_notifier_all);
 /**
  * devm_extcon_unregister_notifier_all()
  *		- Resource-managed extcon_unregister_notifier_all()
- * @dev:	the device owning the extcon device being created
- * @edev:	the extcon device
- * @nb:		a notifier block to be registered
+ * @dev:	device to allocate extcon device
+ * @edev:	the extcon device that has the external connecotr.
+ * @nb:		a notifier block to be registered.
  */
 void devm_extcon_unregister_notifier_all(struct device *dev,
 				struct extcon_dev *edev,

@@ -1175,7 +1175,7 @@ static struct attribute *sysfs_attrs[] = {
 	NULL
 };
 
-static const struct attribute_group bh1770_attribute_group = {
+static struct attribute_group bh1770_attribute_group = {
 	.attrs = sysfs_attrs
 };
 

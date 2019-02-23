@@ -500,7 +500,6 @@ static const struct dev_pm_ops mtu3_pm_ops = {
 
 static const struct of_device_id mtu3_of_match[] = {
 	{.compatible = "mediatek,mt8173-mtu3",},
-	{.compatible = "mediatek,mtu3",},
 	{},
 };
 

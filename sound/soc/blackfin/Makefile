@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Blackfin Platform Support
 snd-bf5xx-ac97-objs := bf5xx-ac97-pcm.o
 snd-bf5xx-i2s-objs := bf5xx-i2s-pcm.o

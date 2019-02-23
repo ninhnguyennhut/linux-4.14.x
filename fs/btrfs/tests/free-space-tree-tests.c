@@ -81,7 +81,7 @@ static int __check_free_space_extents(struct btrfs_trans_handle *trans,
 					i++;
 				}
 				prev_bit = bit;
-				offset += fs_info->sectorsize;
+				offset += cache->sectorsize;
 			}
 		}
 		if (prev_bit == 1) {
@@ -500,8 +500,7 @@ static int run_test(test_func_t test_func, int bitmaps, u32 sectorsize,
 	path = btrfs_alloc_path();
 	if (!path) {
 		test_msg("Couldn't allocate path\n");
-		ret = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
 
 	ret = add_block_group_free_space(&trans, root->fs_info, cache);

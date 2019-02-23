@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* cpumap.c: used for optimizing CPU assignment
  *
  * Copyright (C) 2009 Hong H. Pham <hong.pham@windriver.com>

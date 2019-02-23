@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XFS_PNFS_H
 #define _XFS_PNFS_H 1
 

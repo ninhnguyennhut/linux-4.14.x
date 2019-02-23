@@ -2692,7 +2692,7 @@ static int rbd_img_obj_parent_read_full(struct rbd_obj_request *obj_request)
 	 * from the parent.
 	 */
 	page_count = (u32)calc_pages_for(0, length);
-	pages = ceph_alloc_page_vector(page_count, GFP_NOIO);
+	pages = ceph_alloc_page_vector(page_count, GFP_KERNEL);
 	if (IS_ERR(pages)) {
 		result = PTR_ERR(pages);
 		pages = NULL;
@@ -2827,7 +2827,7 @@ static int rbd_img_obj_exists_submit(struct rbd_obj_request *obj_request)
 	 */
 	size = sizeof (__le64) + sizeof (__le32) + sizeof (__le32);
 	page_count = (u32)calc_pages_for(0, size);
-	pages = ceph_alloc_page_vector(page_count, GFP_NOIO);
+	pages = ceph_alloc_page_vector(page_count, GFP_KERNEL);
 	if (IS_ERR(pages)) {
 		ret = PTR_ERR(pages);
 		goto fail_stat_request;
@@ -3074,21 +3074,13 @@ static void format_lock_cookie(struct rbd_device *rbd_dev, char *buf)
 	mutex_unlock(&rbd_dev->watch_mutex);
 }
 
-static void __rbd_lock(struct rbd_device *rbd_dev, const char *cookie)
-{
-	struct rbd_client_id cid = rbd_get_cid(rbd_dev);
-
-	strcpy(rbd_dev->lock_cookie, cookie);
-	rbd_set_owner_cid(rbd_dev, &cid);
-	queue_work(rbd_dev->task_wq, &rbd_dev->acquired_lock_work);
-}
-
 /*
  * lock_rwsem must be held for write
  */
 static int rbd_lock(struct rbd_device *rbd_dev)
 {
 	struct ceph_osd_client *osdc = &rbd_dev->rbd_client->client->osdc;
+	struct rbd_client_id cid = rbd_get_cid(rbd_dev);
 	char cookie[32];
 	int ret;
 
@@ -3103,7 +3095,9 @@ static int rbd_lock(struct rbd_device *rbd_dev)
 		return ret;
 
 	rbd_dev->lock_state = RBD_LOCK_STATE_LOCKED;
-	__rbd_lock(rbd_dev, cookie);
+	strcpy(rbd_dev->lock_cookie, cookie);
+	rbd_set_owner_cid(rbd_dev, &cid);
+	queue_work(rbd_dev->task_wq, &rbd_dev->acquired_lock_work);
 	return 0;
 }
 
@@ -3441,7 +3435,7 @@ static void rbd_acquire_lock(struct work_struct *work)
 	struct rbd_device *rbd_dev = container_of(to_delayed_work(work),
 					    struct rbd_device, lock_dwork);
 	enum rbd_lock_state lock_state;
-	int ret = 0;
+	int ret;
 
 	dout("%s rbd_dev %p\n", __func__, rbd_dev);
 again:
@@ -3889,7 +3883,7 @@ static void rbd_reacquire_lock(struct rbd_device *rbd_dev)
 			queue_delayed_work(rbd_dev->task_wq,
 					   &rbd_dev->lock_dwork, 0);
 	} else {
-		__rbd_lock(rbd_dev, cookie);
+		strcpy(rbd_dev->lock_cookie, cookie);
 	}
 }
 
@@ -4421,7 +4415,7 @@ static int rbd_init_disk(struct rbd_device *rbd_dev)
 	segment_size = rbd_obj_bytes(&rbd_dev->header);
 	blk_queue_max_hw_sectors(q, segment_size / SECTOR_SIZE);
 	q->limits.max_sectors = queue_max_hw_sectors(q);
-	blk_queue_max_segments(q, USHRT_MAX);
+	blk_queue_max_segments(q, segment_size / SECTOR_SIZE);
 	blk_queue_max_segment_size(q, segment_size);
 	blk_queue_io_min(q, segment_size);
 	blk_queue_io_opt(q, segment_size);

@@ -508,7 +508,7 @@ static int baycom_ioctl(struct net_device *dev, struct ifreq *ifr,
 
 /* --------------------------------------------------------------------- */
 
-static const struct hdlcdrv_ops ser12_ops = {
+static struct hdlcdrv_ops ser12_ops = {
 	.drvname = bc_drvname,
 	.drvinfo = bc_drvinfo,
 	.open    = ser12_open,

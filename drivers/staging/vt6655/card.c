@@ -649,19 +649,19 @@ static unsigned short CARDwGetOFDMControlRate(struct vnt_private *priv,
 	pr_debug("BASIC RATE: %X\n", priv->basic_rates);
 
 	if (!CARDbIsOFDMinBasicRate((void *)priv)) {
-		pr_debug("%s:(NO OFDM) %d\n", __func__, wRateIdx);
+		pr_debug("CARDwGetOFDMControlRate:(NO OFDM) %d\n", wRateIdx);
 		if (wRateIdx > RATE_24M)
 			wRateIdx = RATE_24M;
 		return wRateIdx;
 	}
 	while (ui > RATE_11M) {
 		if (priv->basic_rates & ((u32)0x1 << ui)) {
-			pr_debug("%s : %d\n", __func__, ui);
+			pr_debug("CARDwGetOFDMControlRate : %d\n", ui);
 			return (unsigned short)ui;
 		}
 		ui--;
 	}
-	pr_debug("%s: 6M\n", __func__);
+	pr_debug("CARDwGetOFDMControlRate: 6M\n");
 	return (unsigned short)RATE_24M;
 }
 

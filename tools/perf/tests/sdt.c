@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <errno.h>
 #include <stdio.h>
 #include <sys/epoll.h>
@@ -34,7 +33,7 @@ static int build_id_cache__add_file(const char *filename)
 	}
 
 	build_id__sprintf(build_id, sizeof(build_id), sbuild_id);
-	err = build_id_cache__add_s(sbuild_id, filename, NULL, false, false);
+	err = build_id_cache__add_s(sbuild_id, filename, false, false);
 	if (err < 0)
 		pr_debug("Failed to add build id cache of %s\n", filename);
 	return err;
@@ -55,7 +54,7 @@ static char *get_self_path(void)
 static int search_cached_probe(const char *target,
 			       const char *group, const char *event)
 {
-	struct probe_cache *cache = probe_cache__new(target, NULL);
+	struct probe_cache *cache = probe_cache__new(target);
 	int ret = 0;
 
 	if (!cache) {
@@ -72,7 +71,7 @@ static int search_cached_probe(const char *target,
 	return ret;
 }
 
-int test__sdt_event(struct test *test __maybe_unused, int subtests __maybe_unused)
+int test__sdt_event(int subtests __maybe_unused)
 {
 	int ret = TEST_FAIL;
 	char __tempdir[] = "./test-buildid-XXXXXX";
@@ -84,8 +83,6 @@ int test__sdt_event(struct test *test __maybe_unused, int subtests __maybe_unuse
 	}
 	/* Note that buildid_dir must be an absolute path */
 	tempdir = realpath(__tempdir, NULL);
-	if (tempdir == NULL)
-		goto error_rmdir;
 
 	/* At first, scan itself */
 	set_buildid_dir(tempdir);
@@ -103,14 +100,14 @@ int test__sdt_event(struct test *test __maybe_unused, int subtests __maybe_unuse
 
 error_rmdir:
 	/* Cleanup temporary buildid dir */
-	rm_rf(__tempdir);
+	rm_rf(tempdir);
 error:
 	free(tempdir);
 	free(myself);
 	return ret;
 }
 #else
-int test__sdt_event(struct test *test __maybe_unused, int subtests __maybe_unused)
+int test__sdt_event(int subtests __maybe_unused)
 {
 	pr_debug("Skip SDT event test because SDT support is not compiled\n");
 	return TEST_SKIP;

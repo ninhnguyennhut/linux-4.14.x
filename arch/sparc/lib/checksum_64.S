@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* checksum.S: Sparc V9 optimized checksum code.
  *
  *  Copyright(C) 1995 Linus Torvalds

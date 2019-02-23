@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * "Optimize" a list of dependencies as spit out by gcc -MD
  * for the build framework.

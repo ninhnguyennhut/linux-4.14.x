@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * The Marvell camera core.  This device appears in a number of settings,
  * so it needs platform-specific support outside of the core.
@@ -1640,7 +1639,7 @@ static const struct v4l2_file_operations mcam_v4l_fops = {
  * This template device holds all of those v4l2 methods; we
  * clone it for specific real devices.
  */
-static const struct video_device mcam_v4l_template = {
+static struct video_device mcam_v4l_template = {
 	.name = "mcam",
 	.fops = &mcam_v4l_fops,
 	.ioctl_ops = &mcam_v4l_ioctl_ops,

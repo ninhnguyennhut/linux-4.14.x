@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * leon_pci.c: LEON Host PCI support
  *
@@ -26,12 +25,6 @@ void leon_pci_init(struct platform_device *ofdev, struct leon_pci_info *info)
 {
 	LIST_HEAD(resources);
 	struct pci_bus *root_bus;
-	struct pci_host_bridge *bridge;
-	int ret;
-
-	bridge = pci_alloc_host_bridge(0);
-	if (!bridge)
-		return;
 
 	pci_add_resource_offset(&resources, &info->io_space,
 				info->io_space.start - 0x1000);
@@ -39,21 +32,15 @@ void leon_pci_init(struct platform_device *ofdev, struct leon_pci_info *info)
 	info->busn.flags = IORESOURCE_BUS;
 	pci_add_resource(&resources, &info->busn);
 
-	list_splice_init(&resources, &bridge->windows);
-	bridge->dev.parent = &ofdev->dev;
-	bridge->sysdata = info;
-	bridge->busnr = 0;
-	bridge->ops = info->ops;
-	bridge->swizzle_irq = pci_common_swizzle;
-	bridge->map_irq = info->map_irq;
-
-	ret = pci_scan_root_bus_bridge(bridge);
-	if (ret) {
-		pci_free_host_bridge(bridge);
+	root_bus = pci_scan_root_bus(&ofdev->dev, 0, info->ops, info,
+				     &resources);
+	if (!root_bus) {
+		pci_free_resource_list(&resources);
 		return;
 	}
 
-	root_bus = bridge->bus;
+	/* Setup IRQs of all devices using custom routines */
+	pci_fixup_irqs(pci_common_swizzle, info->map_irq);
 
 	/* Assign devices with resources */
 	pci_assign_unassigned_resources();
@@ -106,4 +93,10 @@ void pcibios_fixup_bus(struct pci_bus *pbus)
 									cmd);
 		}
 	}
+}
+
+resource_size_t pcibios_align_resource(void *data, const struct resource *res,
+				resource_size_t size, resource_size_t align)
+{
+	return res->start;
 }

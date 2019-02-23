@@ -53,12 +53,6 @@ void remove_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry 
 }
 EXPORT_SYMBOL(remove_wait_queue);
 
-/*
- * Scan threshold to break wait queue walk.
- * This allows a waker to take a break from holding the
- * wait queue lock during the wait queue walk.
- */
-#define WAITQUEUE_WALK_BREAK_CNT 64
 
 /*
  * The core wakeup function. Non-exclusive wakeups (nr_exclusive == 0) just
@@ -69,67 +63,18 @@ EXPORT_SYMBOL(remove_wait_queue);
  * started to run but is not in state TASK_RUNNING. try_to_wake_up() returns
  * zero in this (rare) case, and we handle it by continuing to scan the queue.
  */
-static int __wake_up_common(struct wait_queue_head *wq_head, unsigned int mode,
-			int nr_exclusive, int wake_flags, void *key,
-			wait_queue_entry_t *bookmark)
+static void __wake_up_common(struct wait_queue_head *wq_head, unsigned int mode,
+			int nr_exclusive, int wake_flags, void *key)
 {
 	wait_queue_entry_t *curr, *next;
-	int cnt = 0;
 
-	if (bookmark && (bookmark->flags & WQ_FLAG_BOOKMARK)) {
-		curr = list_next_entry(bookmark, entry);
-
-		list_del(&bookmark->entry);
-		bookmark->flags = 0;
-	} else
-		curr = list_first_entry(&wq_head->head, wait_queue_entry_t, entry);
-
-	if (&curr->entry == &wq_head->head)
-		return nr_exclusive;
-
-	list_for_each_entry_safe_from(curr, next, &wq_head->head, entry) {
+	list_for_each_entry_safe(curr, next, &wq_head->head, entry) {
 		unsigned flags = curr->flags;
-		int ret;
-
-		if (flags & WQ_FLAG_BOOKMARK)
-			continue;
-
-		ret = curr->func(curr, mode, wake_flags, key);
+		int ret = curr->func(curr, mode, wake_flags, key);
 		if (ret < 0)
 			break;
 		if (ret && (flags & WQ_FLAG_EXCLUSIVE) && !--nr_exclusive)
 			break;
-
-		if (bookmark && (++cnt > WAITQUEUE_WALK_BREAK_CNT) &&
-				(&next->entry != &wq_head->head)) {
-			bookmark->flags = WQ_FLAG_BOOKMARK;
-			list_add_tail(&bookmark->entry, &next->entry);
-			break;
-		}
-	}
-	return nr_exclusive;
-}
-
-static void __wake_up_common_lock(struct wait_queue_head *wq_head, unsigned int mode,
-			int nr_exclusive, int wake_flags, void *key)
-{
-	unsigned long flags;
-	wait_queue_entry_t bookmark;
-
-	bookmark.flags = 0;
-	bookmark.private = NULL;
-	bookmark.func = NULL;
-	INIT_LIST_HEAD(&bookmark.entry);
-
-	spin_lock_irqsave(&wq_head->lock, flags);
-	nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive, wake_flags, key, &bookmark);
-	spin_unlock_irqrestore(&wq_head->lock, flags);
-
-	while (bookmark.flags & WQ_FLAG_BOOKMARK) {
-		spin_lock_irqsave(&wq_head->lock, flags);
-		nr_exclusive = __wake_up_common(wq_head, mode, nr_exclusive,
-						wake_flags, key, &bookmark);
-		spin_unlock_irqrestore(&wq_head->lock, flags);
 	}
 }
 
@@ -146,7 +91,11 @@ static void __wake_up_common_lock(struct wait_queue_head *wq_head, unsigned int 
 void __wake_up(struct wait_queue_head *wq_head, unsigned int mode,
 			int nr_exclusive, void *key)
 {
-	__wake_up_common_lock(wq_head, mode, nr_exclusive, 0, key);
+	unsigned long flags;
+
+	spin_lock_irqsave(&wq_head->lock, flags);
+	__wake_up_common(wq_head, mode, nr_exclusive, 0, key);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
 EXPORT_SYMBOL(__wake_up);
 
@@ -155,22 +104,15 @@ EXPORT_SYMBOL(__wake_up);
  */
 void __wake_up_locked(struct wait_queue_head *wq_head, unsigned int mode, int nr)
 {
-	__wake_up_common(wq_head, mode, nr, 0, NULL, NULL);
+	__wake_up_common(wq_head, mode, nr, 0, NULL);
 }
 EXPORT_SYMBOL_GPL(__wake_up_locked);
 
 void __wake_up_locked_key(struct wait_queue_head *wq_head, unsigned int mode, void *key)
 {
-	__wake_up_common(wq_head, mode, 1, 0, key, NULL);
+	__wake_up_common(wq_head, mode, 1, 0, key);
 }
 EXPORT_SYMBOL_GPL(__wake_up_locked_key);
-
-void __wake_up_locked_key_bookmark(struct wait_queue_head *wq_head,
-		unsigned int mode, void *key, wait_queue_entry_t *bookmark)
-{
-	__wake_up_common(wq_head, mode, 1, 0, key, bookmark);
-}
-EXPORT_SYMBOL_GPL(__wake_up_locked_key_bookmark);
 
 /**
  * __wake_up_sync_key - wake up threads blocked on a waitqueue.
@@ -192,6 +134,7 @@ EXPORT_SYMBOL_GPL(__wake_up_locked_key_bookmark);
 void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode,
 			int nr_exclusive, void *key)
 {
+	unsigned long flags;
 	int wake_flags = 1; /* XXX WF_SYNC */
 
 	if (unlikely(!wq_head))
@@ -200,7 +143,9 @@ void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode,
 	if (unlikely(nr_exclusive != 1))
 		wake_flags = 0;
 
-	__wake_up_common_lock(wq_head, mode, nr_exclusive, wake_flags, key);
+	spin_lock_irqsave(&wq_head->lock, flags);
+	__wake_up_common(wq_head, mode, nr_exclusive, wake_flags, key);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
 EXPORT_SYMBOL_GPL(__wake_up_sync_key);
 

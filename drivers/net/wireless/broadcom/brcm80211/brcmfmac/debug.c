@@ -78,7 +78,10 @@ int brcmf_debug_attach(struct brcmf_pub *drvr)
 		return -ENODEV;
 
 	drvr->dbgfs_dir = debugfs_create_dir(dev_name(dev), root_folder);
-	return PTR_ERR_OR_ZERO(drvr->dbgfs_dir);
+	if (IS_ERR(drvr->dbgfs_dir))
+		return PTR_ERR(drvr->dbgfs_dir);
+
+	return 0;
 }
 
 void brcmf_debug_detach(struct brcmf_pub *drvr)

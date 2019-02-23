@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
   nubus.h: various definitions and prototypes for NuBus drivers to use.
 

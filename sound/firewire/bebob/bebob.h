@@ -58,7 +58,7 @@ enum snd_bebob_clock_type {
 struct snd_bebob_clock_spec {
 	unsigned int num;
 	const char *const *labels;
-	const enum snd_bebob_clock_type *types;
+	enum snd_bebob_clock_type *types;
 	int (*get)(struct snd_bebob *bebob, unsigned int *id);
 };
 struct snd_bebob_rate_spec {

@@ -579,8 +579,10 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 	int val;
 
 	i2s = devm_kzalloc(&pdev->dev, sizeof(*i2s), GFP_KERNEL);
-	if (!i2s)
+	if (!i2s) {
+		dev_err(&pdev->dev, "Can't allocate rk_i2s_dev\n");
 		return -ENOMEM;
+	}
 
 	i2s->dev = &pdev->dev;
 

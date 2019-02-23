@@ -164,6 +164,7 @@ struct ov8858_vcm {
 	int (*power_up)(struct v4l2_subdev *sd);
 	int (*power_down)(struct v4l2_subdev *sd);
 	int (*init)(struct v4l2_subdev *sd);
+	int (*t_focus_vcm)(struct v4l2_subdev *sd, u16 val);
 	int (*t_focus_abs)(struct v4l2_subdev *sd, s32 value);
 	int (*t_focus_rel)(struct v4l2_subdev *sd, s32 value);
 	int (*q_focus_status)(struct v4l2_subdev *sd, s32 *value);
@@ -311,6 +312,7 @@ static const struct ov8858_reg ov8858_param_update[] = {
 extern int dw9718_vcm_power_up(struct v4l2_subdev *sd);
 extern int dw9718_vcm_power_down(struct v4l2_subdev *sd);
 extern int dw9718_vcm_init(struct v4l2_subdev *sd);
+extern int dw9718_t_focus_vcm(struct v4l2_subdev *sd, u16 val);
 extern int dw9718_t_focus_abs(struct v4l2_subdev *sd, s32 value);
 extern int dw9718_t_focus_rel(struct v4l2_subdev *sd, s32 value);
 extern int dw9718_q_focus_status(struct v4l2_subdev *sd, s32 *value);
@@ -326,6 +328,7 @@ static struct ov8858_vcm ov8858_vcms[] = {
 		.power_up = dw9718_vcm_power_up,
 		.power_down = dw9718_vcm_power_down,
 		.init = dw9718_vcm_init,
+		.t_focus_vcm = dw9718_t_focus_vcm,
 		.t_focus_abs = dw9718_t_focus_abs,
 		.t_focus_rel = dw9718_t_focus_rel,
 		.q_focus_status = dw9718_q_focus_status,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_BACKING_DEV_DEFS_H
 #define __LINUX_BACKING_DEV_DEFS_H
 

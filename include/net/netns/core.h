@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NETNS_CORE_H__
 #define __NETNS_CORE_H__
 

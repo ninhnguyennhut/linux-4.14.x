@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef THREEFISHAPI_H
 #define THREEFISHAPI_H

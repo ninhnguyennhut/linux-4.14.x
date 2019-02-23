@@ -429,7 +429,7 @@ static int __init wdt_init(void)
 {
 	int ret;
 	int chip;
-	static const char * const chip_name[] = {
+	const char * const chip_name[] = {
 		"W83627HF",
 		"W83627S",
 		"W83697HF",

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* atomic.h: Thankfully the V9 is at least reasonable for this
  *           stuff.
  *

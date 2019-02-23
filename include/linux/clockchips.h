@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*  linux/include/linux/clockchips.h
  *
  *  This file contains the structure definitions for clockchips.

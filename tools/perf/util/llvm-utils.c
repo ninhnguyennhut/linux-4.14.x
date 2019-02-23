@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015, Wang Nan <wangnan0@huawei.com>
  * Copyright (C) 2015, Huawei Inc.
@@ -34,7 +33,7 @@ struct llvm_param llvm_param = {
 
 int perf_llvm_config(const char *var, const char *value)
 {
-	if (!strstarts(var, "llvm."))
+	if (prefixcmp(var, "llvm."))
 		return 0;
 	var += sizeof("llvm.") - 1;
 

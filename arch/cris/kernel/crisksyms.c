@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/module.h>
 #include <linux/user.h>
 #include <linux/elfcore.h>

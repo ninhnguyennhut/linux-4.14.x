@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __USBMIXER_H
 #define __USBMIXER_H
 
@@ -23,8 +22,6 @@ struct usb_mixer_interface {
 	struct urb *rc_urb;
 	struct usb_ctrlrequest *rc_setup_packet;
 	u8 rc_buffer[6];
-
-	bool disconnected;
 };
 
 #define MAX_CHANNELS	16	/* max logical channels */

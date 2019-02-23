@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * /proc/bus/pnp interface for Plug and Play devices
  *

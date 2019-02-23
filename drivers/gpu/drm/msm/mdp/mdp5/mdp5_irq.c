@@ -49,19 +49,16 @@ static void mdp5_irq_error_handler(struct mdp_irq *irq, uint32_t irqstatus)
 void mdp5_irq_preinstall(struct msm_kms *kms)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
-
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	mdp5_write(mdp5_kms, REG_MDP5_INTR_CLEAR, 0xffffffff);
 	mdp5_write(mdp5_kms, REG_MDP5_INTR_EN, 0x00000000);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 }
 
 int mdp5_irq_postinstall(struct msm_kms *kms)
 {
 	struct mdp_kms *mdp_kms = to_mdp_kms(kms);
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(mdp_kms);
-	struct device *dev = &mdp5_kms->pdev->dev;
 	struct mdp_irq *error_handler = &mdp5_kms->error_handler;
 
 	error_handler->irq = mdp5_irq_error_handler;
@@ -70,9 +67,9 @@ int mdp5_irq_postinstall(struct msm_kms *kms)
 			MDP5_IRQ_INTF2_UNDER_RUN |
 			MDP5_IRQ_INTF3_UNDER_RUN;
 
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	mdp_irq_register(mdp_kms, error_handler);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 
 	return 0;
 }
@@ -80,11 +77,9 @@ int mdp5_irq_postinstall(struct msm_kms *kms)
 void mdp5_irq_uninstall(struct msm_kms *kms)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
-
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	mdp5_write(mdp5_kms, REG_MDP5_INTR_EN, 0x00000000);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 }
 
 irqreturn_t mdp5_irq(struct msm_kms *kms)
@@ -114,12 +109,11 @@ irqreturn_t mdp5_irq(struct msm_kms *kms)
 int mdp5_enable_vblank(struct msm_kms *kms, struct drm_crtc *crtc)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
 
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	mdp_update_vblank_mask(to_mdp_kms(kms),
 			mdp5_crtc_vblank(crtc), true);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 
 	return 0;
 }
@@ -127,10 +121,9 @@ int mdp5_enable_vblank(struct msm_kms *kms, struct drm_crtc *crtc)
 void mdp5_disable_vblank(struct msm_kms *kms, struct drm_crtc *crtc)
 {
 	struct mdp5_kms *mdp5_kms = to_mdp5_kms(to_mdp_kms(kms));
-	struct device *dev = &mdp5_kms->pdev->dev;
 
-	pm_runtime_get_sync(dev);
+	mdp5_enable(mdp5_kms);
 	mdp_update_vblank_mask(to_mdp_kms(kms),
 			mdp5_crtc_vblank(crtc), false);
-	pm_runtime_put_autosuspend(dev);
+	mdp5_disable(mdp5_kms);
 }

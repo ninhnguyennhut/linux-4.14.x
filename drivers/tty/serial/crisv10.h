@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * serial.h: Arch-dep definitions for the Etrax100 serial driver.
  *

@@ -73,9 +73,10 @@ static int lp87565_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, lp87565);
 
-	return devm_mfd_add_devices(lp87565->dev, PLATFORM_DEVID_AUTO,
-				    lp87565_cells, ARRAY_SIZE(lp87565_cells),
-				    NULL, 0, NULL);
+	ret = mfd_add_devices(lp87565->dev, PLATFORM_DEVID_AUTO, lp87565_cells,
+			      ARRAY_SIZE(lp87565_cells), NULL, 0, NULL);
+
+	return ret;
 }
 
 static const struct i2c_device_id lp87565_id_table[] = {

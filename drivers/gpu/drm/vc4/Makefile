@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Please keep these build lists sorted!
 
 # core driver code

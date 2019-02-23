@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ADDI_WATCHDOG_H
 #define _ADDI_WATCHDOG_H
 

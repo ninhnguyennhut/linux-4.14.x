@@ -141,12 +141,9 @@ deps_config := \
 	drivers/phy/samsung/Kconfig \
 	drivers/phy/rockchip/Kconfig \
 	drivers/phy/renesas/Kconfig \
-	drivers/phy/ralink/Kconfig \
 	drivers/phy/qualcomm/Kconfig \
 	drivers/phy/motorola/Kconfig \
-	drivers/phy/mediatek/Kconfig \
 	drivers/phy/marvell/Kconfig \
-	drivers/phy/lantiq/Kconfig \
 	drivers/phy/hisilicon/Kconfig \
 	drivers/phy/broadcom/Kconfig \
 	drivers/phy/amlogic/Kconfig \
@@ -228,7 +225,6 @@ deps_config := \
 	drivers/soc/fsl/Kconfig \
 	drivers/soc/bcm/Kconfig \
 	drivers/soc/atmel/Kconfig \
-	drivers/soc/amlogic/Kconfig \
 	drivers/soc/actions/Kconfig \
 	drivers/soc/Kconfig \
 	drivers/rpmsg/Kconfig \
@@ -258,7 +254,6 @@ deps_config := \
 	drivers/platform/mips/Kconfig \
 	drivers/platform/x86/Kconfig \
 	drivers/platform/Kconfig \
-	drivers/staging/pi433/Kconfig \
 	drivers/staging/vboxvideo/Kconfig \
 	drivers/staging/typec/fusb302/Kconfig \
 	drivers/staging/typec/Kconfig \
@@ -336,7 +331,6 @@ deps_config := \
 	drivers/staging/octeon-usb/Kconfig \
 	drivers/staging/octeon/Kconfig \
 	drivers/staging/rts5208/Kconfig \
-	drivers/staging/rtlwifi/Kconfig \
 	drivers/staging/rtl8188eu/Kconfig \
 	drivers/staging/rtl8712/Kconfig \
 	drivers/staging/rtl8723bs/Kconfig \
@@ -346,11 +340,6 @@ deps_config := \
 	drivers/staging/olpc_dcon/Kconfig \
 	drivers/staging/comedi/Kconfig \
 	drivers/staging/wlan-ng/Kconfig \
-	drivers/staging/irda/drivers/Kconfig \
-	drivers/staging/irda/net/ircomm/Kconfig \
-	drivers/staging/irda/net/irnet/Kconfig \
-	drivers/staging/irda/net/irlan/Kconfig \
-	drivers/staging/irda/net/Kconfig \
 	drivers/staging/Kconfig \
 	drivers/xen/Kconfig \
 	drivers/hv/Kconfig \
@@ -676,12 +665,12 @@ deps_config := \
 	drivers/media/usb/gspca/Kconfig \
 	drivers/media/usb/uvc/Kconfig \
 	drivers/media/usb/Kconfig \
-	drivers/media/dvb-core/Kconfig \
-	drivers/media/v4l2-core/Kconfig \
-	drivers/media/cec/Kconfig \
 	drivers/media/rc/img-ir/Kconfig \
 	drivers/media/rc/keymaps/Kconfig \
 	drivers/media/rc/Kconfig \
+	drivers/media/dvb-core/Kconfig \
+	drivers/media/v4l2-core/Kconfig \
+	drivers/media/cec/Kconfig \
 	drivers/media/Kconfig \
 	drivers/regulator/Kconfig \
 	drivers/mfd/Kconfig \
@@ -714,7 +703,6 @@ deps_config := \
 	drivers/pinctrl/tegra/Kconfig \
 	drivers/pinctrl/sunxi/Kconfig \
 	drivers/pinctrl/stm32/Kconfig \
-	drivers/pinctrl/sprd/Kconfig \
 	drivers/pinctrl/spear/Kconfig \
 	drivers/pinctrl/sh-pfc/Kconfig \
 	drivers/pinctrl/samsung/Kconfig \
@@ -864,7 +852,6 @@ deps_config := \
 	drivers/net/ethernet/rdc/Kconfig \
 	drivers/net/ethernet/renesas/Kconfig \
 	drivers/net/ethernet/realtek/Kconfig \
-	drivers/net/ethernet/qualcomm/rmnet/Kconfig \
 	drivers/net/ethernet/qualcomm/Kconfig \
 	drivers/net/ethernet/qlogic/Kconfig \
 	drivers/net/ethernet/pasemi/Kconfig \
@@ -893,8 +880,6 @@ deps_config := \
 	drivers/net/ethernet/intel/Kconfig \
 	drivers/net/ethernet/ibm/emac/Kconfig \
 	drivers/net/ethernet/ibm/Kconfig \
-	drivers/net/ethernet/huawei/hinic/Kconfig \
-	drivers/net/ethernet/huawei/Kconfig \
 	drivers/net/ethernet/hp/Kconfig \
 	drivers/net/ethernet/hisilicon/Kconfig \
 	drivers/net/ethernet/fujitsu/Kconfig \
@@ -1070,6 +1055,11 @@ deps_config := \
 	net/bluetooth/bnep/Kconfig \
 	net/bluetooth/rfcomm/Kconfig \
 	net/bluetooth/Kconfig \
+	drivers/net/irda/Kconfig \
+	net/irda/ircomm/Kconfig \
+	net/irda/irnet/Kconfig \
+	net/irda/irlan/Kconfig \
+	net/irda/Kconfig \
 	drivers/net/can/usb/Kconfig \
 	drivers/net/can/spi/Kconfig \
 	drivers/net/can/softing/Kconfig \
@@ -1090,7 +1080,6 @@ deps_config := \
 	net/l3mdev/Kconfig \
 	net/switchdev/Kconfig \
 	net/hsr/Kconfig \
-	net/nsh/Kconfig \
 	net/mpls/Kconfig \
 	net/netlink/Kconfig \
 	net/vmw_vsock/Kconfig \
@@ -1257,7 +1246,7 @@ deps_config := \
 include/config/auto.conf: \
 	$(deps_config)
 
-ifneq "$(KERNELVERSION)" "4.14.14"
+ifneq "$(KERNELVERSION)" "4.13.0-rc7"
 include/config/auto.conf: FORCE
 endif
 ifneq "$(ARCH)" "arm"

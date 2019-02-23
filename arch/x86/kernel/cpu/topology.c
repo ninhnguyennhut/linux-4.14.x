@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Check for extended topology enumeration cpuid leaf 0xb and if it
  * exists, use it for populating initial_apicid and cpu topology

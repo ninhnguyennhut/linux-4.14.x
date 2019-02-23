@@ -1330,8 +1330,7 @@ static int mrf24j40_probe(struct spi_device *spi)
 	if (spi->max_speed_hz > MAX_SPI_SPEED_HZ) {
 		dev_warn(&spi->dev, "spi clock above possible maximum: %d",
 			 MAX_SPI_SPEED_HZ);
-		ret = -EINVAL;
-		goto err_register_device;
+		return -EINVAL;
 	}
 
 	ret = mrf24j40_hw_init(devrec);

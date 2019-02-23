@@ -721,7 +721,6 @@ do_fpe:
  */
 
 	.pushsection .data
-	.align	2
 ENTRY(fp_enter)
 	.word	no_fp
 	.popsection
@@ -1225,7 +1224,6 @@ vector_addrexcptn:
 	W(b)	vector_fiq
 
 	.data
-	.align	2
 
 	.globl	cr_alignment
 cr_alignment:

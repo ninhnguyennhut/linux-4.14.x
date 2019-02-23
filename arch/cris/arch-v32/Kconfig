@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 if ETRAX_ARCH_V32
 
 source arch/cris/arch-v32/mach-fs/Kconfig

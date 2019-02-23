@@ -27,8 +27,7 @@
  ******************************************************************************/
 
 #define HW_DESC_SIZE_WORDS		6
-/* Define max. available slots in HW queue */
-#define HW_QUEUE_SLOTS_MAX              15
+#define HW_QUEUE_SLOTS_MAX              15 /* Max. available slots in HW queue */
 
 #define CC_REG_NAME(word, name) DX_DSCRPTR_QUEUE_WORD ## word ## _ ## name
 

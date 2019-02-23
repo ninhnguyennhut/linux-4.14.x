@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __POWERNV_PCI_H
 #define __POWERNV_PCI_H
 
@@ -78,9 +77,6 @@ struct pnv_ioda_pe {
 	/* PEs in compound case */
 	struct pnv_ioda_pe	*master;
 	struct list_head	slaves;
-
-	/* PCI peer-to-peer*/
-	int			p2p_initiator_count;
 
 	/* Link in list of PE#s */
 	struct list_head	list;
@@ -193,7 +189,6 @@ struct pnv_phb {
 #ifdef CONFIG_CXL_BASE
 	struct cxl_afu *cxl_afu;
 #endif
-	int p2p_target_count;
 };
 
 extern struct pci_ops pnv_pci_ops;
@@ -234,7 +229,6 @@ extern void pnv_teardown_msi_irqs(struct pci_dev *pdev);
 extern struct pnv_ioda_pe *pnv_ioda_get_pe(struct pci_dev *dev);
 extern void pnv_set_msi_irq_chip(struct pnv_phb *phb, unsigned int virq);
 extern bool pnv_pci_enable_device_hook(struct pci_dev *dev);
-extern void pnv_pci_ioda2_set_bypass(struct pnv_ioda_pe *pe, bool enable);
 
 extern void pe_level_printk(const struct pnv_ioda_pe *pe, const char *level,
 			    const char *fmt, ...);

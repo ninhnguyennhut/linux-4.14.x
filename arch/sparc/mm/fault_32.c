@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * fault.c:  Page fault handlers for the Sparc.
  *

@@ -235,8 +235,12 @@ reclaimer(void *ptr)
 	struct net *net = host->net;
 
 	req = kmalloc(sizeof(*req), GFP_KERNEL);
-	if (!req)
+	if (!req) {
+		printk(KERN_ERR "lockd: reclaimer unable to alloc memory."
+				" Locks for %s won't be reclaimed!\n",
+				host->h_name);
 		return 0;
+	}
 
 	allow_signal(SIGKILL);
 

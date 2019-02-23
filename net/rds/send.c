@@ -273,7 +273,7 @@ restart:
 			len = ntohl(rm->m_inc.i_hdr.h_len);
 			if (cp->cp_unacked_packets == 0 ||
 			    cp->cp_unacked_bytes < len) {
-				set_bit(RDS_MSG_ACK_REQUIRED, &rm->m_flags);
+				__set_bit(RDS_MSG_ACK_REQUIRED, &rm->m_flags);
 
 				cp->cp_unacked_packets =
 					rds_sysctl_max_unacked_packets;
@@ -428,18 +428,14 @@ over_batch:
 	 * some work and we will skip our goto
 	 */
 	if (ret == 0) {
-		bool raced;
-
 		smp_mb();
-		raced = send_gen != READ_ONCE(cp->cp_send_gen);
-
 		if ((test_bit(0, &conn->c_map_queued) ||
-		    !list_empty(&cp->cp_send_queue)) && !raced) {
+		     !list_empty(&cp->cp_send_queue)) &&
+			send_gen == READ_ONCE(cp->cp_send_gen)) {
+			rds_stats_inc(s_send_lock_queue_raced);
 			if (batch_count < send_batch_count)
 				goto restart;
 			queue_delayed_work(rds_wq, &cp->cp_send_w, 1);
-		} else if (raced) {
-			rds_stats_inc(s_send_lock_queue_raced);
 		}
 	}
 out:
@@ -833,7 +829,7 @@ static int rds_send_queue_rm(struct rds_sock *rs, struct rds_connection *conn,
 		 * throughput hits a certain threshold.
 		 */
 		if (rs->rs_snd_bytes >= rds_sk_sndbuf(rs) / 2)
-			set_bit(RDS_MSG_ACK_REQUIRED, &rm->m_flags);
+			__set_bit(RDS_MSG_ACK_REQUIRED, &rm->m_flags);
 
 		list_add_tail(&rm->m_sock_item, &rs->rs_send_queue);
 		set_bit(RDS_MSG_ON_SOCK, &rm->m_flags);
@@ -1009,9 +1005,6 @@ static int rds_rdma_bytes(struct msghdr *msg, size_t *rdma_bytes)
 			continue;
 
 		if (cmsg->cmsg_type == RDS_CMSG_RDMA_ARGS) {
-			if (cmsg->cmsg_len <
-			    CMSG_LEN(sizeof(struct rds_rdma_args)))
-				return -EINVAL;
 			args = CMSG_DATA(cmsg);
 			*rdma_bytes += args->remote_vec.bytes;
 		}

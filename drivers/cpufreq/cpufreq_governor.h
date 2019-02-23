@@ -41,6 +41,7 @@ enum {OD_NORMAL_SAMPLE, OD_SUB_SAMPLE};
 struct dbs_data {
 	struct gov_attr_set attr_set;
 	void *tuners;
+	unsigned int min_sampling_rate;
 	unsigned int ignore_nice_load;
 	unsigned int sampling_rate;
 	unsigned int sampling_down_factor;
@@ -159,7 +160,7 @@ void cpufreq_dbs_governor_limits(struct cpufreq_policy *policy);
 #define CPUFREQ_DBS_GOVERNOR_INITIALIZER(_name_)			\
 	{								\
 		.name = _name_,						\
-		.dynamic_switching = true,				\
+		.max_transition_latency	= TRANSITION_LATENCY_LIMIT,	\
 		.owner = THIS_MODULE,					\
 		.init = cpufreq_dbs_governor_init,			\
 		.exit = cpufreq_dbs_governor_exit,			\

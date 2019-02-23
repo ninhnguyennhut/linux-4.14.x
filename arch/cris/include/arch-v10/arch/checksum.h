@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _CRIS_ARCH_CHECKSUM_H
 #define _CRIS_ARCH_CHECKSUM_H
 

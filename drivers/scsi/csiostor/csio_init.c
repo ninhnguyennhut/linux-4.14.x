@@ -485,10 +485,9 @@ csio_resource_alloc(struct csio_hw *hw)
 	if (!hw->rnode_mempool)
 		goto err_free_mb_mempool;
 
-	hw->scsi_dma_pool = dma_pool_create("csio_scsi_dma_pool",
-					    &hw->pdev->dev, CSIO_SCSI_RSP_LEN,
-					    8, 0);
-	if (!hw->scsi_dma_pool)
+	hw->scsi_pci_pool = pci_pool_create("csio_scsi_pci_pool", hw->pdev,
+					    CSIO_SCSI_RSP_LEN, 8, 0);
+	if (!hw->scsi_pci_pool)
 		goto err_free_rn_pool;
 
 	return 0;
@@ -506,8 +505,8 @@ err:
 static void
 csio_resource_free(struct csio_hw *hw)
 {
-	dma_pool_destroy(hw->scsi_dma_pool);
-	hw->scsi_dma_pool = NULL;
+	pci_pool_destroy(hw->scsi_pci_pool);
+	hw->scsi_pci_pool = NULL;
 	mempool_destroy(hw->rnode_mempool);
 	hw->rnode_mempool = NULL;
 	mempool_destroy(hw->mb_mempool);

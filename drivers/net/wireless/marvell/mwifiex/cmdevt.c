@@ -26,8 +26,6 @@
 #include "11n.h"
 #include "11ac.h"
 
-static void mwifiex_cancel_pending_ioctl(struct mwifiex_adapter *adapter);
-
 /*
  * This function initializes a command node.
  *
@@ -429,7 +427,7 @@ int mwifiex_alloc_cmd_buffer(struct mwifiex_adapter *adapter)
  * The function calls the completion callback for all the command
  * buffers that still have response buffers associated with them.
  */
-void mwifiex_free_cmd_buffer(struct mwifiex_adapter *adapter)
+int mwifiex_free_cmd_buffer(struct mwifiex_adapter *adapter)
 {
 	struct cmd_ctrl_node *cmd_array;
 	u32 i;
@@ -438,7 +436,7 @@ void mwifiex_free_cmd_buffer(struct mwifiex_adapter *adapter)
 	if (!adapter->cmd_pool) {
 		mwifiex_dbg(adapter, FATAL,
 			    "info: FREE_CMD_BUF: cmd_pool is null\n");
-		return;
+		return 0;
 	}
 
 	cmd_array = adapter->cmd_pool;
@@ -466,6 +464,8 @@ void mwifiex_free_cmd_buffer(struct mwifiex_adapter *adapter)
 		kfree(adapter->cmd_pool);
 		adapter->cmd_pool = NULL;
 	}
+
+	return 0;
 }
 
 /*
@@ -666,7 +666,7 @@ int mwifiex_send_cmd(struct mwifiex_private *priv, u16 cmd_no,
 	    cmd_no == HostCmd_CMD_802_11_SCAN_EXT) {
 		mwifiex_queue_scan_cmd(priv, cmd_node);
 	} else {
-		mwifiex_insert_cmd_to_pending_q(adapter, cmd_node);
+		mwifiex_insert_cmd_to_pending_q(adapter, cmd_node, true);
 		queue_work(adapter->workqueue, &adapter->main_work);
 		if (cmd_node->wait_q_enabled)
 			ret = mwifiex_wait_queue_complete(adapter, cmd_node);
@@ -684,12 +684,11 @@ int mwifiex_send_cmd(struct mwifiex_private *priv, u16 cmd_no,
  */
 void
 mwifiex_insert_cmd_to_pending_q(struct mwifiex_adapter *adapter,
-				struct cmd_ctrl_node *cmd_node)
+				struct cmd_ctrl_node *cmd_node, u32 add_tail)
 {
 	struct host_cmd_ds_command *host_cmd = NULL;
 	u16 command;
 	unsigned long flags;
-	bool add_tail = true;
 
 	host_cmd = (struct host_cmd_ds_command *) (cmd_node->cmd_skb->data);
 	if (!host_cmd) {
@@ -1076,7 +1075,7 @@ mwifiex_cancel_all_pending_cmd(struct mwifiex_adapter *adapter)
  * In case of scan commands, all pending commands in scan pending queue
  * are cancelled.
  */
-static void
+void
 mwifiex_cancel_pending_ioctl(struct mwifiex_adapter *adapter)
 {
 	struct cmd_ctrl_node *cmd_node = NULL;

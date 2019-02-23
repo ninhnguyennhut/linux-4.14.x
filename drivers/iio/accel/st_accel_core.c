@@ -161,13 +161,10 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 		.drdy_irq = {
 			.addr = 0x22,
 			.mask_int1 = 0x10,
-			.mask_int2 = 0x00,
+			.mask_int2 = 0x08,
 			.addr_ihl = 0x25,
 			.mask_ihl = 0x02,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x23,
@@ -239,10 +236,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 			.mask_ihl = 0x80,
 			.addr_od = 0x22,
 			.mask_od = 0x40,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x23,
@@ -324,10 +318,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 			.mask_int2 = 0x00,
 			.addr_ihl = 0x23,
 			.mask_ihl = 0x40,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 			.ig1 = {
 				.en_addr = 0x23,
 				.en_mask = 0x08,
@@ -398,10 +389,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 		.drdy_irq = {
 			.addr = 0x21,
 			.mask_int1 = 0x04,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x21,
@@ -463,10 +451,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 			.mask_ihl = 0x80,
 			.addr_od = 0x22,
 			.mask_od = 0x40,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x21,
@@ -479,7 +464,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 		.wai = 0x32,
 		.wai_addr = ST_SENSORS_DEFAULT_WAI_ADDRESS,
 		.sensors_supported = {
-			[0] = H3LIS331DL_ACCEL_DEV_NAME,
+			[0] = H3LIS331DL_DRIVER_NAME,
 		},
 		.ch = (struct iio_chan_spec *)st_accel_12bit_channels,
 		.odr = {
@@ -584,10 +569,7 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 		.drdy_irq = {
 			.addr = 0x21,
 			.mask_int1 = 0x04,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x21,
@@ -655,13 +637,10 @@ static const struct st_sensor_settings st_accel_sensors_settings[] = {
 		.drdy_irq = {
 			.addr = 0x22,
 			.mask_int1 = 0x10,
-			.mask_int2 = 0x00,
+			.mask_int2 = 0x08,
 			.addr_ihl = 0x25,
 			.mask_ihl = 0x02,
-			.stat_drdy = {
-				.addr = ST_SENSORS_DEFAULT_STAT_ADDR,
-				.mask = 0x07,
-			},
+			.addr_stat_drdy = ST_SENSORS_DEFAULT_STAT_ADDR,
 		},
 		.sim = {
 			.addr = 0x23,

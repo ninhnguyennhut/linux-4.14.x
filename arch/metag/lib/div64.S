@@ -1,4 +1,3 @@
-! SPDX-License-Identifier: GPL-2.0
 ! Copyright (C) 2012 Imagination Technologies Ltd.
 !
 ! Signed/unsigned 64-bit division routines.

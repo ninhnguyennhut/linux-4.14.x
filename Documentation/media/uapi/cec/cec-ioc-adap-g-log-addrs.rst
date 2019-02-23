@@ -48,9 +48,7 @@ can only be called by a file descriptor in initiator mode (see :ref:`CEC_S_MODE`
 the ``EBUSY`` error code will be returned.
 
 To clear existing logical addresses set ``num_log_addrs`` to 0. All other fields
-will be ignored in that case. The adapter will go to the unconfigured state and the
-``cec_version``, ``vendor_id`` and ``osd_name`` fields are all reset to their default
-values (CEC version 2.0, no vendor ID and an empty OSD name).
+will be ignored in that case. The adapter will go to the unconfigured state.
 
 If the physical address is valid (see :ref:`ioctl CEC_ADAP_S_PHYS_ADDR <CEC_ADAP_S_PHYS_ADDR>`),
 then this ioctl will block until all requested logical
@@ -65,7 +63,7 @@ logical address types are already defined will return with error ``EBUSY``.
 
 .. c:type:: cec_log_addrs
 
-.. tabularcolumns:: |p{1.0cm}|p{8.0cm}|p{7.5cm}|
+.. tabularcolumns:: |p{1.0cm}|p{7.5cm}|p{8.0cm}|
 
 .. cssclass:: longtable
 
@@ -148,9 +146,6 @@ logical address types are already defined will return with error ``EBUSY``.
         give the CEC framework more information about the device type, even
         though the framework won't use it directly in the CEC message.
 
-
-.. tabularcolumns:: |p{7.8cm}|p{1.0cm}|p{8.7cm}|
-
 .. _cec-log-addrs-flags:
 
 .. flat-table:: Flags for struct cec_log_addrs
@@ -178,7 +173,7 @@ logical address types are already defined will return with error ``EBUSY``.
 	to avoid trivial snooping of the keystrokes.
     * .. _`CEC-LOG-ADDRS-FL-CDC-ONLY`:
 
-      - ``CEC_LOG_ADDRS_FL_CDC_ONLY``
+      - `CEC_LOG_ADDRS_FL_CDC_ONLY`
       - 4
       - If this flag is set, then the device is CDC-Only. CDC-Only CEC devices
 	are CEC devices that can only handle CDC messages.
@@ -186,7 +181,7 @@ logical address types are already defined will return with error ``EBUSY``.
 	All other messages are ignored.
 
 
-.. tabularcolumns:: |p{7.8cm}|p{1.0cm}|p{8.7cm}|
+.. tabularcolumns:: |p{6.6cm}|p{2.2cm}|p{8.7cm}|
 
 .. _cec-versions:
 

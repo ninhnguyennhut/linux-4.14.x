@@ -272,15 +272,7 @@ static void pnv_kexec_cpu_down(int crash_shutdown, int secondary)
 #ifdef CONFIG_MEMORY_HOTPLUG_SPARSE
 static unsigned long pnv_memory_block_size(void)
 {
-	/*
-	 * We map the kernel linear region with 1GB large pages on radix. For
-	 * memory hot unplug to work our memory block size must be at least
-	 * this size.
-	 */
-	if (radix_enabled())
-		return 1UL * 1024 * 1024 * 1024;
-	else
-		return 256UL * 1024 * 1024;
+	return 256UL * 1024 * 1024;
 }
 #endif
 
@@ -319,7 +311,7 @@ static unsigned long pnv_get_proc_freq(unsigned int cpu)
 {
 	unsigned long ret_freq;
 
-	ret_freq = cpufreq_get(cpu) * 1000ul;
+	ret_freq = cpufreq_quick_get(cpu) * 1000ul;
 
 	/*
 	 * If the backend cpufreq driver does not exist,

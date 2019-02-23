@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/affs/bitmap.c
  *
@@ -20,7 +19,7 @@ affs_count_free_blocks(struct super_block *sb)
 
 	pr_debug("%s()\n", __func__);
 
-	if (sb_rdonly(sb))
+	if (sb->s_flags & MS_RDONLY)
 		return 0;
 
 	mutex_lock(&AFFS_SB(sb)->s_bmlock);

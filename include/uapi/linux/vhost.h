@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _LINUX_VHOST_H
 #define _LINUX_VHOST_H
 /* Userspace interface for in-kernel virtio accelerators. */

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * This header provides IDs for clocks common between several Tegra SoCs
  */

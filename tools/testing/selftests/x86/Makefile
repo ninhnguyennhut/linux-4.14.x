@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 all:
 
 include ../lib.mk
@@ -7,7 +6,7 @@ include ../lib.mk
 
 TARGETS_C_BOTHBITS := single_step_syscall sysret_ss_attrs syscall_nt ptrace_syscall test_mremap_vdso \
 			check_initial_reg_state sigreturn ldt_gdt iopl mpx-mini-test ioperm \
-			protection_keys test_vdso test_vsyscall
+			protection_keys test_vdso
 TARGETS_C_32BIT_ONLY := entry_from_vm86 syscall_arg_fault test_syscall_vdso unwind_vdso \
 			test_FCMOV test_FCOMI test_FISTTP \
 			vdso_restorer
@@ -21,7 +20,7 @@ BINARIES_64 := $(TARGETS_C_64BIT_ALL:%=%_64)
 BINARIES_32 := $(patsubst %,$(OUTPUT)/%,$(BINARIES_32))
 BINARIES_64 := $(patsubst %,$(OUTPUT)/%,$(BINARIES_64))
 
-CFLAGS := -O2 -g -std=gnu99 -pthread -Wall -no-pie
+CFLAGS := -O2 -g -std=gnu99 -pthread -Wall
 
 UNAME_M := $(shell uname -m)
 CAN_BUILD_I386 := $(shell ./check_cc.sh $(CC) trivial_32bit_program.c -m32)

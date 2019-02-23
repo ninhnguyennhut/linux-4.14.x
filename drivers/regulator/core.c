@@ -204,8 +204,8 @@ static struct device_node *of_get_regulator(struct device *dev, const char *supp
 	regnode = of_parse_phandle(dev->of_node, prop_name, 0);
 
 	if (!regnode) {
-		dev_dbg(dev, "Looking up %s property in node %pOF failed\n",
-				prop_name, dev->of_node);
+		dev_dbg(dev, "Looking up %s property in node %s failed\n",
+				prop_name, dev->of_node->full_name);
 		return NULL;
 	}
 	return regnode;
@@ -2396,14 +2396,6 @@ static void regulator_disable_work(struct work_struct *work)
 	count = rdev->deferred_disables;
 	rdev->deferred_disables = 0;
 
-	/*
-	 * Workqueue functions queue the new work instance while the previous
-	 * work instance is being processed. Cancel the queued work instance
-	 * as the work instance under processing does the job of the queued
-	 * work instance.
-	 */
-	cancel_delayed_work(&rdev->disable_work);
-
 	for (i = 0; i < count; i++) {
 		ret = _regulator_disable(rdev);
 		if (ret != 0)
@@ -2447,10 +2439,10 @@ int regulator_disable_deferred(struct regulator *regulator, int ms)
 
 	mutex_lock(&rdev->mutex);
 	rdev->deferred_disables++;
-	mod_delayed_work(system_power_efficient_wq, &rdev->disable_work,
-			 msecs_to_jiffies(ms));
 	mutex_unlock(&rdev->mutex);
 
+	queue_delayed_work(system_power_efficient_wq, &rdev->disable_work,
+			   msecs_to_jiffies(ms));
 	return 0;
 }
 EXPORT_SYMBOL_GPL(regulator_disable_deferred);

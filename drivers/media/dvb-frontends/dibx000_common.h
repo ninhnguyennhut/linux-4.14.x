@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DIBX000_COMMON_H
 #define DIBX000_COMMON_H
 

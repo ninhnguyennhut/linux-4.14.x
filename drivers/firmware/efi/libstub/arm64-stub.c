@@ -9,18 +9,9 @@
  * published by the Free Software Foundation.
  *
  */
-
-/*
- * To prevent the compiler from emitting GOT-indirected (and thus absolute)
- * references to the section markers, override their visibility as 'hidden'
- */
-#pragma GCC visibility push(hidden)
-#include <asm/sections.h>
-#pragma GCC visibility pop
-
 #include <linux/efi.h>
 #include <asm/efi.h>
-#include <asm/memory.h>
+#include <asm/sections.h>
 #include <asm/sysreg.h>
 
 #include "efistub.h"
@@ -90,10 +81,9 @@ efi_status_t handle_kernel_image(efi_system_table_t *sys_table_arg,
 		/*
 		 * If CONFIG_DEBUG_ALIGN_RODATA is not set, produce a
 		 * displacement in the interval [0, MIN_KIMG_ALIGN) that
-		 * doesn't violate this kernel's de-facto alignment
-		 * constraints.
+		 * is a multiple of the minimal segment alignment (SZ_64K)
 		 */
-		u32 mask = (MIN_KIMG_ALIGN - 1) & ~(EFI_KIMG_ALIGN - 1);
+		u32 mask = (MIN_KIMG_ALIGN - 1) & ~(SZ_64K - 1);
 		u32 offset = !IS_ENABLED(CONFIG_DEBUG_ALIGN_RODATA) ?
 			     (phys_seed >> 32) & mask : TEXT_OFFSET;
 

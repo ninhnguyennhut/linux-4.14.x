@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Definitions for the new Marvell Yukon 2 driver.
  */

@@ -180,14 +180,14 @@ struct inode *ovl_inode_real(struct inode *inode)
 }
 
 
-struct ovl_dir_cache *ovl_dir_cache(struct inode *inode)
+struct ovl_dir_cache *ovl_dir_cache(struct dentry *dentry)
 {
-	return OVL_I(inode)->cache;
+	return OVL_I(d_inode(dentry))->cache;
 }
 
-void ovl_set_dir_cache(struct inode *inode, struct ovl_dir_cache *cache)
+void ovl_set_dir_cache(struct dentry *dentry, struct ovl_dir_cache *cache)
 {
-	OVL_I(inode)->cache = cache;
+	OVL_I(d_inode(dentry))->cache = cache;
 }
 
 bool ovl_dentry_is_opaque(struct dentry *dentry)
@@ -275,19 +275,12 @@ void ovl_inode_update(struct inode *inode, struct dentry *upperdentry)
 	}
 }
 
-void ovl_dentry_version_inc(struct dentry *dentry, bool impurity)
+void ovl_dentry_version_inc(struct dentry *dentry)
 {
 	struct inode *inode = d_inode(dentry);
 
 	WARN_ON(!inode_is_locked(inode));
-	/*
-	 * Version is used by readdir code to keep cache consistent.  For merge
-	 * dirs all changes need to be noted.  For non-merge dirs, cache only
-	 * contains impure (ones which have been copied up and have origins)
-	 * entries, so only need to note changes to impure entries.
-	 */
-	if (OVL_TYPE_MERGE(ovl_path_type(dentry)) || impurity)
-		OVL_I(inode)->version++;
+	OVL_I(inode)->version++;
 }
 
 u64 ovl_dentry_version_get(struct dentry *dentry)
@@ -389,11 +382,6 @@ void ovl_set_flag(unsigned long flag, struct inode *inode)
 	set_bit(flag, &OVL_I(inode)->flags);
 }
 
-void ovl_clear_flag(unsigned long flag, struct inode *inode)
-{
-	clear_bit(flag, &OVL_I(inode)->flags);
-}
-
 bool ovl_test_flag(unsigned long flag, struct inode *inode)
 {
 	return test_bit(flag, &OVL_I(inode)->flags);
@@ -430,7 +418,7 @@ void ovl_inuse_unlock(struct dentry *dentry)
 	}
 }
 
-/* Caller must hold OVL_I(inode)->lock */
+/* Called must hold OVL_I(inode)->oi_lock */
 static void ovl_cleanup_index(struct dentry *dentry)
 {
 	struct inode *dir = ovl_indexdir(dentry->d_sb)->d_inode;
@@ -469,9 +457,6 @@ static void ovl_cleanup_index(struct dentry *dentry)
 	err = PTR_ERR(index);
 	if (!IS_ERR(index))
 		err = ovl_cleanup(dir, index);
-	else
-		index = NULL;
-
 	inode_unlock(dir);
 	if (err)
 		goto fail;
@@ -559,23 +544,4 @@ void ovl_nlink_end(struct dentry *dentry, bool locked)
 
 		mutex_unlock(&OVL_I(d_inode(dentry))->lock);
 	}
-}
-
-int ovl_lock_rename_workdir(struct dentry *workdir, struct dentry *upperdir)
-{
-	/* Workdir should not be the same as upperdir */
-	if (workdir == upperdir)
-		goto err;
-
-	/* Workdir should not be subdir of upperdir and vice versa */
-	if (lock_rename(workdir, upperdir) != NULL)
-		goto err_unlock;
-
-	return 0;
-
-err_unlock:
-	unlock_rename(workdir, upperdir);
-err:
-	pr_err("overlayfs: failed to lock workdir+upperdir\n");
-	return -EIO;
 }

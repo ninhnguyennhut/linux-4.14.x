@@ -45,7 +45,7 @@
 #include "sunxi-common-regulators.dtsi"
 
 / {
-	model = "IoT development Board";
+	model = "Lichee Pi Zero";
 	compatible = "licheepi,licheepi-zero", "allwinner,sun8i-v3s";
 
 	aliases {
@@ -81,11 +81,6 @@
 	status = "okay";
 };
 
-&ohci0 {
-
-	status = "okay";
-};
-
 &mmc0 {
 	pinctrl-0 = <&mmc0_pins_a>;
 	pinctrl-names = "default";
@@ -108,14 +103,22 @@
 	status = "okay";
 };
 
+&spi0 {
+        status ="okay";
+
+        mx25l25635e:mx25l25635e@0 {
+                compatible = "jedec,spi-nor";
+                reg = <0x0>;
+                spi-max-frequency = <50000000>;
+                #address-cells = <1>;
+                #size-cells = <1>;
+        };
+
+};
+
 &uart0 {
 	pinctrl-0 = <&uart0_pins_a>;
 	pinctrl-names = "default";
-	status = "okay";
-};
-
-&usb_otg {
-	dr_mode = "otg";
 	status = "okay";
 };
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef _LINUX_RPMSG_QCOM_SMD_H
 #define _LINUX_RPMSG_QCOM_SMD_H

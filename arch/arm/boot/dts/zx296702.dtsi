@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 
 #include "skeleton.dtsi"
 #include <dt-bindings/clock/zx296702-clock.h>

@@ -35,4 +35,5 @@ etha: ethernet@40400000 {
 	/* Regmap for sys registers */
 	oxsemi,sys-ctrl = <&sys>;
 
+	status = "disabled";
 };

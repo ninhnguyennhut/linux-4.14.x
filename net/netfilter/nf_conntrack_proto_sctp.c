@@ -174,13 +174,20 @@ static bool sctp_invert_tuple(struct nf_conntrack_tuple *tuple,
 	return true;
 }
 
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+/* Print out the per-protocol part of the tuple. */
+static void sctp_print_tuple(struct seq_file *s,
+			     const struct nf_conntrack_tuple *tuple)
+{
+	seq_printf(s, "sport=%hu dport=%hu ",
+		   ntohs(tuple->src.u.sctp.port),
+		   ntohs(tuple->dst.u.sctp.port));
+}
+
 /* Print out the private part of the conntrack. */
 static void sctp_print_conntrack(struct seq_file *s, struct nf_conn *ct)
 {
 	seq_printf(s, "%s ", sctp_conntrack_names[ct->proto.sctp.state]);
 }
-#endif
 
 #define for_each_sctp_chunk(skb, sch, _sch, offset, dataoff, count)	\
 for ((offset) = (dataoff) + sizeof(struct sctphdr), (count) = 0;	\
@@ -307,6 +314,7 @@ static int sctp_packet(struct nf_conn *ct,
 		       unsigned int dataoff,
 		       enum ip_conntrack_info ctinfo,
 		       u_int8_t pf,
+		       unsigned int hooknum,
 		       unsigned int *timeouts)
 {
 	enum sctp_conntrack new_state, old_state;
@@ -783,11 +791,11 @@ static struct nf_proto_net *sctp_get_net_proto(struct net *net)
 struct nf_conntrack_l4proto nf_conntrack_l4proto_sctp4 __read_mostly = {
 	.l3proto		= PF_INET,
 	.l4proto 		= IPPROTO_SCTP,
+	.name 			= "sctp",
 	.pkt_to_tuple 		= sctp_pkt_to_tuple,
 	.invert_tuple 		= sctp_invert_tuple,
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+	.print_tuple 		= sctp_print_tuple,
 	.print_conntrack	= sctp_print_conntrack,
-#endif
 	.packet 		= sctp_packet,
 	.get_timeouts		= sctp_get_timeouts,
 	.new 			= sctp_new,
@@ -820,11 +828,11 @@ EXPORT_SYMBOL_GPL(nf_conntrack_l4proto_sctp4);
 struct nf_conntrack_l4proto nf_conntrack_l4proto_sctp6 __read_mostly = {
 	.l3proto		= PF_INET6,
 	.l4proto 		= IPPROTO_SCTP,
+	.name 			= "sctp",
 	.pkt_to_tuple 		= sctp_pkt_to_tuple,
 	.invert_tuple 		= sctp_invert_tuple,
-#ifdef CONFIG_NF_CONNTRACK_PROCFS
+	.print_tuple 		= sctp_print_tuple,
 	.print_conntrack	= sctp_print_conntrack,
-#endif
 	.packet 		= sctp_packet,
 	.get_timeouts		= sctp_get_timeouts,
 	.new 			= sctp_new,

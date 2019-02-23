@@ -976,14 +976,15 @@ static void __init sun5i_ccu_init(struct device_node *node,
 
 	reg = of_io_request_and_map(node, 0, of_node_full_name(node));
 	if (IS_ERR(reg)) {
-		pr_err("%pOF: Could not map the clock registers\n", node);
+		pr_err("%s: Could not map the clock registers\n",
+		       of_node_full_name(node));
 		return;
 	}
 
 	/* Force the PLL-Audio-1x divider to 4 */
 	val = readl(reg + SUN5I_PLL_AUDIO_REG);
-	val &= ~GENMASK(29, 26);
-	writel(val | (3 << 26), reg + SUN5I_PLL_AUDIO_REG);
+	val &= ~GENMASK(19, 16);
+	writel(val | (3 << 16), reg + SUN5I_PLL_AUDIO_REG);
 
 	/*
 	 * Use the peripheral PLL as the AHB parent, instead of CPU /

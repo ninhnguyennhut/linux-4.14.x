@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config CPM1
 	bool
 	select CPM
@@ -6,6 +5,7 @@ config CPM1
 choice
 	prompt "8xx Machine Type"
 	depends on PPC_8xx
+	depends on 8xx
 	default MPC885ADS
 
 config MPC8XXFADS
@@ -92,7 +92,7 @@ endmenu
 #
 
 menu "MPC8xx CPM Options"
-	depends on PPC_8xx
+	depends on 8xx
 
 # This doesn't really belong here, but it is convenient to ask
 # 8xx specific questions.

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* iommu.h: Definitions for the sun5 IOMMU.
  *
  * Copyright (C) 1996, 1999, 2007 David S. Miller (davem@davemloft.net)

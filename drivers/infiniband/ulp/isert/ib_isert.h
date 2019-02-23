@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/socket.h>
 #include <linux/in.h>
 #include <linux/in6.h>

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 ENTRY(sys_call_table)
 	.long sys_restart_syscall	/* 0  -  old "setup()" system call*/
 	.long sys_exit

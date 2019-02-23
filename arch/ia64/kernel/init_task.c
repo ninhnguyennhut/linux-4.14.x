@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This is where we statically allocate and initialize the initial
  * task.

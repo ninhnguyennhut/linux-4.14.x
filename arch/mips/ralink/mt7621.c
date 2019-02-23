@@ -12,7 +12,8 @@
 
 #include <asm/mipsregs.h>
 #include <asm/smp-ops.h>
-#include <asm/mips-cps.h>
+#include <asm/mips-cm.h>
+#include <asm/mips-cpc.h>
 #include <asm/mach-ralink/ralink_regs.h>
 #include <asm/mach-ralink/mt7621.h>
 
@@ -198,7 +199,7 @@ void prom_soc_init(struct ralink_soc_info *soc_info)
 	mips_cm_probe();
 	mips_cpc_probe();
 
-	if (mips_cps_numiocu(0)) {
+	if (mips_cm_numiocu()) {
 		/*
 		 * mips_cm_probe() wipes out bootloader
 		 * config for CM regions and we have to configure them

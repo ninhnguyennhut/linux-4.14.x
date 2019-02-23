@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 choice
 	prompt "Board support"
 	depends on BCM63XX

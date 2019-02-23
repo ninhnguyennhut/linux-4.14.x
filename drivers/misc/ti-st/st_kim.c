@@ -660,7 +660,7 @@ static struct attribute *uim_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group uim_attr_grp = {
+static struct attribute_group uim_attr_grp = {
 	.attrs = uim_attrs,
 };
 

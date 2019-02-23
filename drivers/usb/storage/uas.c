@@ -737,7 +737,7 @@ static int uas_eh_abort_handler(struct scsi_cmnd *cmnd)
 	return FAILED;
 }
 
-static int uas_eh_device_reset_handler(struct scsi_cmnd *cmnd)
+static int uas_eh_bus_reset_handler(struct scsi_cmnd *cmnd)
 {
 	struct scsi_device *sdev = cmnd->device;
 	struct uas_dev_info *devinfo = sdev->hostdata;
@@ -848,7 +848,7 @@ static struct scsi_host_template uas_host_template = {
 	.slave_alloc = uas_slave_alloc,
 	.slave_configure = uas_slave_configure,
 	.eh_abort_handler = uas_eh_abort_handler,
-	.eh_device_reset_handler = uas_eh_device_reset_handler,
+	.eh_bus_reset_handler = uas_eh_bus_reset_handler,
 	.this_id = -1,
 	.sg_tablesize = SG_NONE,
 	.skip_settle_delay = 1,
@@ -873,14 +873,14 @@ MODULE_DEVICE_TABLE(usb, uas_usb_ids);
 static int uas_switch_interface(struct usb_device *udev,
 				struct usb_interface *intf)
 {
-	struct usb_host_interface *alt;
+	int alt;
 
 	alt = uas_find_uas_alt_setting(intf);
-	if (!alt)
-		return -ENODEV;
+	if (alt < 0)
+		return alt;
 
-	return usb_set_interface(udev, alt->desc.bInterfaceNumber,
-			alt->desc.bAlternateSetting);
+	return usb_set_interface(udev,
+			intf->altsetting[0].desc.bInterfaceNumber, alt);
 }
 
 static int uas_configure_endpoints(struct uas_dev_info *devinfo)

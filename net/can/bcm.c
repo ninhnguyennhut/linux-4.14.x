@@ -1493,14 +1493,13 @@ static int bcm_init(struct sock *sk)
 static int bcm_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
-	struct net *net;
+	struct net *net = sock_net(sk);
 	struct bcm_sock *bo;
 	struct bcm_op *op, *next;
 
-	if (!sk)
+	if (sk == NULL)
 		return 0;
 
-	net = sock_net(sk);
 	bo = bcm_sk(sk);
 
 	/* remove bcm_ops, timer, rx_unregister(), etc. */

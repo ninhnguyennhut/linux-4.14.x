@@ -434,12 +434,6 @@ void intel_uncore_resume_early(struct drm_i915_private *dev_priv)
 	i915_check_and_clear_faults(dev_priv);
 }
 
-void intel_uncore_runtime_resume(struct drm_i915_private *dev_priv)
-{
-	iosf_mbi_register_pmic_bus_access_notifier(
-		&dev_priv->uncore.pmic_bus_access_nb);
-}
-
 void intel_uncore_sanitize(struct drm_i915_private *dev_priv)
 {
 	i915.enable_rc6 = sanitize_rc6_option(dev_priv, i915.enable_rc6);
@@ -649,7 +643,7 @@ find_fw_domain(struct drm_i915_private *dev_priv, u32 offset)
 	{ .start = (s), .end = (e), .domains = (d) }
 
 #define HAS_FWTABLE(dev_priv) \
-	(INTEL_GEN(dev_priv) >= 9 || \
+	(IS_GEN9(dev_priv) || \
 	 IS_CHERRYVIEW(dev_priv) || \
 	 IS_VALLEYVIEW(dev_priv))
 
@@ -1078,7 +1072,7 @@ static void intel_uncore_fw_domains_init(struct drm_i915_private *dev_priv)
 		dev_priv->uncore.fw_clear = _MASKED_BIT_DISABLE(FORCEWAKE_KERNEL);
 	}
 
-	if (INTEL_GEN(dev_priv) >= 9) {
+	if (IS_GEN9(dev_priv)) {
 		dev_priv->uncore.funcs.force_wake_get = fw_domains_get;
 		dev_priv->uncore.funcs.force_wake_put = fw_domains_put;
 		fw_domain_init(dev_priv, FW_DOMAIN_ID_RENDER,
@@ -1177,15 +1171,8 @@ static int i915_pmic_bus_access_notifier(struct notifier_block *nb,
 		 * bus, which will be busy after this notification, leading to:
 		 * "render: timed out waiting for forcewake ack request."
 		 * errors.
-		 *
-		 * The notifier is unregistered during intel_runtime_suspend(),
-		 * so it's ok to access the HW here without holding a RPM
-		 * wake reference -> disable wakeref asserts for the time of
-		 * the access.
 		 */
-		disable_rpm_wakeref_asserts(dev_priv);
 		intel_uncore_forcewake_get(dev_priv, FORCEWAKE_ALL);
-		enable_rpm_wakeref_asserts(dev_priv);
 		break;
 	case MBI_PMIC_BUS_ACCESS_END:
 		intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
@@ -1510,6 +1497,7 @@ static int gen6_reset_engines(struct drm_i915_private *dev_priv,
 		[VECS] = GEN6_GRDOM_VECS,
 	};
 	u32 hw_mask;
+	int ret;
 
 	if (engine_mask == ALL_ENGINES) {
 		hw_mask = GEN6_GRDOM_FULL;
@@ -1521,7 +1509,11 @@ static int gen6_reset_engines(struct drm_i915_private *dev_priv,
 			hw_mask |= hw_engine_mask[engine->id];
 	}
 
-	return gen6_hw_domain_reset(dev_priv, hw_mask);
+	ret = gen6_hw_domain_reset(dev_priv, hw_mask);
+
+	intel_uncore_forcewake_reset(dev_priv, true);
+
+	return ret;
 }
 
 /**
@@ -1725,17 +1717,6 @@ int intel_gpu_reset(struct drm_i915_private *dev_priv, unsigned engine_mask)
 bool intel_has_gpu_reset(struct drm_i915_private *dev_priv)
 {
 	return intel_get_gpu_reset(dev_priv) != NULL;
-}
-
-/*
- * When GuC submission is enabled, GuC manages ELSP and can initiate the
- * engine reset too. For now, fall back to full GPU reset if it is enabled.
- */
-bool intel_has_reset_engine(struct drm_i915_private *dev_priv)
-{
-	return (dev_priv->info.has_reset_engine &&
-		!dev_priv->guc.execbuf_client &&
-		i915.reset >= 2);
 }
 
 int intel_guc_reset(struct drm_i915_private *dev_priv)

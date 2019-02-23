@@ -592,95 +592,95 @@ void ODM_CmnInfoHook(PDM_ODM_T pDM_Odm, ODM_CMNINFO_E CmnInfo, void *pValue)
 	/*  Dynamic call by reference pointer. */
 	/*  */
 	case ODM_CMNINFO_MAC_PHY_MODE:
-		pDM_Odm->pMacPhyMode = pValue;
+		pDM_Odm->pMacPhyMode = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_TX_UNI:
-		pDM_Odm->pNumTxBytesUnicast = pValue;
+		pDM_Odm->pNumTxBytesUnicast = (u64 *)pValue;
 		break;
 
 	case ODM_CMNINFO_RX_UNI:
-		pDM_Odm->pNumRxBytesUnicast = pValue;
+		pDM_Odm->pNumRxBytesUnicast = (u64 *)pValue;
 		break;
 
 	case ODM_CMNINFO_WM_MODE:
-		pDM_Odm->pwirelessmode = pValue;
+		pDM_Odm->pwirelessmode = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_BAND:
-		pDM_Odm->pBandType = pValue;
+		pDM_Odm->pBandType = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_SEC_CHNL_OFFSET:
-		pDM_Odm->pSecChOffset = pValue;
+		pDM_Odm->pSecChOffset = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_SEC_MODE:
-		pDM_Odm->pSecurity = pValue;
+		pDM_Odm->pSecurity = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_BW:
-		pDM_Odm->pBandWidth = pValue;
+		pDM_Odm->pBandWidth = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_CHNL:
-		pDM_Odm->pChannel = pValue;
+		pDM_Odm->pChannel = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_DMSP_GET_VALUE:
-		pDM_Odm->pbGetValueFromOtherMac = pValue;
+		pDM_Odm->pbGetValueFromOtherMac = (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_BUDDY_ADAPTOR:
-		pDM_Odm->pBuddyAdapter = pValue;
+		pDM_Odm->pBuddyAdapter = (struct adapter **)pValue;
 		break;
 
 	case ODM_CMNINFO_DMSP_IS_MASTER:
-		pDM_Odm->pbMasterOfDMSP = pValue;
+		pDM_Odm->pbMasterOfDMSP = (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_SCAN:
-		pDM_Odm->pbScanInProcess = pValue;
+		pDM_Odm->pbScanInProcess = (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_POWER_SAVING:
-		pDM_Odm->pbPowerSaving = pValue;
+		pDM_Odm->pbPowerSaving = (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_ONE_PATH_CCA:
-		pDM_Odm->pOnePathCCA = pValue;
+		pDM_Odm->pOnePathCCA = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_DRV_STOP:
-		pDM_Odm->pbDriverStopped =  pValue;
+		pDM_Odm->pbDriverStopped =  (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_PNP_IN:
-		pDM_Odm->pbDriverIsGoingToPnpSetPowerSleep =  pValue;
+		pDM_Odm->pbDriverIsGoingToPnpSetPowerSleep =  (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_INIT_ON:
-		pDM_Odm->pinit_adpt_in_progress =  pValue;
+		pDM_Odm->pinit_adpt_in_progress =  (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_ANT_TEST:
-		pDM_Odm->pAntennaTest =  pValue;
+		pDM_Odm->pAntennaTest =  (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_NET_CLOSED:
-		pDM_Odm->pbNet_closed = pValue;
+		pDM_Odm->pbNet_closed = (bool *)pValue;
 		break;
 
 	case ODM_CMNINFO_FORCED_RATE:
-		pDM_Odm->pForcedDataRate = pValue;
+		pDM_Odm->pForcedDataRate = (u16 *)pValue;
 		break;
 
 	case ODM_CMNINFO_FORCED_IGI_LB:
-		pDM_Odm->pu1ForcedIgiLb = pValue;
+		pDM_Odm->pu1ForcedIgiLb = (u8 *)pValue;
 		break;
 
 	case ODM_CMNINFO_MP_MODE:
-		pDM_Odm->mp_mode = pValue;
+		pDM_Odm->mp_mode = (u8 *)pValue;
 		break;
 
 	/* case ODM_CMNINFO_RTSTA_AID: */

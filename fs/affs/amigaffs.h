@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef AMIGAFFS_H
 #define AMIGAFFS_H
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * arch/h8300/asm/include/flat.h -- uClinux flat-format executables
  */

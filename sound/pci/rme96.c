@@ -384,7 +384,7 @@ snd_rme96_capture_copy_kernel(struct snd_pcm_substream *substream,
 /*
  * Digital output capabilities (S/PDIF)
  */
-static const struct snd_pcm_hardware snd_rme96_playback_spdif_info =
+static struct snd_pcm_hardware snd_rme96_playback_spdif_info =
 {
 	.info =		     (SNDRV_PCM_INFO_MMAP_IOMEM |
 			      SNDRV_PCM_INFO_MMAP_VALID |
@@ -415,7 +415,7 @@ static const struct snd_pcm_hardware snd_rme96_playback_spdif_info =
 /*
  * Digital input capabilities (S/PDIF)
  */
-static const struct snd_pcm_hardware snd_rme96_capture_spdif_info =
+static struct snd_pcm_hardware snd_rme96_capture_spdif_info =
 {
 	.info =		     (SNDRV_PCM_INFO_MMAP_IOMEM |
 			      SNDRV_PCM_INFO_MMAP_VALID |
@@ -446,7 +446,7 @@ static const struct snd_pcm_hardware snd_rme96_capture_spdif_info =
 /*
  * Digital output capabilities (ADAT)
  */
-static const struct snd_pcm_hardware snd_rme96_playback_adat_info =
+static struct snd_pcm_hardware snd_rme96_playback_adat_info =
 {
 	.info =		     (SNDRV_PCM_INFO_MMAP_IOMEM |
 			      SNDRV_PCM_INFO_MMAP_VALID |
@@ -473,7 +473,7 @@ static const struct snd_pcm_hardware snd_rme96_playback_adat_info =
 /*
  * Digital input capabilities (ADAT)
  */
-static const struct snd_pcm_hardware snd_rme96_capture_adat_info =
+static struct snd_pcm_hardware snd_rme96_capture_adat_info =
 {
 	.info =		     (SNDRV_PCM_INFO_MMAP_IOMEM |
 			      SNDRV_PCM_INFO_MMAP_VALID |
@@ -1199,7 +1199,7 @@ snd_rme96_playback_spdif_open(struct snd_pcm_substream *substream)
 
 	snd_pcm_set_sync(substream);
 	spin_lock_irq(&rme96->lock);	
-	if (rme96->playback_substream) {
+        if (rme96->playback_substream != NULL) {
 		spin_unlock_irq(&rme96->lock);
                 return -EBUSY;
         }
@@ -1248,7 +1248,7 @@ snd_rme96_capture_spdif_open(struct snd_pcm_substream *substream)
         }
         
 	spin_lock_irq(&rme96->lock);
-	if (rme96->capture_substream) {
+        if (rme96->capture_substream != NULL) {
 		spin_unlock_irq(&rme96->lock);
                 return -EBUSY;
         }
@@ -1268,7 +1268,7 @@ snd_rme96_playback_adat_open(struct snd_pcm_substream *substream)
 	
 	snd_pcm_set_sync(substream);
 	spin_lock_irq(&rme96->lock);	
-	if (rme96->playback_substream) {
+        if (rme96->playback_substream != NULL) {
 		spin_unlock_irq(&rme96->lock);
                 return -EBUSY;
         }
@@ -1315,7 +1315,7 @@ snd_rme96_capture_adat_open(struct snd_pcm_substream *substream)
         }
         
 	spin_lock_irq(&rme96->lock);	
-	if (rme96->capture_substream) {
+        if (rme96->capture_substream != NULL) {
 		spin_unlock_irq(&rme96->lock);
                 return -EBUSY;
         }
@@ -1578,9 +1578,9 @@ snd_rme96_free(void *private_data)
 {
 	struct rme96 *rme96 = (struct rme96 *)private_data;
 
-	if (!rme96)
+	if (rme96 == NULL) {
 	        return;
-
+	}
 	if (rme96->irq >= 0) {
 		snd_rme96_trigger(rme96, RME96_STOP_BOTH);
 		rme96->areg &= ~RME96_AR_DAC_EN;
@@ -2481,20 +2481,25 @@ snd_rme96_probe(struct pci_dev *pci,
 	rme96 = card->private_data;
 	rme96->card = card;
 	rme96->pci = pci;
-	err = snd_rme96_create(rme96);
-	if (err)
-		goto free_card;
+	if ((err = snd_rme96_create(rme96)) < 0) {
+		snd_card_free(card);
+		return err;
+	}
 	
 #ifdef CONFIG_PM_SLEEP
 	rme96->playback_suspend_buffer = vmalloc(RME96_BUFFER_SIZE);
 	if (!rme96->playback_suspend_buffer) {
-		err = -ENOMEM;
-		goto free_card;
+		dev_err(card->dev,
+			   "Failed to allocate playback suspend buffer!\n");
+		snd_card_free(card);
+		return -ENOMEM;
 	}
 	rme96->capture_suspend_buffer = vmalloc(RME96_BUFFER_SIZE);
 	if (!rme96->capture_suspend_buffer) {
-		err = -ENOMEM;
-		goto free_card;
+		dev_err(card->dev,
+			   "Failed to allocate capture suspend buffer!\n");
+		snd_card_free(card);
+		return -ENOMEM;
 	}
 #endif
 
@@ -2520,16 +2525,14 @@ snd_rme96_probe(struct pci_dev *pci,
 	}
 	sprintf(card->longname, "%s at 0x%lx, irq %d", card->shortname,
 		rme96->port, rme96->irq);
-	err = snd_card_register(card);
-	if (err)
-		goto free_card;
-
+	
+	if ((err = snd_card_register(card)) < 0) {
+		snd_card_free(card);
+		return err;	
+	}
 	pci_set_drvdata(pci, card);
 	dev++;
 	return 0;
-free_card:
-	snd_card_free(card);
-	return err;
 }
 
 static void snd_rme96_remove(struct pci_dev *pci)

@@ -23,7 +23,9 @@
  *
  */
 
-#include <linux/bitmap.h>
+
+
+
 
 #include "platform.h"
 #include "di_defs.h"
@@ -33,8 +35,18 @@
 #include "mdm_msg.h"
 #include "divasync.h"
 
+
+
 #define FILE_ "MESSAGE.C"
 #define dprintf
+
+
+
+
+
+
+
+
 
 /*------------------------------------------------------------------*/
 /* This is options supported for all adapters that are server by    */
@@ -60,6 +72,9 @@ static dword diva_xdi_extended_features = 0;
 /*------------------------------------------------------------------*/
 
 static void group_optimization(DIVA_CAPI_ADAPTER *a, PLCI *plci);
+static void set_group_ind_mask(PLCI *plci);
+static void clear_group_ind_mask_bit(PLCI *plci, word b);
+static byte test_group_ind_mask_bit(PLCI *plci, word b);
 void AutomaticLaw(DIVA_CAPI_ADAPTER *);
 word CapiRelease(word);
 word CapiRegister(word);
@@ -1072,6 +1087,106 @@ static void plci_remove(PLCI *plci)
 }
 
 /*------------------------------------------------------------------*/
+/* Application Group function helpers                               */
+/*------------------------------------------------------------------*/
+
+static void set_group_ind_mask(PLCI *plci)
+{
+	word i;
+
+	for (i = 0; i < C_IND_MASK_DWORDS; i++)
+		plci->group_optimization_mask_table[i] = 0xffffffffL;
+}
+
+static void clear_group_ind_mask_bit(PLCI *plci, word b)
+{
+	plci->group_optimization_mask_table[b >> 5] &= ~(1L << (b & 0x1f));
+}
+
+static byte test_group_ind_mask_bit(PLCI *plci, word b)
+{
+	return ((plci->group_optimization_mask_table[b >> 5] & (1L << (b & 0x1f))) != 0);
+}
+
+/*------------------------------------------------------------------*/
+/* c_ind_mask operations for arbitrary MAX_APPL                     */
+/*------------------------------------------------------------------*/
+
+static void clear_c_ind_mask(PLCI *plci)
+{
+	word i;
+
+	for (i = 0; i < C_IND_MASK_DWORDS; i++)
+		plci->c_ind_mask_table[i] = 0;
+}
+
+static byte c_ind_mask_empty(PLCI *plci)
+{
+	word i;
+
+	i = 0;
+	while ((i < C_IND_MASK_DWORDS) && (plci->c_ind_mask_table[i] == 0))
+		i++;
+	return (i == C_IND_MASK_DWORDS);
+}
+
+static void set_c_ind_mask_bit(PLCI *plci, word b)
+{
+	plci->c_ind_mask_table[b >> 5] |= (1L << (b & 0x1f));
+}
+
+static void clear_c_ind_mask_bit(PLCI *plci, word b)
+{
+	plci->c_ind_mask_table[b >> 5] &= ~(1L << (b & 0x1f));
+}
+
+static byte test_c_ind_mask_bit(PLCI *plci, word b)
+{
+	return ((plci->c_ind_mask_table[b >> 5] & (1L << (b & 0x1f))) != 0);
+}
+
+static void dump_c_ind_mask(PLCI *plci)
+{
+	word i, j, k;
+	dword d;
+	char *p;
+	char buf[40];
+
+	for (i = 0; i < C_IND_MASK_DWORDS; i += 4)
+	{
+		p = buf + 36;
+		*p = '\0';
+		for (j = 0; j < 4; j++)
+		{
+			if (i + j < C_IND_MASK_DWORDS)
+			{
+				d = plci->c_ind_mask_table[i + j];
+				for (k = 0; k < 8; k++)
+				{
+					*(--p) = hex_asc_lo(d);
+					d >>= 4;
+				}
+			}
+			else if (i != 0)
+			{
+				for (k = 0; k < 8; k++)
+					*(--p) = ' ';
+			}
+			*(--p) = ' ';
+		}
+		dbug(1, dprintf("c_ind_mask =%s", (char *) p));
+	}
+}
+
+
+
+
+
+#define dump_plcis(a)
+
+
+
+/*------------------------------------------------------------------*/
 /* translation function for each message                            */
 /*------------------------------------------------------------------*/
 
@@ -1342,13 +1457,13 @@ static byte connect_res(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 		return 1;
 	}
 	else if (plci->State == INC_CON_PENDING || plci->State == INC_CON_ALERT) {
-		__clear_bit(appl->Id - 1, plci->c_ind_mask_table);
-		dbug(1, dprintf("c_ind_mask =%*pb", MAX_APPL, plci->c_ind_mask_table));
+		clear_c_ind_mask_bit(plci, (word)(appl->Id - 1));
+		dump_c_ind_mask(plci);
 		Reject = GET_WORD(parms[0].info);
 		dbug(1, dprintf("Reject=0x%x", Reject));
 		if (Reject)
 		{
-			if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL))
+			if (c_ind_mask_empty(plci))
 			{
 				if ((Reject & 0xff00) == 0x3400)
 				{
@@ -1438,8 +1553,11 @@ static byte connect_res(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 				sig_req(plci, CALL_RES, 0);
 			}
 
-			for_each_set_bit(i, plci->c_ind_mask_table, max_appl)
-				sendf(&application[i], _DISCONNECT_I, Id, 0, "w", _OTHER_APPL_CONNECTED);
+			for (i = 0; i < max_appl; i++) {
+				if (test_c_ind_mask_bit(plci, i)) {
+					sendf(&application[i], _DISCONNECT_I, Id, 0, "w", _OTHER_APPL_CONNECTED);
+				}
+			}
 		}
 	}
 	return 1;
@@ -1466,10 +1584,13 @@ static byte disconnect_req(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 	{
 		if (plci->State == INC_CON_PENDING || plci->State == INC_CON_ALERT)
 		{
-			__clear_bit(appl->Id - 1, plci->c_ind_mask_table);
+			clear_c_ind_mask_bit(plci, (word)(appl->Id - 1));
 			plci->appl = appl;
-			for_each_set_bit(i, plci->c_ind_mask_table, max_appl)
-				sendf(&application[i], _DISCONNECT_I, Id, 0, "w", 0);
+			for (i = 0; i < max_appl; i++)
+			{
+				if (test_c_ind_mask_bit(plci, i))
+					sendf(&application[i], _DISCONNECT_I, Id, 0, "w", 0);
+			}
 			plci->State = OUTG_DIS_PENDING;
 		}
 		if (plci->Sig.Id && plci->appl)
@@ -1513,7 +1634,7 @@ static byte disconnect_res(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 	{
 		/* clear ind mask bit, just in case of collsion of          */
 		/* DISCONNECT_IND and CONNECT_RES                           */
-		__clear_bit(appl->Id - 1, plci->c_ind_mask_table);
+		clear_c_ind_mask_bit(plci, (word)(appl->Id - 1));
 		ncci_free_receive_buffers(plci, 0);
 		if (plci_remove_check(plci))
 		{
@@ -1521,7 +1642,7 @@ static byte disconnect_res(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 		}
 		if (plci->State == INC_DIS_PENDING
 		    || plci->State == SUSPENDING) {
-			if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL)) {
+			if (c_ind_mask_empty(plci)) {
 				if (plci->State != SUSPENDING) plci->State = IDLE;
 				dbug(1, dprintf("chs=%d", plci->channels));
 				if (!plci->channels) {
@@ -3230,11 +3351,13 @@ static byte select_b_req(dword Id, word Number, DIVA_CAPI_ADAPTER *a,
 				}
 				plci->State = INC_CON_CONNECTED_ALERT;
 				plci->appl = appl;
-				__clear_bit(appl->Id - 1, plci->c_ind_mask_table);
-				dbug(1, dprintf("c_ind_mask =%*pb", MAX_APPL, plci->c_ind_mask_table));
-				/* disconnect the other appls its quasi a connect */
-				for_each_set_bit(i, plci->c_ind_mask_table, max_appl)
-					sendf(&application[i], _DISCONNECT_I, Id, 0, "w", _OTHER_APPL_CONNECTED);
+				clear_c_ind_mask_bit(plci, (word)(appl->Id - 1));
+				dump_c_ind_mask(plci);
+				for (i = 0; i < max_appl; i++) /* disconnect the other appls */
+				{                         /* its quasi a connect        */
+					if (test_c_ind_mask_bit(plci, i))
+						sendf(&application[i], _DISCONNECT_I, Id, 0, "w", _OTHER_APPL_CONNECTED);
+				}
 			}
 
 			api_save_msg(msg, "s", &plci->saved_msg);
@@ -5569,17 +5692,19 @@ static void sig_ind(PLCI *plci)
 		cip = find_cip(a, parms[4], parms[6]);
 		cip_mask = 1L << cip;
 		dbug(1, dprintf("cip=%d,cip_mask=%lx", cip, cip_mask));
-		bitmap_zero(plci->c_ind_mask_table, MAX_APPL);
+		clear_c_ind_mask(plci);
 		if (!remove_started && !a->adapter_disabled)
 		{
+			set_c_ind_mask_bit(plci, MAX_APPL);
 			group_optimization(a, plci);
-			for_each_set_bit(i, plci->group_optimization_mask_table, max_appl) {
+			for (i = 0; i < max_appl; i++) {
 				if (application[i].Id
 				    && (a->CIP_Mask[i] & 1 || a->CIP_Mask[i] & cip_mask)
-				    && CPN_filter_ok(parms[0], a, i)) {
+				    && CPN_filter_ok(parms[0], a, i)
+				    && test_group_ind_mask_bit(plci, i)) {
 					dbug(1, dprintf("storedcip_mask[%d]=0x%lx", i, a->CIP_Mask[i]));
-					__set_bit(i, plci->c_ind_mask_table);
-					dbug(1, dprintf("c_ind_mask =%*pb", MAX_APPL, plci->c_ind_mask_table));
+					set_c_ind_mask_bit(plci, i);
+					dump_c_ind_mask(plci);
 					plci->State = INC_CON_PENDING;
 					plci->call_dir = (plci->call_dir & ~(CALL_DIR_OUT | CALL_DIR_ORIGINATE)) |
 						CALL_DIR_IN | CALL_DIR_ANSWER;
@@ -5625,9 +5750,10 @@ static void sig_ind(PLCI *plci)
 						      SendMultiIE(plci, Id, multi_pi_parms, PI, 0x210, true));
 				}
 			}
-			dbug(1, dprintf("c_ind_mask =%*pb", MAX_APPL, plci->c_ind_mask_table));
+			clear_c_ind_mask_bit(plci, MAX_APPL);
+			dump_c_ind_mask(plci);
 		}
-		if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL)) {
+		if (c_ind_mask_empty(plci)) {
 			sig_req(plci, HANGUP, 0);
 			send_req(plci);
 			plci->State = IDLE;
@@ -5868,13 +5994,13 @@ static void sig_ind(PLCI *plci)
 		break;
 
 	case RESUME:
-		__clear_bit(plci->appl->Id - 1, plci->c_ind_mask_table);
+		clear_c_ind_mask_bit(plci, (word)(plci->appl->Id - 1));
 		PUT_WORD(&resume_cau[4], GOOD);
 		sendf(plci->appl, _FACILITY_I, Id, 0, "ws", (word)3, resume_cau);
 		break;
 
 	case SUSPEND:
-		bitmap_zero(plci->c_ind_mask_table, MAX_APPL);
+		clear_c_ind_mask(plci);
 
 		if (plci->NL.Id && !plci->nl_remove_id) {
 			mixer_remove(plci);
@@ -5911,12 +6037,15 @@ static void sig_ind(PLCI *plci)
 
 		if (plci->State == INC_CON_PENDING || plci->State == INC_CON_ALERT)
 		{
-			for_each_set_bit(i, plci->c_ind_mask_table, max_appl)
-				sendf(&application[i], _DISCONNECT_I, Id, 0, "w", 0);
+			for (i = 0; i < max_appl; i++)
+			{
+				if (test_c_ind_mask_bit(plci, i))
+					sendf(&application[i], _DISCONNECT_I, Id, 0, "w", 0);
+			}
 		}
 		else
 		{
-			bitmap_zero(plci->c_ind_mask_table, MAX_APPL);
+			clear_c_ind_mask(plci);
 		}
 		if (!plci->appl)
 		{
@@ -5926,7 +6055,7 @@ static void sig_ind(PLCI *plci)
 				a->listen_active--;
 			}
 			plci->State = INC_DIS_PENDING;
-			if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL))
+			if (c_ind_mask_empty(plci))
 			{
 				plci->State = IDLE;
 				if (plci->NL.Id && !plci->nl_remove_id)
@@ -6212,10 +6341,14 @@ static void SendInfo(PLCI *plci, dword Id, byte **parms, byte iesent)
 			    || Info_Number == DSP
 			    || Info_Number == UUI)
 			{
-				for_each_set_bit(j, plci->c_ind_mask_table, max_appl) {
-					dbug(1, dprintf("Ovl_Ind"));
-					iesent = true;
-					sendf(&application[j], _INFO_I, Id, 0, "wS", Info_Number, Info_Element);
+				for (j = 0; j < max_appl; j++)
+				{
+					if (test_c_ind_mask_bit(plci, j))
+					{
+						dbug(1, dprintf("Ovl_Ind"));
+						iesent = true;
+						sendf(&application[j], _INFO_I, Id, 0, "wS", Info_Number, Info_Element);
+					}
 				}
 			}
 		}               /* all other signalling states */
@@ -6283,10 +6416,14 @@ static byte SendMultiIE(PLCI *plci, dword Id, byte **parms, byte ie_type,
 		}
 		else if (!plci->appl && Info_Number)
 		{                                        /* overlap receiving broadcast */
-			for_each_set_bit(j, plci->c_ind_mask_table, max_appl) {
-				iesent = true;
-				dbug(1, dprintf("Mlt_Ovl_Ind"));
-				sendf(&application[j] , _INFO_I, Id, 0, "wS", Info_Number, Info_Element);
+			for (j = 0; j < max_appl; j++)
+			{
+				if (test_c_ind_mask_bit(plci, j))
+				{
+					iesent = true;
+					dbug(1, dprintf("Mlt_Ovl_Ind"));
+					sendf(&application[j] , _INFO_I, Id, 0, "wS", Info_Number, Info_Element);
+				}
 			}
 		}                                        /* all other signalling states */
 		else if (Info_Number
@@ -7133,6 +7270,7 @@ static word get_plci(DIVA_CAPI_ADAPTER *a)
 	word i, j;
 	PLCI *plci;
 
+	dump_plcis(a);
 	for (i = 0; i < a->max_plci && a->plci[i].Id; i++);
 	if (i == a->max_plci) {
 		dbug(1, dprintf("get_plci: out of PLCIs"));
@@ -7183,8 +7321,8 @@ static word get_plci(DIVA_CAPI_ADAPTER *a)
 
 	plci->ncci_ring_list = 0;
 	for (j = 0; j < MAX_CHANNELS_PER_PLCI; j++) plci->inc_dis_ncci_table[j] = 0;
-	bitmap_zero(plci->c_ind_mask_table, MAX_APPL);
-	bitmap_fill(plci->group_optimization_mask_table, MAX_APPL);
+	clear_c_ind_mask(plci);
+	set_group_ind_mask(plci);
 	plci->fax_connect_info_length = 0;
 	plci->nsf_control_bits = 0;
 	plci->ncpi_state = 0x00;
@@ -9235,10 +9373,10 @@ word CapiRelease(word Id)
 					if (plci->State == INC_CON_PENDING
 					    || plci->State == INC_CON_ALERT)
 					{
-						if (test_bit(Id - 1, plci->c_ind_mask_table))
+						if (test_c_ind_mask_bit(plci, (word)(Id - 1)))
 						{
-							__clear_bit(Id - 1, plci->c_ind_mask_table);
-							if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL))
+							clear_c_ind_mask_bit(plci, (word)(Id - 1));
+							if (c_ind_mask_empty(plci))
 							{
 								sig_req(plci, HANGUP, 0);
 								send_req(plci);
@@ -9246,10 +9384,10 @@ word CapiRelease(word Id)
 							}
 						}
 					}
-					if (test_bit(Id - 1, plci->c_ind_mask_table))
+					if (test_c_ind_mask_bit(plci, (word)(Id - 1)))
 					{
-						__clear_bit(Id - 1, plci->c_ind_mask_table);
-						if (bitmap_empty(plci->c_ind_mask_table, MAX_APPL))
+						clear_c_ind_mask_bit(plci, (word)(Id - 1));
+						if (c_ind_mask_empty(plci))
 						{
 							if (!plci->appl)
 							{
@@ -9314,7 +9452,7 @@ word CapiRelease(word Id)
 static word plci_remove_check(PLCI *plci)
 {
 	if (!plci) return true;
-	if (!plci->NL.Id && bitmap_empty(plci->c_ind_mask_table, MAX_APPL))
+	if (!plci->NL.Id && c_ind_mask_empty(plci))
 	{
 		if (plci->Sig.Id == 0xff)
 			plci->Sig.Id = 0;
@@ -14597,8 +14735,7 @@ static void group_optimization(DIVA_CAPI_ADAPTER *a, PLCI *plci)
 	word appl_number_group_type[MAX_APPL];
 	PLCI *auxplci;
 
-	/* all APPLs within this inc. call are allowed to dial in */
-	bitmap_fill(plci->group_optimization_mask_table, MAX_APPL);
+	set_group_ind_mask(plci); /* all APPLs within this inc. call are allowed to dial in */
 
 	if (!a->group_optimization_enabled)
 	{
@@ -14634,12 +14771,13 @@ static void group_optimization(DIVA_CAPI_ADAPTER *a, PLCI *plci)
 				if (a->plci[k].Id)
 				{
 					auxplci = &a->plci[k];
-					if (auxplci->appl == &application[i]) {
-						/* application has a busy PLCI */
+					if (auxplci->appl == &application[i]) /* application has a busy PLCI */
+					{
 						busy = true;
 						dbug(1, dprintf("Appl 0x%x is busy", i + 1));
-					} else if (test_bit(i, plci->c_ind_mask_table)) {
-						/* application has an incoming call pending */
+					}
+					else if (test_c_ind_mask_bit(auxplci, i)) /* application has an incoming call pending */
+					{
 						busy = true;
 						dbug(1, dprintf("Appl 0x%x has inc. call pending", i + 1));
 					}
@@ -14688,8 +14826,7 @@ static void group_optimization(DIVA_CAPI_ADAPTER *a, PLCI *plci)
 					if (appl_number_group_type[i] == appl_number_group_type[j])
 					{
 						dbug(1, dprintf("Appl 0x%x is member of group 0x%x, no call", j + 1, appl_number_group_type[j]));
-						/* disable call on other group members */
-						__clear_bit(j, plci->group_optimization_mask_table);
+						clear_group_ind_mask_bit(plci, j);           /* disable call on other group members */
 						appl_number_group_type[j] = 0;       /* remove disabled group member from group list */
 					}
 				}
@@ -14697,7 +14834,7 @@ static void group_optimization(DIVA_CAPI_ADAPTER *a, PLCI *plci)
 		}
 		else                                                 /* application should not get a call */
 		{
-			__clear_bit(i, plci->group_optimization_mask_table);
+			clear_group_ind_mask_bit(plci, i);
 		}
 	}
 

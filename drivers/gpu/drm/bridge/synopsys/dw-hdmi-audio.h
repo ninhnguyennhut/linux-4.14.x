@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DW_HDMI_AUDIO_H
 #define DW_HDMI_AUDIO_H
 

@@ -285,6 +285,35 @@ static const u8 device_channel_config[] = {
 };
 
 /**
+ * tsl2x7x_i2c_read() - Read a byte from a register.
+ * @client:	i2c client
+ * @reg:	device register to read from
+ * @*val:	pointer to location to store register contents.
+ *
+ */
+static int
+tsl2x7x_i2c_read(struct i2c_client *client, u8 reg, u8 *val)
+{
+	int ret;
+
+	/* select register to write */
+	ret = i2c_smbus_write_byte(client, (TSL2X7X_CMD_REG | reg));
+	if (ret < 0) {
+		dev_err(&client->dev, "failed to write register %x\n", reg);
+		return ret;
+	}
+
+	/* read the data */
+	ret = i2c_smbus_read_byte(client);
+	if (ret >= 0)
+		*val = (u8)ret;
+	else
+		dev_err(&client->dev, "failed to read register %x\n", reg);
+
+	return ret;
+}
+
+/**
  * tsl2x7x_get_lux() - Reads and calculates current lux value.
  * @indio_dev:	pointer to IIO device
  *
@@ -323,15 +352,15 @@ static int tsl2x7x_get_lux(struct iio_dev *indio_dev)
 		goto out_unlock;
 	}
 
-	ret = i2c_smbus_read_byte_data(chip->client,
-				       TSL2X7X_CMD_REG | TSL2X7X_STATUS);
+	ret = tsl2x7x_i2c_read(chip->client,
+			       (TSL2X7X_CMD_REG | TSL2X7X_STATUS), &buf[0]);
 	if (ret < 0) {
 		dev_err(&chip->client->dev,
 			"%s: Failed to read STATUS Reg\n", __func__);
 		goto out_unlock;
 	}
 	/* is data new & valid */
-	if (!(ret & TSL2X7X_STA_ADC_VALID)) {
+	if (!(buf[0] & TSL2X7X_STA_ADC_VALID)) {
 		dev_err(&chip->client->dev,
 			"%s: data not valid yet\n", __func__);
 		ret = chip->als_cur_info.lux; /* return LAST VALUE */
@@ -339,16 +368,14 @@ static int tsl2x7x_get_lux(struct iio_dev *indio_dev)
 	}
 
 	for (i = 0; i < 4; i++) {
-		int reg = TSL2X7X_CMD_REG | (TSL2X7X_ALS_CHAN0LO + i);
-
-		ret = i2c_smbus_read_byte_data(chip->client, reg);
+		ret = tsl2x7x_i2c_read(chip->client,
+				       (TSL2X7X_CMD_REG |
+				       (TSL2X7X_ALS_CHAN0LO + i)), &buf[i]);
 		if (ret < 0) {
 			dev_err(&chip->client->dev,
 				"failed to read. err=%x\n", ret);
 			goto out_unlock;
 		}
-
-		buf[i] = ret;
 	}
 
 	/* clear any existing interrupt status */
@@ -448,6 +475,7 @@ static int tsl2x7x_get_prox(struct iio_dev *indio_dev)
 {
 	int i;
 	int ret;
+	u8 status;
 	u8 chdata[2];
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
 
@@ -457,8 +485,8 @@ static int tsl2x7x_get_prox(struct iio_dev *indio_dev)
 		return -EBUSY;
 	}
 
-	ret = i2c_smbus_read_byte_data(chip->client,
-				       TSL2X7X_CMD_REG | TSL2X7X_STATUS);
+	ret = tsl2x7x_i2c_read(chip->client,
+			       (TSL2X7X_CMD_REG | TSL2X7X_STATUS), &status);
 	if (ret < 0) {
 		dev_err(&chip->client->dev, "i2c err=%d\n", ret);
 		goto prox_poll_err;
@@ -470,7 +498,7 @@ static int tsl2x7x_get_prox(struct iio_dev *indio_dev)
 	case tmd2671:
 	case tsl2771:
 	case tmd2771:
-		if (!(ret & TSL2X7X_STA_ADC_VALID))
+		if (!(status & TSL2X7X_STA_ADC_VALID))
 			goto prox_poll_err;
 	break;
 	case tsl2572:
@@ -478,19 +506,17 @@ static int tsl2x7x_get_prox(struct iio_dev *indio_dev)
 	case tmd2672:
 	case tsl2772:
 	case tmd2772:
-		if (!(ret & TSL2X7X_STA_PRX_VALID))
+		if (!(status & TSL2X7X_STA_PRX_VALID))
 			goto prox_poll_err;
 	break;
 	}
 
 	for (i = 0; i < 2; i++) {
-		int reg = TSL2X7X_CMD_REG | (TSL2X7X_PRX_LO + i);
-
-		ret = i2c_smbus_read_byte_data(chip->client, reg);
+		ret = tsl2x7x_i2c_read(chip->client,
+				       (TSL2X7X_CMD_REG |
+				       (TSL2X7X_PRX_LO + i)), &chdata[i]);
 		if (ret < 0)
 			goto prox_poll_err;
-
-		chdata[i] = ret;
 	}
 
 	chip->prox_data =
@@ -542,29 +568,39 @@ static void tsl2x7x_defaults(struct tsl2X7X_chip *chip)
 static int tsl2x7x_als_calibrate(struct iio_dev *indio_dev)
 {
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
+	u8 reg_val;
 	int gain_trim_val;
 	int ret;
 	int lux_val;
 
-	ret = i2c_smbus_read_byte_data(chip->client,
-				       TSL2X7X_CMD_REG | TSL2X7X_CNTRL);
+	ret = i2c_smbus_write_byte(chip->client,
+				   (TSL2X7X_CMD_REG | TSL2X7X_CNTRL));
 	if (ret < 0) {
 		dev_err(&chip->client->dev,
-			"%s: failed to read from the CNTRL register\n",
-			__func__);
+			"failed to write CNTRL register, ret=%d\n", ret);
 		return ret;
 	}
 
-	if ((ret & (TSL2X7X_CNTL_ADC_ENBL | TSL2X7X_CNTL_PWR_ON))
-			!= (TSL2X7X_CNTL_ADC_ENBL | TSL2X7X_CNTL_PWR_ON)) {
+	reg_val = i2c_smbus_read_byte(chip->client);
+	if ((reg_val & (TSL2X7X_CNTL_ADC_ENBL | TSL2X7X_CNTL_PWR_ON))
+		!= (TSL2X7X_CNTL_ADC_ENBL | TSL2X7X_CNTL_PWR_ON)) {
 		dev_err(&chip->client->dev,
-			"%s: Device is not powered on and/or ADC is not enabled\n",
-			__func__);
-		return -EINVAL;
-	} else if ((ret & TSL2X7X_STA_ADC_VALID) != TSL2X7X_STA_ADC_VALID) {
+			"%s: failed: ADC not enabled\n", __func__);
+		return -1;
+	}
+
+	ret = i2c_smbus_write_byte(chip->client,
+				   (TSL2X7X_CMD_REG | TSL2X7X_CNTRL));
+	if (ret < 0) {
 		dev_err(&chip->client->dev,
-			"%s: The two ADC channels have not completed an integration cycle\n",
-			__func__);
+			"failed to write ctrl reg: ret=%d\n", ret);
+		return ret;
+	}
+
+	reg_val = i2c_smbus_read_byte(chip->client);
+	if ((reg_val & TSL2X7X_STA_ADC_VALID) != TSL2X7X_STA_ADC_VALID) {
+		dev_err(&chip->client->dev,
+			"%s: failed: STATUS - ADC not valid.\n", __func__);
 		return -ENODATA;
 	}
 
@@ -686,8 +722,7 @@ static int tsl2x7x_chip_on(struct iio_dev *indio_dev)
 		}
 	}
 
-	/* Power-on settling time */
-	usleep_range(3000, 3500);
+	mdelay(3);	/* Power-on settling time */
 
 	/*
 	 * NOW enable the ADC
@@ -771,24 +806,22 @@ int tsl2x7x_invoke_change(struct iio_dev *indio_dev)
 {
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
 	int device_status = chip->tsl2x7x_chip_status;
-	int ret;
 
 	mutex_lock(&chip->als_mutex);
 	mutex_lock(&chip->prox_mutex);
 
-	if (device_status == TSL2X7X_CHIP_WORKING) {
-		ret = tsl2x7x_chip_off(indio_dev);
-		if (ret < 0)
-			goto unlock;
-	}
+	if (device_status == TSL2X7X_CHIP_WORKING)
+		tsl2x7x_chip_off(indio_dev);
 
-	ret = tsl2x7x_chip_on(indio_dev);
+	tsl2x7x_chip_on(indio_dev);
 
-unlock:
+	if (device_status != TSL2X7X_CHIP_WORKING)
+		tsl2x7x_chip_off(indio_dev);
+
 	mutex_unlock(&chip->prox_mutex);
 	mutex_unlock(&chip->als_mutex);
 
-	return ret;
+	return 0;
 }
 
 static
@@ -856,7 +889,7 @@ static void tsl2x7x_prox_cal(struct iio_dev *indio_dev)
 
 	/*gather the samples*/
 	for (i = 0; i < chip->tsl2x7x_settings.prox_max_samples_cal; i++) {
-		usleep_range(15000, 17500);
+		mdelay(15);
 		tsl2x7x_get_prox(indio_dev);
 		prox_history[i] = chip->prox_data;
 		dev_info(&chip->client->dev, "2 i=%d prox data= %d\n",
@@ -880,6 +913,33 @@ static void tsl2x7x_prox_cal(struct iio_dev *indio_dev)
 	chip->tsl2x7x_settings.interrupts_en = tmp_irq_settings;
 	if (current_state == TSL2X7X_CHIP_WORKING)
 		tsl2x7x_chip_on(indio_dev);
+}
+
+static ssize_t power_state_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct tsl2X7X_chip *chip = iio_priv(dev_to_iio_dev(dev));
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", chip->tsl2x7x_chip_status);
+}
+
+static ssize_t power_state_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t len)
+{
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	bool value;
+
+	if (strtobool(buf, &value))
+		return -EINVAL;
+
+	if (value)
+		tsl2x7x_chip_on(indio_dev);
+	else
+		tsl2x7x_chip_off(indio_dev);
+
+	return len;
 }
 
 static ssize_t in_illuminance0_calibscale_available_show(struct device *dev,
@@ -967,7 +1027,6 @@ static ssize_t in_illuminance0_target_input_store(struct device *dev,
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
 	unsigned long value;
-	int ret;
 
 	if (kstrtoul(buf, 0, &value))
 		return -EINVAL;
@@ -975,9 +1034,7 @@ static ssize_t in_illuminance0_target_input_store(struct device *dev,
 	if (value)
 		chip->tsl2x7x_settings.als_cal_target = value;
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return len;
 }
@@ -1026,9 +1083,7 @@ static ssize_t in_intensity0_thresh_period_store(struct device *dev,
 	dev_info(&chip->client->dev, "%s: als persistence = %d",
 		 __func__, filter_delay);
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return IIO_VAL_INT_PLUS_MICRO;
 }
@@ -1076,10 +1131,7 @@ static ssize_t in_proximity0_thresh_period_store(struct device *dev,
 	dev_info(&chip->client->dev, "%s: prox persistence = %d",
 		 __func__, filter_delay);
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
-
+	tsl2x7x_invoke_change(indio_dev);
 
 	return IIO_VAL_INT_PLUS_MICRO;
 }
@@ -1090,7 +1142,6 @@ static ssize_t in_illuminance0_calibrate_store(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	bool value;
-	int ret;
 
 	if (strtobool(buf, &value))
 		return -EINVAL;
@@ -1098,9 +1149,7 @@ static ssize_t in_illuminance0_calibrate_store(struct device *dev,
 	if (value)
 		tsl2x7x_als_calibrate(indio_dev);
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return len;
 }
@@ -1140,7 +1189,7 @@ static ssize_t in_illuminance0_lux_table_store(struct device *dev,
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
 	int value[ARRAY_SIZE(chip->tsl2x7x_device_lux) * 3 + 1];
-	int n, ret;
+	int n;
 
 	get_options(buf, ARRAY_SIZE(value), value);
 
@@ -1168,9 +1217,7 @@ static ssize_t in_illuminance0_lux_table_store(struct device *dev,
 	memset(chip->tsl2x7x_device_lux, 0, sizeof(chip->tsl2x7x_device_lux));
 	memcpy(chip->tsl2x7x_device_lux, &value[1], (value[0] * 4));
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return len;
 }
@@ -1181,7 +1228,6 @@ static ssize_t in_proximity0_calibrate_store(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	bool value;
-	int ret;
 
 	if (strtobool(buf, &value))
 		return -EINVAL;
@@ -1189,9 +1235,7 @@ static ssize_t in_proximity0_calibrate_store(struct device *dev,
 	if (value)
 		tsl2x7x_prox_cal(indio_dev);
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return len;
 }
@@ -1219,7 +1263,6 @@ static int tsl2x7x_write_interrupt_config(struct iio_dev *indio_dev,
 					  int val)
 {
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
-	int ret;
 
 	if (chan->type == IIO_INTENSITY) {
 		if (val)
@@ -1233,108 +1276,83 @@ static int tsl2x7x_write_interrupt_config(struct iio_dev *indio_dev,
 			chip->tsl2x7x_settings.interrupts_en &= 0x10;
 	}
 
-	ret = tsl2x7x_invoke_change(indio_dev);
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
 	return 0;
 }
 
-static int tsl2x7x_write_event_value(struct iio_dev *indio_dev,
-				     const struct iio_chan_spec *chan,
-				     enum iio_event_type type,
-				     enum iio_event_direction dir,
-				     enum iio_event_info info,
-				     int val, int val2)
+static int tsl2x7x_write_thresh(struct iio_dev *indio_dev,
+				const struct iio_chan_spec *chan,
+				enum iio_event_type type,
+				enum iio_event_direction dir,
+				enum iio_event_info info,
+				int val, int val2)
 {
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
-	int ret = -EINVAL;
 
-	switch (info) {
-	case IIO_EV_INFO_VALUE:
-		if (chan->type == IIO_INTENSITY) {
-			switch (dir) {
-			case IIO_EV_DIR_RISING:
-				chip->tsl2x7x_settings.als_thresh_high = val;
-				ret = 0;
-				break;
-			case IIO_EV_DIR_FALLING:
-				chip->tsl2x7x_settings.als_thresh_low = val;
-				ret = 0;
-				break;
-			default:
-				break;
-			}
-		} else {
-			switch (dir) {
-			case IIO_EV_DIR_RISING:
-				chip->tsl2x7x_settings.prox_thres_high = val;
-				ret = 0;
-				break;
-			case IIO_EV_DIR_FALLING:
-				chip->tsl2x7x_settings.prox_thres_low = val;
-				ret = 0;
-				break;
-			default:
-				break;
-			}
+	if (chan->type == IIO_INTENSITY) {
+		switch (dir) {
+		case IIO_EV_DIR_RISING:
+			chip->tsl2x7x_settings.als_thresh_high = val;
+			break;
+		case IIO_EV_DIR_FALLING:
+			chip->tsl2x7x_settings.als_thresh_low = val;
+			break;
+		default:
+			return -EINVAL;
 		}
-		break;
-	default:
-		break;
+	} else {
+		switch (dir) {
+		case IIO_EV_DIR_RISING:
+			chip->tsl2x7x_settings.prox_thres_high = val;
+			break;
+		case IIO_EV_DIR_FALLING:
+			chip->tsl2x7x_settings.prox_thres_low = val;
+			break;
+		default:
+			return -EINVAL;
+		}
 	}
 
-	if (ret < 0)
-		return ret;
+	tsl2x7x_invoke_change(indio_dev);
 
-	return tsl2x7x_invoke_change(indio_dev);
+	return 0;
 }
 
-static int tsl2x7x_read_event_value(struct iio_dev *indio_dev,
-				    const struct iio_chan_spec *chan,
-				    enum iio_event_type type,
-				    enum iio_event_direction dir,
-				    enum iio_event_info info,
-				    int *val, int *val2)
+static int tsl2x7x_read_thresh(struct iio_dev *indio_dev,
+			       const struct iio_chan_spec *chan,
+			       enum iio_event_type type,
+			       enum iio_event_direction dir,
+				   enum iio_event_info info,
+			       int *val, int *val2)
 {
 	struct tsl2X7X_chip *chip = iio_priv(indio_dev);
-	int ret = -EINVAL;
 
-	switch (info) {
-	case IIO_EV_INFO_VALUE:
-		if (chan->type == IIO_INTENSITY) {
-			switch (dir) {
-			case IIO_EV_DIR_RISING:
-				*val = chip->tsl2x7x_settings.als_thresh_high;
-				ret = IIO_VAL_INT;
-				break;
-			case IIO_EV_DIR_FALLING:
-				*val = chip->tsl2x7x_settings.als_thresh_low;
-				ret = IIO_VAL_INT;
-				break;
-			default:
-				break;
-			}
-		} else {
-			switch (dir) {
-			case IIO_EV_DIR_RISING:
-				*val = chip->tsl2x7x_settings.prox_thres_high;
-				ret = IIO_VAL_INT;
-				break;
-			case IIO_EV_DIR_FALLING:
-				*val = chip->tsl2x7x_settings.prox_thres_low;
-				ret = IIO_VAL_INT;
-				break;
-			default:
-				break;
-			}
+	if (chan->type == IIO_INTENSITY) {
+		switch (dir) {
+		case IIO_EV_DIR_RISING:
+			*val = chip->tsl2x7x_settings.als_thresh_high;
+			break;
+		case IIO_EV_DIR_FALLING:
+			*val = chip->tsl2x7x_settings.als_thresh_low;
+			break;
+		default:
+			return -EINVAL;
 		}
-		break;
-	default:
-		break;
+	} else {
+		switch (dir) {
+		case IIO_EV_DIR_RISING:
+			*val = chip->tsl2x7x_settings.prox_thres_high;
+			break;
+		case IIO_EV_DIR_FALLING:
+			*val = chip->tsl2x7x_settings.prox_thres_low;
+			break;
+		default:
+			return -EINVAL;
+		}
 	}
 
-	return ret;
+	return IIO_VAL_INT;
 }
 
 static int tsl2x7x_read_raw(struct iio_dev *indio_dev,
@@ -1471,8 +1489,12 @@ static int tsl2x7x_write_raw(struct iio_dev *indio_dev,
 		return -EINVAL;
 	}
 
-	return tsl2x7x_invoke_change(indio_dev);
+	tsl2x7x_invoke_change(indio_dev);
+
+	return 0;
 }
+
+static DEVICE_ATTR_RW(power_state);
 
 static DEVICE_ATTR_RO(in_proximity0_calibscale_available);
 
@@ -1493,7 +1515,7 @@ static DEVICE_ATTR_RW(in_intensity0_thresh_period);
 static DEVICE_ATTR_RW(in_proximity0_thresh_period);
 
 /* Use the default register values to identify the Taos device */
-static int tsl2x7x_device_id(int *id, int target)
+static int tsl2x7x_device_id(unsigned char *id, int target)
 {
 	switch (target) {
 	case tsl2571:
@@ -1558,6 +1580,7 @@ static irqreturn_t tsl2x7x_event_handler(int irq, void *private)
 }
 
 static struct attribute *tsl2x7x_ALS_device_attrs[] = {
+	&dev_attr_power_state.attr,
 	&dev_attr_in_illuminance0_calibscale_available.attr,
 	&dev_attr_in_illuminance0_integration_time.attr,
 	&iio_const_attr_in_illuminance0_integration_time_available.dev_attr.attr,
@@ -1568,11 +1591,13 @@ static struct attribute *tsl2x7x_ALS_device_attrs[] = {
 };
 
 static struct attribute *tsl2x7x_PRX_device_attrs[] = {
+	&dev_attr_power_state.attr,
 	&dev_attr_in_proximity0_calibrate.attr,
 	NULL
 };
 
 static struct attribute *tsl2x7x_ALSPRX_device_attrs[] = {
+	&dev_attr_power_state.attr,
 	&dev_attr_in_illuminance0_calibscale_available.attr,
 	&dev_attr_in_illuminance0_integration_time.attr,
 	&iio_const_attr_in_illuminance0_integration_time_available.dev_attr.attr,
@@ -1584,12 +1609,14 @@ static struct attribute *tsl2x7x_ALSPRX_device_attrs[] = {
 };
 
 static struct attribute *tsl2x7x_PRX2_device_attrs[] = {
+	&dev_attr_power_state.attr,
 	&dev_attr_in_proximity0_calibrate.attr,
 	&dev_attr_in_proximity0_calibscale_available.attr,
 	NULL
 };
 
 static struct attribute *tsl2x7x_ALSPRX2_device_attrs[] = {
+	&dev_attr_power_state.attr,
 	&dev_attr_in_illuminance0_calibscale_available.attr,
 	&dev_attr_in_illuminance0_integration_time.attr,
 	&iio_const_attr_in_illuminance0_integration_time_available.dev_attr.attr,
@@ -1657,8 +1684,8 @@ static const struct iio_info tsl2X7X_device_info[] = {
 		.driver_module = THIS_MODULE,
 		.read_raw = &tsl2x7x_read_raw,
 		.write_raw = &tsl2x7x_write_raw,
-		.read_event_value = &tsl2x7x_read_event_value,
-		.write_event_value = &tsl2x7x_write_event_value,
+		.read_event_value = &tsl2x7x_read_thresh,
+		.write_event_value = &tsl2x7x_write_thresh,
 		.read_event_config = &tsl2x7x_read_interrupt_config,
 		.write_event_config = &tsl2x7x_write_interrupt_config,
 	},
@@ -1668,8 +1695,8 @@ static const struct iio_info tsl2X7X_device_info[] = {
 		.driver_module = THIS_MODULE,
 		.read_raw = &tsl2x7x_read_raw,
 		.write_raw = &tsl2x7x_write_raw,
-		.read_event_value = &tsl2x7x_read_event_value,
-		.write_event_value = &tsl2x7x_write_event_value,
+		.read_event_value = &tsl2x7x_read_thresh,
+		.write_event_value = &tsl2x7x_write_thresh,
 		.read_event_config = &tsl2x7x_read_interrupt_config,
 		.write_event_config = &tsl2x7x_write_interrupt_config,
 	},
@@ -1679,8 +1706,8 @@ static const struct iio_info tsl2X7X_device_info[] = {
 		.driver_module = THIS_MODULE,
 		.read_raw = &tsl2x7x_read_raw,
 		.write_raw = &tsl2x7x_write_raw,
-		.read_event_value = &tsl2x7x_read_event_value,
-		.write_event_value = &tsl2x7x_write_event_value,
+		.read_event_value = &tsl2x7x_read_thresh,
+		.write_event_value = &tsl2x7x_write_thresh,
 		.read_event_config = &tsl2x7x_read_interrupt_config,
 		.write_event_config = &tsl2x7x_write_interrupt_config,
 	},
@@ -1690,8 +1717,8 @@ static const struct iio_info tsl2X7X_device_info[] = {
 		.driver_module = THIS_MODULE,
 		.read_raw = &tsl2x7x_read_raw,
 		.write_raw = &tsl2x7x_write_raw,
-		.read_event_value = &tsl2x7x_read_event_value,
-		.write_event_value = &tsl2x7x_write_event_value,
+		.read_event_value = &tsl2x7x_read_thresh,
+		.write_event_value = &tsl2x7x_write_thresh,
 		.read_event_config = &tsl2x7x_read_interrupt_config,
 		.write_event_config = &tsl2x7x_write_interrupt_config,
 	},
@@ -1701,8 +1728,8 @@ static const struct iio_info tsl2X7X_device_info[] = {
 		.driver_module = THIS_MODULE,
 		.read_raw = &tsl2x7x_read_raw,
 		.write_raw = &tsl2x7x_write_raw,
-		.read_event_value = &tsl2x7x_read_event_value,
-		.write_event_value = &tsl2x7x_write_event_value,
+		.read_event_value = &tsl2x7x_read_thresh,
+		.write_event_value = &tsl2x7x_write_thresh,
 		.read_event_config = &tsl2x7x_read_interrupt_config,
 		.write_event_config = &tsl2x7x_write_interrupt_config,
 	},
@@ -1850,6 +1877,7 @@ static int tsl2x7x_probe(struct i2c_client *clientp,
 			 const struct i2c_device_id *id)
 {
 	int ret;
+	unsigned char device_id;
 	struct iio_dev *indio_dev;
 	struct tsl2X7X_chip *chip;
 
@@ -1861,13 +1889,13 @@ static int tsl2x7x_probe(struct i2c_client *clientp,
 	chip->client = clientp;
 	i2c_set_clientdata(clientp, indio_dev);
 
-	ret = i2c_smbus_read_byte_data(chip->client,
-				       TSL2X7X_CMD_REG | TSL2X7X_CHIPID);
+	ret = tsl2x7x_i2c_read(chip->client,
+			       TSL2X7X_CHIPID, &device_id);
 	if (ret < 0)
 		return ret;
 
-	if ((!tsl2x7x_device_id(&ret, id->driver_data)) ||
-	    (tsl2x7x_device_id(&ret, id->driver_data) == -EINVAL)) {
+	if ((!tsl2x7x_device_id(&device_id, id->driver_data)) ||
+	    (tsl2x7x_device_id(&device_id, id->driver_data) == -EINVAL)) {
 		dev_info(&chip->client->dev,
 			 "%s: i2c device found does not match expected id\n",
 				__func__);
@@ -1998,21 +2026,6 @@ static struct i2c_device_id tsl2x7x_idtable[] = {
 
 MODULE_DEVICE_TABLE(i2c, tsl2x7x_idtable);
 
-static const struct of_device_id tsl2x7x_of_match[] = {
-	{ .compatible = "amstaos,tsl2571" },
-	{ .compatible = "amstaos,tsl2671" },
-	{ .compatible = "amstaos,tmd2671" },
-	{ .compatible = "amstaos,tsl2771" },
-	{ .compatible = "amstaos,tmd2771" },
-	{ .compatible = "amstaos,tsl2572" },
-	{ .compatible = "amstaos,tsl2672" },
-	{ .compatible = "amstaos,tmd2672" },
-	{ .compatible = "amstaos,tsl2772" },
-	{ .compatible = "amstaos,tmd2772" },
-	{}
-};
-MODULE_DEVICE_TABLE(of, tsl2x7x_of_match);
-
 static const struct dev_pm_ops tsl2x7x_pm_ops = {
 	.suspend = tsl2x7x_suspend,
 	.resume  = tsl2x7x_resume,
@@ -2022,7 +2035,6 @@ static const struct dev_pm_ops tsl2x7x_pm_ops = {
 static struct i2c_driver tsl2x7x_driver = {
 	.driver = {
 		.name = "tsl2x7x",
-		.of_match_table = tsl2x7x_of_match,
 		.pm = &tsl2x7x_pm_ops,
 	},
 	.id_table = tsl2x7x_idtable,

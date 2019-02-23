@@ -586,8 +586,10 @@ int rsnd_adg_probe(struct rsnd_priv *priv)
 	int ret;
 
 	adg = devm_kzalloc(dev, sizeof(*adg), GFP_KERNEL);
-	if (!adg)
+	if (!adg) {
+		dev_err(dev, "ADG allocate failed\n");
 		return -ENOMEM;
+	}
 
 	ret = rsnd_mod_init(priv, &adg->mod, &adg_ops,
 		      NULL, NULL, 0, 0);
@@ -608,13 +610,6 @@ void rsnd_adg_remove(struct rsnd_priv *priv)
 {
 	struct device *dev = rsnd_priv_to_dev(priv);
 	struct device_node *np = dev->of_node;
-	struct rsnd_adg *adg = priv->adg;
-	struct clk *clk;
-	int i;
-
-	for_each_rsnd_clkout(clk, adg, i)
-		if (adg->clkout[i])
-			clk_unregister_fixed_rate(adg->clkout[i]);
 
 	of_clk_del_provider(np);
 

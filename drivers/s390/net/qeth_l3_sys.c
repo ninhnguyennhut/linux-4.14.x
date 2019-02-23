@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *    Copyright IBM Corp. 2007
  *    Author(s): Utz Bacher <utz.bacher@de.ibm.com>,
@@ -351,7 +350,7 @@ static struct attribute *qeth_l3_device_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group qeth_l3_device_attr_group = {
+static struct attribute_group qeth_l3_device_attr_group = {
 	.attrs = qeth_l3_device_attrs,
 };
 
@@ -370,8 +369,8 @@ static ssize_t qeth_l3_dev_ipato_enable_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct qeth_card *card = dev_get_drvdata(dev);
-	bool enable;
-	int rc = 0;
+	struct qeth_ipaddr *addr;
+	int i, rc = 0;
 
 	if (!card)
 		return -EINVAL;
@@ -384,18 +383,25 @@ static ssize_t qeth_l3_dev_ipato_enable_store(struct device *dev,
 	}
 
 	if (sysfs_streq(buf, "toggle")) {
-		enable = !card->ipato.enabled;
-	} else if (kstrtobool(buf, &enable)) {
+		card->ipato.enabled = (card->ipato.enabled)? 0 : 1;
+	} else if (sysfs_streq(buf, "1")) {
+		card->ipato.enabled = 1;
+		hash_for_each(card->ip_htable, i, addr, hnode) {
+				if ((addr->type == QETH_IP_TYPE_NORMAL) &&
+				qeth_l3_is_addr_covered_by_ipato(card, addr))
+					addr->set_flags |=
+					QETH_IPA_SETIP_TAKEOVER_FLAG;
+			}
+	} else if (sysfs_streq(buf, "0")) {
+		card->ipato.enabled = 0;
+		hash_for_each(card->ip_htable, i, addr, hnode) {
+			if (addr->set_flags &
+			QETH_IPA_SETIP_TAKEOVER_FLAG)
+				addr->set_flags &=
+				~QETH_IPA_SETIP_TAKEOVER_FLAG;
+			}
+	} else
 		rc = -EINVAL;
-		goto out;
-	}
-
-	if (card->ipato.enabled != enable) {
-		card->ipato.enabled = enable;
-		spin_lock_bh(&card->ip_lock);
-		qeth_l3_update_ipato(card);
-		spin_unlock_bh(&card->ip_lock);
-	}
 out:
 	mutex_unlock(&card->conf_mutex);
 	return rc ? rc : count;
@@ -421,27 +427,20 @@ static ssize_t qeth_l3_dev_ipato_invert4_store(struct device *dev,
 				const char *buf, size_t count)
 {
 	struct qeth_card *card = dev_get_drvdata(dev);
-	bool invert;
 	int rc = 0;
 
 	if (!card)
 		return -EINVAL;
 
 	mutex_lock(&card->conf_mutex);
-	if (sysfs_streq(buf, "toggle")) {
-		invert = !card->ipato.invert4;
-	} else if (kstrtobool(buf, &invert)) {
+	if (sysfs_streq(buf, "toggle"))
+		card->ipato.invert4 = (card->ipato.invert4)? 0 : 1;
+	else if (sysfs_streq(buf, "1"))
+		card->ipato.invert4 = 1;
+	else if (sysfs_streq(buf, "0"))
+		card->ipato.invert4 = 0;
+	else
 		rc = -EINVAL;
-		goto out;
-	}
-
-	if (card->ipato.invert4 != invert) {
-		card->ipato.invert4 = invert;
-		spin_lock_bh(&card->ip_lock);
-		qeth_l3_update_ipato(card);
-		spin_unlock_bh(&card->ip_lock);
-	}
-out:
 	mutex_unlock(&card->conf_mutex);
 	return rc ? rc : count;
 }
@@ -607,27 +606,20 @@ static ssize_t qeth_l3_dev_ipato_invert6_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct qeth_card *card = dev_get_drvdata(dev);
-	bool invert;
 	int rc = 0;
 
 	if (!card)
 		return -EINVAL;
 
 	mutex_lock(&card->conf_mutex);
-	if (sysfs_streq(buf, "toggle")) {
-		invert = !card->ipato.invert6;
-	} else if (kstrtobool(buf, &invert)) {
+	if (sysfs_streq(buf, "toggle"))
+		card->ipato.invert6 = (card->ipato.invert6)? 0 : 1;
+	else if (sysfs_streq(buf, "1"))
+		card->ipato.invert6 = 1;
+	else if (sysfs_streq(buf, "0"))
+		card->ipato.invert6 = 0;
+	else
 		rc = -EINVAL;
-		goto out;
-	}
-
-	if (card->ipato.invert6 != invert) {
-		card->ipato.invert6 = invert;
-		spin_lock_bh(&card->ip_lock);
-		qeth_l3_update_ipato(card);
-		spin_unlock_bh(&card->ip_lock);
-	}
-out:
 	mutex_unlock(&card->conf_mutex);
 	return rc ? rc : count;
 }
@@ -688,7 +680,7 @@ static struct attribute *qeth_ipato_device_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group qeth_device_ipato_group = {
+static struct attribute_group qeth_device_ipato_group = {
 	.name = "ipa_takeover",
 	.attrs = qeth_ipato_device_attrs,
 };
@@ -851,7 +843,7 @@ static struct attribute *qeth_vipa_device_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group qeth_device_vipa_group = {
+static struct attribute_group qeth_device_vipa_group = {
 	.name = "vipa",
 	.attrs = qeth_vipa_device_attrs,
 };
@@ -903,26 +895,9 @@ static ssize_t qeth_l3_dev_rxip_add4_show(struct device *dev,
 static int qeth_l3_parse_rxipe(const char *buf, enum qeth_prot_versions proto,
 		 u8 *addr)
 {
-	__be32 ipv4_addr;
-	struct in6_addr ipv6_addr;
-
 	if (qeth_l3_string_to_ipaddr(buf, proto, addr)) {
 		return -EINVAL;
 	}
-	if (proto == QETH_PROT_IPV4) {
-		memcpy(&ipv4_addr, addr, sizeof(ipv4_addr));
-		if (ipv4_is_multicast(ipv4_addr)) {
-			QETH_DBF_MESSAGE(2, "multicast rxip not supported.\n");
-			return -EINVAL;
-		}
-	} else if (proto == QETH_PROT_IPV6) {
-		memcpy(&ipv6_addr, addr, sizeof(ipv6_addr));
-		if (ipv6_addr_is_multicast(&ipv6_addr)) {
-			QETH_DBF_MESSAGE(2, "multicast rxip not supported.\n");
-			return -EINVAL;
-		}
-	}
-
 	return 0;
 }
 
@@ -1031,7 +1006,7 @@ static struct attribute *qeth_rxip_device_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group qeth_device_rxip_group = {
+static struct attribute_group qeth_device_rxip_group = {
 	.name = "rxip",
 	.attrs = qeth_rxip_device_attrs,
 };

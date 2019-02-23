@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _VB_TABLE_
 #define _VB_TABLE_
 static const struct SiS_MCLKData XGI340New_MCLKData[] = {

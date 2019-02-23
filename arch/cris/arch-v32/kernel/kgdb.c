@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  arch/cris/arch-v32/kernel/kgdb.c
  *

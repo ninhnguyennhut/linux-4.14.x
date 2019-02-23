@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_MODULE_H
 #define _ASM_MODULE_H
 
@@ -115,6 +114,8 @@ search_module_dbetables(unsigned long addr)
 #define MODULE_PROC_FAMILY "R5432 "
 #elif defined CONFIG_CPU_R5500
 #define MODULE_PROC_FAMILY "R5500 "
+#elif defined CONFIG_CPU_R6000
+#define MODULE_PROC_FAMILY "R6000 "
 #elif defined CONFIG_CPU_NEVADA
 #define MODULE_PROC_FAMILY "NEVADA "
 #elif defined CONFIG_CPU_R8000

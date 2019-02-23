@@ -555,10 +555,7 @@ static void rxrpc_activate_one_channel(struct rxrpc_connection *conn,
 	trace_rxrpc_client(conn, channel, rxrpc_client_chan_activate);
 
 	write_lock_bh(&call->state_lock);
-	if (!test_bit(RXRPC_CALL_TX_LASTQ, &call->flags))
-		call->state = RXRPC_CALL_CLIENT_SEND_REQUEST;
-	else
-		call->state = RXRPC_CALL_CLIENT_AWAIT_REPLY;
+	call->state = RXRPC_CALL_CLIENT_SEND_REQUEST;
 	write_unlock_bh(&call->state_lock);
 
 	rxrpc_see_call(call);
@@ -691,23 +688,15 @@ int rxrpc_connect_call(struct rxrpc_call *call,
 
 	ret = rxrpc_get_client_conn(call, cp, srx, gfp);
 	if (ret < 0)
-		goto out;
+		return ret;
 
 	rxrpc_animate_client_conn(rxnet, call->conn);
 	rxrpc_activate_channels(call->conn);
 
 	ret = rxrpc_wait_for_channel(call, gfp);
-	if (ret < 0) {
+	if (ret < 0)
 		rxrpc_disconnect_client_call(call);
-		goto out;
-	}
 
-	spin_lock_bh(&call->conn->params.peer->lock);
-	hlist_add_head(&call->error_link,
-		       &call->conn->params.peer->error_targets);
-	spin_unlock_bh(&call->conn->params.peer->lock);
-
-out:
 	_leave(" = %d", ret);
 	return ret;
 }

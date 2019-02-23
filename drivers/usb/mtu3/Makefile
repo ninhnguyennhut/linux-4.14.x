@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 
 ccflags-$(CONFIG_USB_MTU3_DEBUG)	+= -DDEBUG
 

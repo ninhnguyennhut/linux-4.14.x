@@ -626,7 +626,7 @@ struct mlx4_mgm {
 };
 
 struct mlx4_cmd {
-	struct dma_pool	       *pool;
+	struct pci_pool	       *pool;
 	void __iomem	       *hcr;
 	struct mutex		slave_cmd_mutex;
 	struct semaphore	poll_sem;
@@ -807,8 +807,6 @@ struct mlx4_set_port_general_context {
 	u8 phv_en;
 	u8 reserved6[5];
 	__be16 user_mtu;
-	u16 reserved7;
-	u8 user_mac[6];
 };
 
 struct mlx4_set_port_rqp_calc_context {

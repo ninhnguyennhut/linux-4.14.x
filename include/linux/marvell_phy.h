@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _MARVELL_PHY_H
 #define _MARVELL_PHY_H
 

@@ -216,12 +216,12 @@ static bool faulty_make_request(struct mddev *mddev, struct bio *bio)
 	if (failit) {
 		struct bio *b = bio_clone_fast(bio, GFP_NOIO, mddev->bio_set);
 
-		bio_set_dev(b, conf->rdev->bdev);
+		b->bi_bdev = conf->rdev->bdev;
 		b->bi_private = bio;
 		b->bi_end_io = faulty_fail;
 		bio = b;
 	} else
-		bio_set_dev(bio, conf->rdev->bdev);
+		bio->bi_bdev = conf->rdev->bdev;
 
 	generic_make_request(bio);
 	return true;

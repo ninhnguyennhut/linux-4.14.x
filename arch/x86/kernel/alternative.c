@@ -344,12 +344,9 @@ done:
 static void __init_or_module noinline optimize_nops(struct alt_instr *a, u8 *instr)
 {
 	unsigned long flags;
-	int i;
 
-	for (i = 0; i < a->padlen; i++) {
-		if (instr[i] != 0x90)
-			return;
-	}
+	if (instr[0] != 0x90)
+		return;
 
 	local_irq_save(flags);
 	add_nops(instr + (a->instrlen - a->padlen), a->padlen);
@@ -745,16 +742,7 @@ static void *bp_int3_handler, *bp_int3_addr;
 
 int poke_int3_handler(struct pt_regs *regs)
 {
-	/*
-	 * Having observed our INT3 instruction, we now must observe
-	 * bp_patching_in_progress.
-	 *
-	 * 	in_progress = TRUE		INT3
-	 * 	WMB				RMB
-	 * 	write INT3			if (in_progress)
-	 *
-	 * Idem for bp_int3_handler.
-	 */
+	/* bp_patching_in_progress */
 	smp_rmb();
 
 	if (likely(!bp_patching_in_progress))
@@ -800,8 +788,9 @@ void *text_poke_bp(void *addr, const void *opcode, size_t len, void *handler)
 	bp_int3_addr = (u8 *)addr + sizeof(int3);
 	bp_patching_in_progress = true;
 	/*
-	 * Corresponding read barrier in int3 notifier for making sure the
-	 * in_progress and handler are correctly ordered wrt. patching.
+	 * Corresponding read barrier in int3 notifier for
+	 * making sure the in_progress flags is correctly ordered wrt.
+	 * patching
 	 */
 	smp_wmb();
 
@@ -826,11 +815,9 @@ void *text_poke_bp(void *addr, const void *opcode, size_t len, void *handler)
 	text_poke(addr, opcode, sizeof(int3));
 
 	on_each_cpu(do_sync_core, NULL, 1);
-	/*
-	 * sync_core() implies an smp_mb() and orders this store against
-	 * the writing of the new instruction.
-	 */
+
 	bp_patching_in_progress = false;
+	smp_wmb();
 
 	return addr;
 }

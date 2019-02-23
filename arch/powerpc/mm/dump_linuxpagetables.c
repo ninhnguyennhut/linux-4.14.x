@@ -350,7 +350,7 @@ static void note_page(struct pg_state *st, unsigned long addr,
 					  st->current_flags,
 					  pg_level[st->level].num);
 
-			seq_putc(st->seq, '\n');
+			seq_puts(st->seq, "\n");
 		}
 
 		/*

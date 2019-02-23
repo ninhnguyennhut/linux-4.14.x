@@ -1309,7 +1309,6 @@ static void xhci_complete_del_and_free_cmd(struct xhci_command *cmd, u32 status)
 void xhci_cleanup_command_queue(struct xhci_hcd *xhci)
 {
 	struct xhci_command *cur_cmd, *tmp_cmd;
-	xhci->current_cmd = NULL;
 	list_for_each_entry_safe(cur_cmd, tmp_cmd, &xhci->cmd_list, cmd_list)
 		xhci_complete_del_and_free_cmd(cur_cmd, COMP_COMMAND_ABORTED);
 }
@@ -1573,7 +1572,7 @@ static void handle_port_status(struct xhci_hcd *xhci,
 {
 	struct usb_hcd *hcd;
 	u32 port_id;
-	u32 portsc, cmd_reg;
+	u32 temp, temp1;
 	int max_ports;
 	int slot_id;
 	unsigned int faked_port_index;
@@ -1637,28 +1636,26 @@ static void handle_port_status(struct xhci_hcd *xhci,
 	/* Find the faked port hub number */
 	faked_port_index = find_faked_portnum_from_hw_portnum(hcd, xhci,
 			port_id);
-	portsc = readl(port_array[faked_port_index]);
 
-	trace_xhci_handle_port_status(faked_port_index, portsc);
-
+	temp = readl(port_array[faked_port_index]);
 	if (hcd->state == HC_STATE_SUSPENDED) {
 		xhci_dbg(xhci, "resume root hub\n");
 		usb_hcd_resume_root_hub(hcd);
 	}
 
-	if (hcd->speed >= HCD_USB3 && (portsc & PORT_PLS_MASK) == XDEV_INACTIVE)
+	if (hcd->speed >= HCD_USB3 && (temp & PORT_PLS_MASK) == XDEV_INACTIVE)
 		bus_state->port_remote_wakeup &= ~(1 << faked_port_index);
 
-	if ((portsc & PORT_PLC) && (portsc & PORT_PLS_MASK) == XDEV_RESUME) {
+	if ((temp & PORT_PLC) && (temp & PORT_PLS_MASK) == XDEV_RESUME) {
 		xhci_dbg(xhci, "port resume event for port %d\n", port_id);
 
-		cmd_reg = readl(&xhci->op_regs->command);
-		if (!(cmd_reg & CMD_RUN)) {
+		temp1 = readl(&xhci->op_regs->command);
+		if (!(temp1 & CMD_RUN)) {
 			xhci_warn(xhci, "xHC is not running.\n");
 			goto cleanup;
 		}
 
-		if (DEV_SUPERSPEED_ANY(portsc)) {
+		if (DEV_SUPERSPEED_ANY(temp)) {
 			xhci_dbg(xhci, "remote wake SS port %d\n", port_id);
 			/* Set a flag to say the port signaled remote wakeup,
 			 * so we can tell the difference between the end of
@@ -1686,8 +1683,8 @@ static void handle_port_status(struct xhci_hcd *xhci,
 		}
 	}
 
-	if ((portsc & PORT_PLC) && (portsc & PORT_PLS_MASK) == XDEV_U0 &&
-			DEV_SUPERSPEED_ANY(portsc)) {
+	if ((temp & PORT_PLC) && (temp & PORT_PLS_MASK) == XDEV_U0 &&
+			DEV_SUPERSPEED_ANY(temp)) {
 		xhci_dbg(xhci, "resume SS port %d finished\n", port_id);
 		/* We've just brought the device into U0 through either the
 		 * Resume state after a device remote wakeup, or through the
@@ -1717,7 +1714,7 @@ static void handle_port_status(struct xhci_hcd *xhci,
 	 * RExit to a disconnect state).  If so, let the the driver know it's
 	 * out of the RExit state.
 	 */
-	if (!DEV_SUPERSPEED_ANY(portsc) &&
+	if (!DEV_SUPERSPEED_ANY(temp) &&
 			test_and_clear_bit(faked_port_index,
 				&bus_state->rexit_ports)) {
 		complete(&bus_state->rexit_done[faked_port_index]);
@@ -2486,16 +2483,12 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		 */
 		if (list_empty(&ep_ring->td_list)) {
 			/*
-			 * Don't print wanings if it's due to a stopped endpoint
-			 * generating an extra completion event if the device
-			 * was suspended. Or, a event for the last TRB of a
-			 * short TD we already got a short event for.
-			 * The short TD is already removed from the TD list.
+			 * A stopped endpoint may generate an extra completion
+			 * event if the device was suspended.  Don't print
+			 * warnings.
 			 */
-
 			if (!(trb_comp_code == COMP_STOPPED ||
-			      trb_comp_code == COMP_STOPPED_LENGTH_INVALID ||
-			      ep_ring->last_td_was_short)) {
+				trb_comp_code == COMP_STOPPED_LENGTH_INVALID)) {
 				xhci_warn(xhci, "WARN Event TRB for slot %d ep %d with no TDs queued?\n",
 						TRB_TO_SLOT_ID(le32_to_cpu(event->flags)),
 						ep_index);
@@ -2584,21 +2577,15 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				(struct xhci_generic_trb *) ep_trb);
 
 		/*
-		 * No-op TRB could trigger interrupts in a case where
-		 * a URB was killed and a STALL_ERROR happens right
-		 * after the endpoint ring stopped. Reset the halted
-		 * endpoint. Otherwise, the endpoint remains stalled
-		 * indefinitely.
+		 * No-op TRB should not trigger interrupts.
+		 * If ep_trb is a no-op TRB, it means the
+		 * corresponding TD has been cancelled. Just ignore
+		 * the TD.
 		 */
 		if (trb_is_noop(ep_trb)) {
-			if (trb_comp_code == COMP_STALL_ERROR ||
-			    xhci_requires_manual_halt_cleanup(xhci, ep_ctx,
-							      trb_comp_code))
-				xhci_cleanup_halted_endpoint(xhci, slot_id,
-							     ep_index,
-							     ep_ring->stream_id,
-							     td, ep_trb,
-							     EP_HARD_RESET);
+			xhci_dbg(xhci,
+				 "ep_trb is a no-op TRB. Skip it for slot %u ep %u\n",
+				 slot_id, ep_index);
 			goto cleanup;
 		}
 
@@ -3121,7 +3108,7 @@ static u32 xhci_td_remainder(struct xhci_hcd *xhci, int transferred,
 {
 	u32 maxp, total_packet_count;
 
-	/* MTK xHCI 0.96 contains some features from 1.0 */
+	/* MTK xHCI is mostly 0.97 but contains some features from 1.0 */
 	if (xhci->hci_version < 0x100 && !(xhci->quirks & XHCI_MTK_HOST))
 		return ((td_total_len - transferred) >> 10);
 
@@ -3130,8 +3117,8 @@ static u32 xhci_td_remainder(struct xhci_hcd *xhci, int transferred,
 	    trb_buff_len == td_total_len)
 		return 0;
 
-	/* for MTK xHCI 0.96, TD size include this TRB, but not in 1.x */
-	if ((xhci->quirks & XHCI_MTK_HOST) && (xhci->hci_version < 0x100))
+	/* for MTK xHCI, TD size doesn't include this TRB */
+	if (xhci->quirks & XHCI_MTK_HOST)
 		trb_buff_len = 0;
 
 	maxp = usb_endpoint_maxp(&urb->ep->desc);

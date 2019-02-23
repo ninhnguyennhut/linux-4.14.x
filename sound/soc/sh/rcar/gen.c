@@ -406,8 +406,10 @@ int rsnd_gen_probe(struct rsnd_priv *priv)
 	int ret;
 
 	gen = devm_kzalloc(dev, sizeof(*gen), GFP_KERNEL);
-	if (!gen)
+	if (!gen) {
+		dev_err(dev, "GEN allocate failed\n");
 		return -ENOMEM;
+	}
 
 	priv->gen = gen;
 

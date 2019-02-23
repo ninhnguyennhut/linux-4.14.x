@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * A test for the patch "Allow compaction of unevictable pages".

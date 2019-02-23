@@ -31,7 +31,6 @@
  */
 
 #include <linux/platform_device.h>
-#include <linux/interrupt.h>
 #include "hns_roce_common.h"
 #include "hns_roce_device.h"
 #include "hns_roce_eq.h"
@@ -293,7 +292,7 @@ static int hns_roce_aeq_int(struct hns_roce_dev *hr_dev, struct hns_roce_eq *eq)
 			dev_warn(dev, "Unhandled event %d on EQ %d at index %u\n",
 				 event_type, eq->eqn, eq->cons_index);
 			break;
-		}
+		};
 
 		eq->cons_index++;
 		aeqes_found = 1;

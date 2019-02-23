@@ -41,7 +41,6 @@ static const struct of_device_id rcar_rst_matches[] __initconst = {
 	/* R-Car Gen3 is handled like R-Car Gen2 */
 	{ .compatible = "renesas,r8a7795-rst", .data = &rcar_rst_gen2 },
 	{ .compatible = "renesas,r8a7796-rst", .data = &rcar_rst_gen2 },
-	{ .compatible = "renesas,r8a77995-rst", .data = &rcar_rst_gen2 },
 	{ /* sentinel */ }
 };
 
@@ -62,7 +61,7 @@ static int __init rcar_rst_init(void)
 
 	base = of_iomap(np, 0);
 	if (!base) {
-		pr_warn("%pOF: Cannot map regs\n", np);
+		pr_warn("%s: Cannot map regs\n", np->full_name);
 		error = -ENOMEM;
 		goto out_put;
 	}
@@ -71,7 +70,7 @@ static int __init rcar_rst_init(void)
 	cfg = match->data;
 	saved_mode = ioread32(base + cfg->modemr);
 
-	pr_debug("%pOF: MODE = 0x%08x\n", np, saved_mode);
+	pr_debug("%s: MODE = 0x%08x\n", np->full_name, saved_mode);
 
 out_put:
 	of_node_put(np);

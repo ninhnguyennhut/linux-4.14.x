@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "clang.h"
 #include "clang-c.h"
 #include "llvm/IR/Function.h"

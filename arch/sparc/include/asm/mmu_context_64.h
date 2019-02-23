@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SPARC64_MMU_CONTEXT_H
 #define __SPARC64_MMU_CONTEXT_H
 
@@ -8,11 +7,9 @@
 
 #include <linux/spinlock.h>
 #include <linux/mm_types.h>
-#include <linux/smp.h>
 
 #include <asm/spitfire.h>
 #include <asm-generic/mm_hooks.h>
-#include <asm/percpu.h>
 
 static inline void enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk)
 {

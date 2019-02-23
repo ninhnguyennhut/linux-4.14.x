@@ -386,7 +386,7 @@ void __reiserfs_error(struct super_block *sb, const char *id,
 		printk(KERN_CRIT "REISERFS error (device %s): %s: %s\n",
 		       sb->s_id, function, error_buf);
 
-	if (sb_rdonly(sb))
+	if (sb->s_flags & MS_RDONLY)
 		return;
 
 	reiserfs_info(sb, "Remounting filesystem read-only\n");

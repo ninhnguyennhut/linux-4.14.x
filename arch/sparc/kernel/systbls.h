@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SYSTBLS_H
 #define _SYSTBLS_H
 

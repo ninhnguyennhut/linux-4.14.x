@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Defines for using and allocating dma channels. */
 
 #ifndef _ASM_ARCH_DMA_H

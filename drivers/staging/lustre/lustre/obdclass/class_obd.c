@@ -33,14 +33,14 @@
 #define DEBUG_SUBSYSTEM S_CLASS
 # include <linux/atomic.h>
 
-#include <obd_support.h>
-#include <obd_class.h>
-#include <uapi/linux/lnet/lnetctl.h>
-#include <lustre_debug.h>
-#include <lprocfs_status.h>
+#include "../include/obd_support.h"
+#include "../include/obd_class.h"
+#include "../../include/linux/lnet/lnetctl.h"
+#include "../include/lustre_debug.h"
+#include "../include/lprocfs_status.h"
 #include <linux/list.h>
-#include <cl_object.h>
-#include <uapi/linux/lustre/lustre_ioctl.h>
+#include "../include/cl_object.h"
+#include "../include/lustre/lustre_ioctl.h"
 #include "llog_internal.h"
 
 struct obd_device *obd_devs[MAX_OBD_DEVICES];
@@ -180,8 +180,7 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 			err = -ENOMEM;
 			goto out;
 		}
-		if (copy_from_user(lcfg, data->ioc_pbuf1, data->ioc_plen1))
-			err = -EFAULT;
+		err = copy_from_user(lcfg, data->ioc_pbuf1, data->ioc_plen1);
 		if (!err)
 			err = lustre_cfg_sanity_check(lcfg, data->ioc_plen1);
 		if (!err)
@@ -207,7 +206,8 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 		memcpy(data->ioc_bulk, LUSTRE_VERSION_STRING,
 		       strlen(LUSTRE_VERSION_STRING) + 1);
 
-		if (copy_to_user((void __user *)arg, data, len))
+		err = obd_ioctl_popdata((void __user *)arg, data, len);
+		if (err)
 			err = -EFAULT;
 		goto out;
 
@@ -225,7 +225,9 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 			goto out;
 		}
 
-		if (copy_to_user((void __user *)arg, data, sizeof(*data)))
+		err = obd_ioctl_popdata((void __user *)arg, data,
+					sizeof(*data));
+		if (err)
 			err = -EFAULT;
 		goto out;
 	}
@@ -261,8 +263,9 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 
 		CDEBUG(D_IOCTL, "device name %s, dev %d\n", data->ioc_inlbuf1,
 		       dev);
-
-		if (copy_to_user((void __user *)arg, data, sizeof(*data)))
+		err = obd_ioctl_popdata((void __user *)arg, data,
+					sizeof(*data));
+		if (err)
 			err = -EFAULT;
 		goto out;
 	}
@@ -301,9 +304,9 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 			 (int)index, status, obd->obd_type->typ_name,
 			 obd->obd_name, obd->obd_uuid.uuid,
 			 atomic_read(&obd->obd_refcount));
+		err = obd_ioctl_popdata((void __user *)arg, data, len);
 
-		if (copy_to_user((void __user *)arg, data, len))
-			err = -EFAULT;
+		err = 0;
 		goto out;
 	}
 	}
@@ -358,14 +361,16 @@ int class_handle_ioctl(unsigned int cmd, unsigned long arg)
 		if (err)
 			goto out;
 
-		if (copy_to_user((void __user *)arg, data, len))
+		err = obd_ioctl_popdata((void __user *)arg, data, len);
+		if (err)
 			err = -EFAULT;
 		goto out;
 	}
 	}
 
  out:
-	kvfree(buf);
+	if (buf)
+		obd_ioctl_freedata(buf, len);
 	return err;
 } /* class_handle_ioctl */
 
@@ -448,7 +453,7 @@ static int __init obdclass_init(void)
 	obd_zombie_impexp_init();
 
 	err = obd_init_checks();
-	if (err)
+	if (err == -EOVERFLOW)
 		return err;
 
 	class_init_uuidlist();

@@ -393,7 +393,7 @@ error_release:
 	return result;
 }
 
-static const struct parisc_device_id eisa_tbl[] __initconst = {
+static const struct parisc_device_id eisa_tbl[] = {
 	{ HPHW_BA, HVERSION_REV_ANY_ID, HVERSION_ANY_ID, 0x00076 }, /* Mongoose */
 	{ HPHW_BA, HVERSION_REV_ANY_ID, HVERSION_ANY_ID, 0x00090 }, /* Wax EISA */
 	{ 0, }
@@ -401,7 +401,7 @@ static const struct parisc_device_id eisa_tbl[] __initconst = {
 
 MODULE_DEVICE_TABLE(parisc, eisa_tbl);
 
-static struct parisc_driver eisa_driver __refdata = {
+static struct parisc_driver eisa_driver = {
 	.name =		"eisa_ba",
 	.id_table =	eisa_tbl,
 	.probe =	eisa_probe,

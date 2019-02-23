@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*!
  *  @file	wilc_wfi_cfgoperations.h
  *  @brief	Definitions for the network module

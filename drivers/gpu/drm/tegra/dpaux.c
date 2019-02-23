@@ -25,7 +25,6 @@
 
 #include "dpaux.h"
 #include "drm.h"
-#include "trace.h"
 
 static DEFINE_MUTEX(dpaux_lock);
 static LIST_HEAD(dpaux_list);
@@ -66,19 +65,14 @@ static inline struct tegra_dpaux *work_to_dpaux(struct work_struct *work)
 }
 
 static inline u32 tegra_dpaux_readl(struct tegra_dpaux *dpaux,
-				    unsigned int offset)
+				    unsigned long offset)
 {
-	u32 value = readl(dpaux->regs + (offset << 2));
-
-	trace_dpaux_readl(dpaux->dev, offset, value);
-
-	return value;
+	return readl(dpaux->regs + (offset << 2));
 }
 
 static inline void tegra_dpaux_writel(struct tegra_dpaux *dpaux,
-				      u32 value, unsigned int offset)
+				      u32 value, unsigned long offset)
 {
-	trace_dpaux_writel(dpaux->dev, offset, value);
 	writel(value, dpaux->regs + (offset << 2));
 }
 

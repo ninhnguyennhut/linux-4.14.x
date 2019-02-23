@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: ((GPL-2.0+ WITH Linux-syscall-note) OR BSD-3-Clause) */
 /*
  *  Video for Linux Two controls header file
  *

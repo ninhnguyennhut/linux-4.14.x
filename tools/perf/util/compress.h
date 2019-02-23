@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef PERF_COMPRESS_H
 #define PERF_COMPRESS_H
 

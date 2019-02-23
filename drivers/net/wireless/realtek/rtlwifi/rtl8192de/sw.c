@@ -183,8 +183,6 @@ static int rtl92d_init_sw_vars(struct ieee80211_hw *hw)
 				      rtl_fw_cb);
 	if (err) {
 		pr_err("Failed to request firmware!\n");
-		vfree(rtlpriv->rtlhal.pfirmware);
-		rtlpriv->rtlhal.pfirmware = NULL;
 		return 1;
 	}
 
@@ -349,7 +347,7 @@ static const struct rtl_hal_cfg rtl92de_hal_cfg = {
 	.maps[RTL_RC_HT_RATEMCS15] = DESC_RATEMCS15,
 };
 
-static const struct pci_device_id rtl92de_pci_ids[] = {
+static struct pci_device_id rtl92de_pci_ids[] = {
 	{RTL_PCI_DEVICE(PCI_VENDOR_ID_REALTEK, 0x8193, rtl92de_hal_cfg)},
 	{RTL_PCI_DEVICE(PCI_VENDOR_ID_REALTEK, 0x002B, rtl92de_hal_cfg)},
 	{},

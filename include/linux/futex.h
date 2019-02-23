@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_FUTEX_H
 #define _LINUX_FUTEX_H
 
@@ -55,6 +54,7 @@ union futex_key {
 
 #ifdef CONFIG_FUTEX
 extern void exit_robust_list(struct task_struct *curr);
+extern void exit_pi_state_list(struct task_struct *curr);
 #ifdef CONFIG_HAVE_FUTEX_CMPXCHG
 #define futex_cmpxchg_enabled 1
 #else
@@ -64,14 +64,8 @@ extern int futex_cmpxchg_enabled;
 static inline void exit_robust_list(struct task_struct *curr)
 {
 }
-#endif
-
-#ifdef CONFIG_FUTEX_PI
-extern void exit_pi_state_list(struct task_struct *curr);
-#else
 static inline void exit_pi_state_list(struct task_struct *curr)
 {
 }
 #endif
-
 #endif

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _TPM_DEV_H
 #define _TPM_DEV_H
 

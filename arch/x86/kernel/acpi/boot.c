@@ -115,24 +115,24 @@ static u32 isa_irq_to_gsi[NR_IRQS_LEGACY] __read_mostly = {
 #define	ACPI_INVALID_GSI		INT_MIN
 
 /*
- * This is just a simple wrapper around early_memremap(),
+ * This is just a simple wrapper around early_ioremap(),
  * with sanity checks for phys == 0 and size == 0.
  */
-void __init __iomem *__acpi_map_table(unsigned long phys, unsigned long size)
+char *__init __acpi_map_table(unsigned long phys, unsigned long size)
 {
 
 	if (!phys || !size)
 		return NULL;
 
-	return early_memremap(phys, size);
+	return early_ioremap(phys, size);
 }
 
-void __init __acpi_unmap_table(void __iomem *map, unsigned long size)
+void __init __acpi_unmap_table(char *map, unsigned long size)
 {
 	if (!map || !size)
 		return;
 
-	early_memunmap(map, size);
+	early_iounmap(map, size);
 }
 
 #ifdef CONFIG_X86_LOCAL_APIC
@@ -199,10 +199,8 @@ static int __init
 acpi_parse_x2apic(struct acpi_subtable_header *header, const unsigned long end)
 {
 	struct acpi_madt_local_x2apic *processor = NULL;
-#ifdef CONFIG_X86_X2APIC
 	int apic_id;
 	u8 enabled;
-#endif
 
 	processor = (struct acpi_madt_local_x2apic *)header;
 
@@ -211,10 +209,9 @@ acpi_parse_x2apic(struct acpi_subtable_header *header, const unsigned long end)
 
 	acpi_table_print_madt_entry(header);
 
-#ifdef CONFIG_X86_X2APIC
 	apic_id = processor->local_apic_id;
 	enabled = processor->lapic_flags & ACPI_MADT_ENABLED;
-
+#ifdef CONFIG_X86_X2APIC
 	/*
 	 * We need to register disabled CPU as well to permit
 	 * counting disabled CPUs. This allows us to size
@@ -342,12 +339,13 @@ acpi_parse_lapic_nmi(struct acpi_subtable_header * header, const unsigned long e
 #ifdef CONFIG_X86_IO_APIC
 #define MP_ISA_BUS		0
 
-static int __init mp_register_ioapic_irq(u8 bus_irq, u8 polarity,
-						u8 trigger, u32 gsi);
-
 static void __init mp_override_legacy_irq(u8 bus_irq, u8 polarity, u8 trigger,
 					  u32 gsi)
 {
+	int ioapic;
+	int pin;
+	struct mpc_intsrc mp_irq;
+
 	/*
 	 * Check bus_irq boundary.
 	 */
@@ -357,6 +355,14 @@ static void __init mp_override_legacy_irq(u8 bus_irq, u8 polarity, u8 trigger,
 	}
 
 	/*
+	 * Convert 'gsi' to 'ioapic.pin'.
+	 */
+	ioapic = mp_find_ioapic(gsi);
+	if (ioapic < 0)
+		return;
+	pin = mp_find_ioapic_pin(ioapic, gsi);
+
+	/*
 	 * TBD: This check is for faulty timer entries, where the override
 	 *      erroneously sets the trigger to level, resulting in a HUGE
 	 *      increase of timer interrupts!
@@ -364,8 +370,16 @@ static void __init mp_override_legacy_irq(u8 bus_irq, u8 polarity, u8 trigger,
 	if ((bus_irq == 0) && (trigger == 3))
 		trigger = 1;
 
-	if (mp_register_ioapic_irq(bus_irq, polarity, trigger, gsi) < 0)
-		return;
+	mp_irq.type = MP_INTSRC;
+	mp_irq.irqtype = mp_INT;
+	mp_irq.irqflag = (trigger << 2) | polarity;
+	mp_irq.srcbus = MP_ISA_BUS;
+	mp_irq.srcbusirq = bus_irq;	/* IRQ */
+	mp_irq.dstapic = mpc_ioapic_id(ioapic); /* APIC ID */
+	mp_irq.dstirq = pin;	/* INTIN# */
+
+	mp_save_irq(&mp_irq);
+
 	/*
 	 * Reset default identity mapping if gsi is also an legacy IRQ,
 	 * otherwise there will be more than one entry with the same GSI
@@ -409,34 +423,6 @@ static int mp_config_acpi_gsi(struct device *dev, u32 gsi, int trigger,
 
 	mp_save_irq(&mp_irq);
 #endif
-	return 0;
-}
-
-static int __init mp_register_ioapic_irq(u8 bus_irq, u8 polarity,
-						u8 trigger, u32 gsi)
-{
-	struct mpc_intsrc mp_irq;
-	int ioapic, pin;
-
-	/* Convert 'gsi' to 'ioapic.pin'(INTIN#) */
-	ioapic = mp_find_ioapic(gsi);
-	if (ioapic < 0) {
-		pr_warn("Failed to find ioapic for gsi : %u\n", gsi);
-		return ioapic;
-	}
-
-	pin = mp_find_ioapic_pin(ioapic, gsi);
-
-	mp_irq.type = MP_INTSRC;
-	mp_irq.irqtype = mp_INT;
-	mp_irq.irqflag = (trigger << 2) | polarity;
-	mp_irq.srcbus = MP_ISA_BUS;
-	mp_irq.srcbusirq = bus_irq;
-	mp_irq.dstapic = mpc_ioapic_id(ioapic);
-	mp_irq.dstirq = pin;
-
-	mp_save_irq(&mp_irq);
-
 	return 0;
 }
 
@@ -484,11 +470,7 @@ static void __init acpi_sci_ioapic_setup(u8 bus_irq, u16 polarity, u16 trigger, 
 	if (acpi_sci_flags & ACPI_MADT_POLARITY_MASK)
 		polarity = acpi_sci_flags & ACPI_MADT_POLARITY_MASK;
 
-	if (bus_irq < NR_IRQS_LEGACY)
-		mp_override_legacy_irq(bus_irq, polarity, trigger, gsi);
-	else
-		mp_register_ioapic_irq(bus_irq, polarity, trigger, gsi);
-
+	mp_override_legacy_irq(bus_irq, polarity, trigger, gsi);
 	acpi_penalize_sci_irq(bus_irq, trigger, polarity);
 
 	/*
@@ -1101,7 +1083,7 @@ static void __init mp_config_acpi_legacy_irqs(void)
 	mp_bus_id_to_type[MP_ISA_BUS] = MP_BUS_ISA;
 #endif
 	set_bit(MP_ISA_BUS, mp_bus_not_pci);
-	pr_debug("Bus #%d is ISA (nIRQs: %d)\n", MP_ISA_BUS, nr_legacy_irqs());
+	pr_debug("Bus #%d is ISA\n", MP_ISA_BUS);
 
 	/*
 	 * Use the default configuration for the IRQs 0-15.  Unless
@@ -1388,7 +1370,7 @@ static void __init acpi_reduced_hw_init(void)
  * If your system is blacklisted here, but you find that acpi=force
  * works for you, please contact linux-acpi@vger.kernel.org
  */
-static const struct dmi_system_id acpi_dmi_table[] __initconst = {
+static struct dmi_system_id __initdata acpi_dmi_table[] = {
 	/*
 	 * Boxes that need ACPI disabled
 	 */
@@ -1463,7 +1445,7 @@ static const struct dmi_system_id acpi_dmi_table[] __initconst = {
 };
 
 /* second table for DMI checks that should run after early-quirks */
-static const struct dmi_system_id acpi_dmi_table_late[] __initconst = {
+static struct dmi_system_id __initdata acpi_dmi_table_late[] = {
 	/*
 	 * HP laptops which use a DSDT reporting as HP/SB400/10000,
 	 * which includes some code which overrides all temperature

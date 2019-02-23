@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/jhash.h>
 #include <linux/netfilter.h>
 #include <linux/rcupdate.h>
@@ -209,7 +208,7 @@ ila_nf_input(void *priv,
 	return NF_ACCEPT;
 }
 
-static const struct nf_hook_ops ila_nf_hook_ops[] = {
+static struct nf_hook_ops ila_nf_hook_ops[] __read_mostly = {
 	{
 		.hook = ila_nf_input,
 		.pf = NFPROTO_IPV6,

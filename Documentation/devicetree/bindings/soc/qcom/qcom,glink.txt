@@ -1,12 +1,11 @@
-Qualcomm GLINK edge binding
+Qualcomm RPM GLINK binding
 
-This binding describes a Qualcomm GLINK edge, a fifo based mechanism for
-communication between subsystem-pairs on various Qualcomm platforms. Two types
-of edges can be described by the binding; the GLINK RPM edge and a SMEM based
-edge.
+This binding describes the Qualcomm RPM GLINK, a fifo based mechanism for
+communication with the Resource Power Management system on various Qualcomm
+platforms.
 
 - compatible:
-	Usage: required for glink-rpm
+	Usage: required
 	Value type: <stringlist>
 	Definition: must be "qcom,glink-rpm"
 
@@ -17,7 +16,7 @@ edge.
 		    signal this processor about communication related events
 
 - qcom,rpm-msg-ram:
-	Usage: required for glink-rpm
+	Usage: required
 	Value type: <prop-encoded-array>
 	Definition: handle to RPM message memory resource
 

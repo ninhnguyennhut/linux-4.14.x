@@ -305,19 +305,19 @@ void ccp5_debugfs_setup(struct ccp_device *ccp)
 
 	ccp->debugfs_instance = debugfs_create_dir(ccp->name, ccp_debugfs_dir);
 	if (!ccp->debugfs_instance)
-		goto err;
+		return;
 
 	debugfs_info = debugfs_create_file("info", 0400,
 					   ccp->debugfs_instance, ccp,
 					   &ccp_debugfs_info_ops);
 	if (!debugfs_info)
-		goto err;
+		return;
 
 	debugfs_stats = debugfs_create_file("stats", 0600,
 					    ccp->debugfs_instance, ccp,
 					    &ccp_debugfs_stats_ops);
 	if (!debugfs_stats)
-		goto err;
+		return;
 
 	for (i = 0; i < ccp->cmd_q_count; i++) {
 		cmd_q = &ccp->cmd_q[i];
@@ -327,20 +327,15 @@ void ccp5_debugfs_setup(struct ccp_device *ccp)
 		debugfs_q_instance =
 			debugfs_create_dir(name, ccp->debugfs_instance);
 		if (!debugfs_q_instance)
-			goto err;
+			return;
 
 		debugfs_q_stats =
 			debugfs_create_file("stats", 0600,
 					    debugfs_q_instance, cmd_q,
 					    &ccp_debugfs_queue_ops);
 		if (!debugfs_q_stats)
-			goto err;
+			return;
 	}
-
-	return;
-
-err:
-	debugfs_remove_recursive(ccp->debugfs_instance);
 }
 
 void ccp5_debugfs_destroy(void)

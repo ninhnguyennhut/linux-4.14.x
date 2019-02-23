@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_SETUP_H
 #define _ASM_X86_SETUP_H
 
@@ -40,7 +39,6 @@ static inline void vsmp_init(void) { }
 #endif
 
 void setup_bios_corruption_check(void);
-void early_platform_quirks(void);
 
 extern unsigned long saved_video_mode;
 

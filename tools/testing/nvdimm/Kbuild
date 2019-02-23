@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 ldflags-y += --wrap=ioremap_wc
 ldflags-y += --wrap=memremap
 ldflags-y += --wrap=devm_ioremap_nocache

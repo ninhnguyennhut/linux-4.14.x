@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Display CPU info in /proc/cpuinfo.
  *

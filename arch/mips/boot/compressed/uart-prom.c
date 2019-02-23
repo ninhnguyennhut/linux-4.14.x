@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 
 extern void prom_putchar(unsigned char ch);
 

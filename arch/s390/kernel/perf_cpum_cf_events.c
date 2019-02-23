@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Perf PMU sysfs events attributes for available CPU-measurement counters
  *

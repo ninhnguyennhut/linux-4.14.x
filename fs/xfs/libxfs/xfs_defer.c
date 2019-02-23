@@ -240,19 +240,23 @@ xfs_defer_trans_abort(
 STATIC int
 xfs_defer_trans_roll(
 	struct xfs_trans		**tp,
-	struct xfs_defer_ops		*dop)
+	struct xfs_defer_ops		*dop,
+	struct xfs_inode		*ip)
 {
 	int				i;
 	int				error;
 
-	/* Log all the joined inodes. */
-	for (i = 0; i < XFS_DEFER_OPS_NR_INODES && dop->dop_inodes[i]; i++)
+	/* Log all the joined inodes except the one we passed in. */
+	for (i = 0; i < XFS_DEFER_OPS_NR_INODES && dop->dop_inodes[i]; i++) {
+		if (dop->dop_inodes[i] == ip)
+			continue;
 		xfs_trans_log_inode(*tp, dop->dop_inodes[i], XFS_ILOG_CORE);
+	}
 
 	trace_xfs_defer_trans_roll((*tp)->t_mountp, dop);
 
 	/* Roll the transaction. */
-	error = xfs_trans_roll(tp);
+	error = xfs_trans_roll(tp, ip);
 	if (error) {
 		trace_xfs_defer_trans_roll_error((*tp)->t_mountp, dop, error);
 		xfs_defer_trans_abort(*tp, dop, error);
@@ -260,9 +264,12 @@ xfs_defer_trans_roll(
 	}
 	dop->dop_committed = true;
 
-	/* Rejoin the joined inodes. */
-	for (i = 0; i < XFS_DEFER_OPS_NR_INODES && dop->dop_inodes[i]; i++)
+	/* Rejoin the joined inodes except the one we passed in. */
+	for (i = 0; i < XFS_DEFER_OPS_NR_INODES && dop->dop_inodes[i]; i++) {
+		if (dop->dop_inodes[i] == ip)
+			continue;
 		xfs_trans_ijoin(*tp, dop->dop_inodes[i], 0);
+	}
 
 	return error;
 }
@@ -277,10 +284,11 @@ xfs_defer_has_unfinished_work(
 
 /*
  * Add this inode to the deferred op.  Each joined inode is relogged
- * each time we roll the transaction.
+ * each time we roll the transaction, in addition to any inode passed
+ * to xfs_defer_finish().
  */
 int
-xfs_defer_ijoin(
+xfs_defer_join(
 	struct xfs_defer_ops		*dop,
 	struct xfs_inode		*ip)
 {
@@ -309,7 +317,8 @@ xfs_defer_ijoin(
 int
 xfs_defer_finish(
 	struct xfs_trans		**tp,
-	struct xfs_defer_ops		*dop)
+	struct xfs_defer_ops		*dop,
+	struct xfs_inode		*ip)
 {
 	struct xfs_defer_pending	*dfp;
 	struct list_head		*li;
@@ -328,7 +337,7 @@ xfs_defer_finish(
 		xfs_defer_intake_work(*tp, dop);
 
 		/* Roll the transaction. */
-		error = xfs_defer_trans_roll(tp, dop);
+		error = xfs_defer_trans_roll(tp, dop, ip);
 		if (error)
 			goto out;
 

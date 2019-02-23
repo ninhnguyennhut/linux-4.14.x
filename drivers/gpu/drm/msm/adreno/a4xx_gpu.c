@@ -568,6 +568,8 @@ struct msm_gpu *a4xx_gpu_init(struct drm_device *dev)
 	adreno_gpu = &a4xx_gpu->base;
 	gpu = &adreno_gpu->base;
 
+	a4xx_gpu->pdev = pdev;
+
 	gpu->perfcntrs = NULL;
 	gpu->num_perfcntrs = 0;
 

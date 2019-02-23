@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/kthread.h>
@@ -1964,7 +1963,7 @@ static s32 Handle_Get_InActiveTime(struct wilc_vif *vif,
 				      wilc_get_vif_idx(vif));
 
 	if (result) {
-		netdev_err(vif->ndev, "Failed to SET inactive time\n");
+		netdev_err(vif->ndev, "Failed to SET incative time\n");
 		return -EFAULT;
 	}
 
@@ -1977,7 +1976,7 @@ static s32 Handle_Get_InActiveTime(struct wilc_vif *vif,
 				      wilc_get_vif_idx(vif));
 
 	if (result) {
-		netdev_err(vif->ndev, "Failed to get inactive time\n");
+		netdev_err(vif->ndev, "Failed to get incative time\n");
 		return -EFAULT;
 	}
 

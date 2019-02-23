@@ -2372,7 +2372,7 @@ static const struct snd_soc_codec_driver soc_codec_dev_wm5110 = {
 	},
 };
 
-static const struct snd_compr_ops wm5110_compr_ops = {
+static struct snd_compr_ops wm5110_compr_ops = {
 	.open = wm5110_open,
 	.free = wm_adsp_compr_free,
 	.set_params = wm_adsp_compr_set_params,
@@ -2382,7 +2382,7 @@ static const struct snd_compr_ops wm5110_compr_ops = {
 	.copy = wm_adsp_compr_copy,
 };
 
-static const struct snd_soc_platform_driver wm5110_compr_platform = {
+static struct snd_soc_platform_driver wm5110_compr_platform = {
 	.compr_ops = &wm5110_compr_ops,
 };
 

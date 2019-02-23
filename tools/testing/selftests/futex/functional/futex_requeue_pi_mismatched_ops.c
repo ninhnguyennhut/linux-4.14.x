@@ -78,8 +78,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Detect mismatched requeue_pi operations\n",
+	printf("%s: Detect mismatched requeue_pi operations\n",
 	       basename(argv[0]));
 
 	if (pthread_create(&child, NULL, blocking_child, NULL)) {

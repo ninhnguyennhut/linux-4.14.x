@@ -1016,8 +1016,7 @@ static int writeimage(struct wlandevice *wlandev, struct imgchunk *fchunk,
 		kfree(rstmsg);
 		kfree(rwrmsg);
 		netdev_err(wlandev->netdev,
-			   "%s: no memory for firmware download, aborting download\n",
-			   __func__);
+			   "writeimage: no memory for firmware download, aborting download\n");
 		return -ENOMEM;
 	}
 
@@ -1059,15 +1058,15 @@ static int writeimage(struct wlandevice *wlandev, struct imgchunk *fchunk,
 	result = prism2mgmt_ramdl_state(wlandev, rstmsg);
 	if (result) {
 		netdev_err(wlandev->netdev,
-			   "%s state enable failed w/ result=%d, aborting download\n",
-			   __func__, result);
+			   "writeimage state enable failed w/ result=%d, aborting download\n",
+			   result);
 		goto free_result;
 	}
 	resultcode = rstmsg->resultcode.data;
 	if (resultcode != P80211ENUM_resultcode_success) {
 		netdev_err(wlandev->netdev,
-			   "%s()->xxxdl_state msg indicates failure, w/ resultcode=%d, aborting download.\n",
-			   __func__, resultcode);
+			   "writeimage()->xxxdl_state msg indicates failure, w/ resultcode=%d, aborting download.\n",
+			   resultcode);
 		result = 1;
 		goto free_result;
 	}
@@ -1103,14 +1102,14 @@ static int writeimage(struct wlandevice *wlandev, struct imgchunk *fchunk,
 			/* Check the results */
 			if (result) {
 				netdev_err(wlandev->netdev,
-					   "%s chunk write failed w/ result=%d, aborting download\n",
-					   __func__, result);
+					   "writeimage chunk write failed w/ result=%d, aborting download\n",
+					   result);
 				goto free_result;
 			}
 			resultcode = rstmsg->resultcode.data;
 			if (resultcode != P80211ENUM_resultcode_success) {
-				pr_err("%s()->xxxdl_write msg indicates failure, w/ resultcode=%d, aborting download.\n",
-				       __func__, resultcode);
+				pr_err("writeimage()->xxxdl_write msg indicates failure, w/ resultcode=%d, aborting download.\n",
+				       resultcode);
 				result = 1;
 				goto free_result;
 			}
@@ -1125,15 +1124,15 @@ static int writeimage(struct wlandevice *wlandev, struct imgchunk *fchunk,
 	result = prism2mgmt_ramdl_state(wlandev, rstmsg);
 	if (result) {
 		netdev_err(wlandev->netdev,
-			   "%s state disable failed w/ result=%d, aborting download\n",
-			   __func__, result);
+			   "writeimage state disable failed w/ result=%d, aborting download\n",
+			   result);
 		goto free_result;
 	}
 	resultcode = rstmsg->resultcode.data;
 	if (resultcode != P80211ENUM_resultcode_success) {
 		netdev_err(wlandev->netdev,
-			   "%s()->xxxdl_state msg indicates failure, w/ resultcode=%d, aborting download.\n",
-			   __func__, resultcode);
+			   "writeimage()->xxxdl_state msg indicates failure, w/ resultcode=%d, aborting download.\n",
+			   resultcode);
 		result = 1;
 		goto free_result;
 	}

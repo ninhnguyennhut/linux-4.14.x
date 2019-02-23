@@ -69,12 +69,6 @@ enum kernfs_root_flag {
 	 * following flag enables that behavior.
 	 */
 	KERNFS_ROOT_EXTRA_OPEN_PERM_CHECK	= 0x0002,
-
-	/*
-	 * The filesystem supports exportfs operation, so userspace can use
-	 * fhandle to access nodes of the fs.
-	 */
-	KERNFS_ROOT_SUPPORT_EXPORTOP		= 0x0004,
 };
 
 /* type-specific structures for kernfs_node union members */
@@ -99,21 +93,6 @@ struct kernfs_elem_attr {
 	struct kernfs_open_node	*open;
 	loff_t			size;
 	struct kernfs_node	*notify_next;	/* for kernfs_notify() */
-};
-
-/* represent a kernfs node */
-union kernfs_node_id {
-	struct {
-		/*
-		 * blktrace will export this struct as a simplified 'struct
-		 * fid' (which is a big data struction), so userspace can use
-		 * it to find kernfs node. The layout must match the first two
-		 * fields of 'struct fid' exactly.
-		 */
-		u32		ino;
-		u32		generation;
-	};
-	u64			id;
 };
 
 /*
@@ -152,9 +131,9 @@ struct kernfs_node {
 
 	void			*priv;
 
-	union kernfs_node_id	id;
 	unsigned short		flags;
 	umode_t			mode;
+	unsigned int		ino;
 	struct kernfs_iattrs	*iattr;
 };
 
@@ -184,8 +163,7 @@ struct kernfs_root {
 	unsigned int		flags;	/* KERNFS_ROOT_* flags */
 
 	/* private fields, do not use outside kernfs proper */
-	struct idr		ino_idr;
-	u32			next_generation;
+	struct ida		ino_ida;
 	struct kernfs_syscall_ops *syscall_ops;
 
 	/* list of kernfs_super_info of this root, protected by kernfs_mutex */
@@ -358,8 +336,6 @@ struct super_block *kernfs_pin_sb(struct kernfs_root *root, const void *ns);
 
 void kernfs_init(void);
 
-struct kernfs_node *kernfs_get_node_by_id(struct kernfs_root *root,
-	const union kernfs_node_id *id);
 #else	/* CONFIG_KERNFS */
 
 static inline enum kernfs_node_type kernfs_type(struct kernfs_node *kn)

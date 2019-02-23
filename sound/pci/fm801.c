@@ -599,7 +599,7 @@ static irqreturn_t snd_fm801_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static const struct snd_pcm_hardware snd_fm801_playback =
+static struct snd_pcm_hardware snd_fm801_playback =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -619,7 +619,7 @@ static const struct snd_pcm_hardware snd_fm801_playback =
 	.fifo_size =		0,
 };
 
-static const struct snd_pcm_hardware snd_fm801_capture =
+static struct snd_pcm_hardware snd_fm801_capture =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_BLOCK_TRANSFER |

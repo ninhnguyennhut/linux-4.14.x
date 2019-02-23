@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __API_FS_TRACING_PATH_H
 #define __API_FS_TRACING_PATH_H
 

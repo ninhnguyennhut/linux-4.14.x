@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2017 ARM Limited, All Rights Reserved.
+ * Copyright (C) 2013, 2014 ARM Limited, All Rights Reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -423,14 +423,24 @@ static void __init gic_dist_init(void)
 		gic_write_irouter(affinity, base + GICD_IROUTER + i * 8);
 }
 
-static int gic_iterate_rdists(int (*fn)(struct redist_region *, void __iomem *))
+static int gic_populate_rdist(void)
 {
-	int ret = -ENODEV;
+	unsigned long mpidr = cpu_logical_map(smp_processor_id());
+	u64 typer;
+	u32 aff;
 	int i;
+
+	/*
+	 * Convert affinity to a 32bit value that can be matched to
+	 * GICR_TYPER bits [63:32].
+	 */
+	aff = (MPIDR_AFFINITY_LEVEL(mpidr, 3) << 24 |
+	       MPIDR_AFFINITY_LEVEL(mpidr, 2) << 16 |
+	       MPIDR_AFFINITY_LEVEL(mpidr, 1) << 8 |
+	       MPIDR_AFFINITY_LEVEL(mpidr, 0));
 
 	for (i = 0; i < gic_data.nr_redist_regions; i++) {
 		void __iomem *ptr = gic_data.redist_regions[i].redist_base;
-		u64 typer;
 		u32 reg;
 
 		reg = readl_relaxed(ptr + GICR_PIDR2) & GIC_PIDR2_ARCH_MASK;
@@ -442,9 +452,15 @@ static int gic_iterate_rdists(int (*fn)(struct redist_region *, void __iomem *))
 
 		do {
 			typer = gic_read_typer(ptr + GICR_TYPER);
-			ret = fn(gic_data.redist_regions + i, ptr);
-			if (!ret)
+			if ((typer >> 32) == aff) {
+				u64 offset = ptr - gic_data.redist_regions[i].redist_base;
+				gic_data_rdist_rd_base() = ptr;
+				gic_data_rdist()->phys_base = gic_data.redist_regions[i].phys_base + offset;
+				pr_info("CPU%d: found redistributor %lx region %d:%pa\n",
+					smp_processor_id(), mpidr, i,
+					&gic_data_rdist()->phys_base);
 				return 0;
+			}
 
 			if (gic_data.redist_regions[i].single_redist)
 				break;
@@ -459,69 +475,10 @@ static int gic_iterate_rdists(int (*fn)(struct redist_region *, void __iomem *))
 		} while (!(typer & GICR_TYPER_LAST));
 	}
 
-	return ret ? -ENODEV : 0;
-}
-
-static int __gic_populate_rdist(struct redist_region *region, void __iomem *ptr)
-{
-	unsigned long mpidr = cpu_logical_map(smp_processor_id());
-	u64 typer;
-	u32 aff;
-
-	/*
-	 * Convert affinity to a 32bit value that can be matched to
-	 * GICR_TYPER bits [63:32].
-	 */
-	aff = (MPIDR_AFFINITY_LEVEL(mpidr, 3) << 24 |
-	       MPIDR_AFFINITY_LEVEL(mpidr, 2) << 16 |
-	       MPIDR_AFFINITY_LEVEL(mpidr, 1) << 8 |
-	       MPIDR_AFFINITY_LEVEL(mpidr, 0));
-
-	typer = gic_read_typer(ptr + GICR_TYPER);
-	if ((typer >> 32) == aff) {
-		u64 offset = ptr - region->redist_base;
-		gic_data_rdist_rd_base() = ptr;
-		gic_data_rdist()->phys_base = region->phys_base + offset;
-
-		pr_info("CPU%d: found redistributor %lx region %d:%pa\n",
-			smp_processor_id(), mpidr,
-			(int)(region - gic_data.redist_regions),
-			&gic_data_rdist()->phys_base);
-		return 0;
-	}
-
-	/* Try next one */
-	return 1;
-}
-
-static int gic_populate_rdist(void)
-{
-	if (gic_iterate_rdists(__gic_populate_rdist) == 0)
-		return 0;
-
 	/* We couldn't even deal with ourselves... */
 	WARN(true, "CPU%d: mpidr %lx has no re-distributor!\n",
-	     smp_processor_id(),
-	     (unsigned long)cpu_logical_map(smp_processor_id()));
+	     smp_processor_id(), mpidr);
 	return -ENODEV;
-}
-
-static int __gic_update_vlpi_properties(struct redist_region *region,
-					void __iomem *ptr)
-{
-	u64 typer = gic_read_typer(ptr + GICR_TYPER);
-	gic_data.rdists.has_vlpis &= !!(typer & GICR_TYPER_VLPIS);
-	gic_data.rdists.has_direct_lpi &= !!(typer & GICR_TYPER_DirectLPIS);
-
-	return 1;
-}
-
-static void gic_update_vlpi_properties(void)
-{
-	gic_iterate_rdists(__gic_update_vlpi_properties);
-	pr_info("%sVLPI support, %sdirect LPI support\n",
-		!gic_data.rdists.has_vlpis ? "no " : "",
-		!gic_data.rdists.has_direct_lpi ? "no " : "");
 }
 
 static void gic_cpu_sys_reg_init(void)
@@ -720,8 +677,6 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	else
 		gic_dist_wait_for_rwp();
 
-	irq_data_update_effective_affinity(d, cpumask_of(cpu));
-
 	return IRQ_SET_MASK_OK_DONE;
 }
 #else
@@ -820,7 +775,6 @@ static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
 		irq_domain_set_info(d, irq, hw, chip, d->host_data,
 				    handle_fasteoi_irq, NULL, NULL);
 		irq_set_probe(irq);
-		irqd_set_single_target(irq_desc_get_irq_data(irq_to_desc(irq)));
 	}
 	/* LPIs */
 	if (hw >= 8192 && hw < GIC_ID_NR) {
@@ -999,8 +953,6 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	gic_data.domain = irq_domain_create_tree(handle, &gic_irq_domain_ops,
 						 &gic_data);
 	gic_data.rdists.rdist = alloc_percpu(typeof(*gic_data.rdists.rdist));
-	gic_data.rdists.has_vlpis = true;
-	gic_data.rdists.has_direct_lpi = true;
 
 	if (WARN_ON(!gic_data.domain) || WARN_ON(!gic_data.rdists.rdist)) {
 		err = -ENOMEM;
@@ -1008,8 +960,6 @@ static int __init gic_init_bases(void __iomem *dist_base,
 	}
 
 	set_handle_irq(gic_handle_irq);
-
-	gic_update_vlpi_properties();
 
 	if (IS_ENABLED(CONFIG_ARM_GIC_V3_ITS) && gic_dist_supports_lpis())
 		its_init(handle, &gic_data.rdists, gic_data.domain);
@@ -1042,7 +992,7 @@ static int get_cpu_number(struct device_node *dn)
 {
 	const __be32 *cell;
 	u64 hwid;
-	int cpu;
+	int i;
 
 	cell = of_get_property(dn, "reg", NULL);
 	if (!cell)
@@ -1056,9 +1006,9 @@ static int get_cpu_number(struct device_node *dn)
 	if (hwid & ~MPIDR_HWID_BITMASK)
 		return -1;
 
-	for_each_possible_cpu(cpu)
-		if (cpu_logical_map(cpu) == hwid)
-			return cpu;
+	for (i = 0; i < num_possible_cpus(); i++)
+		if (cpu_logical_map(i) == hwid)
+			return i;
 
 	return -1;
 }
@@ -1071,18 +1021,18 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 	int nr_parts;
 	struct partition_affinity *parts;
 
-	parts_node = of_get_child_by_name(gic_node, "ppi-partitions");
+	parts_node = of_find_node_by_name(gic_node, "ppi-partitions");
 	if (!parts_node)
 		return;
 
 	nr_parts = of_get_child_count(parts_node);
 
 	if (!nr_parts)
-		goto out_put_node;
+		return;
 
 	parts = kzalloc(sizeof(*parts) * nr_parts, GFP_KERNEL);
 	if (WARN_ON(!parts))
-		goto out_put_node;
+		return;
 
 	for_each_child_of_node(parts_node, child_part) {
 		struct partition_affinity *part;
@@ -1117,7 +1067,7 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 			if (WARN_ON(cpu == -1))
 				continue;
 
-			pr_cont("%pOF[%d] ", cpu_node, cpu);
+			pr_cont("%s[%d] ", cpu_node->full_name, cpu);
 
 			cpumask_set_cpu(cpu, &part->mask);
 		}
@@ -1149,9 +1099,6 @@ static void __init gic_populate_ppi_partitions(struct device_node *gic_node)
 
 		gic_data.ppi_descs[i] = desc;
 	}
-
-out_put_node:
-	of_node_put(parts_node);
 }
 
 static void __init gic_of_setup_kvm_info(struct device_node *node)
@@ -1175,7 +1122,6 @@ static void __init gic_of_setup_kvm_info(struct device_node *node)
 	if (!ret)
 		gic_v3_kvm_info.vcpu = r;
 
-	gic_v3_kvm_info.has_v4 = gic_data.rdists.has_vlpis;
 	gic_set_kvm_info(&gic_v3_kvm_info);
 }
 
@@ -1189,13 +1135,15 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 
 	dist_base = of_iomap(node, 0);
 	if (!dist_base) {
-		pr_err("%pOF: unable to map gic dist registers\n", node);
+		pr_err("%s: unable to map gic dist registers\n",
+			node->full_name);
 		return -ENXIO;
 	}
 
 	err = gic_validate_dist_version(dist_base);
 	if (err) {
-		pr_err("%pOF: no distributor detected, giving up\n", node);
+		pr_err("%s: no distributor detected, giving up\n",
+			node->full_name);
 		goto out_unmap_dist;
 	}
 
@@ -1215,7 +1163,8 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 		ret = of_address_to_resource(node, 1 + i, &res);
 		rdist_regs[i].redist_base = of_iomap(node, 1 + i);
 		if (ret || !rdist_regs[i].redist_base) {
-			pr_err("%pOF: couldn't map region %d\n", node, i);
+			pr_err("%s: couldn't map region %d\n",
+			       node->full_name, i);
 			err = -ENODEV;
 			goto out_unmap_rdist;
 		}
@@ -1469,7 +1418,6 @@ static void __init gic_acpi_setup_kvm_info(void)
 		vcpu->end = vcpu->start + ACPI_GICV2_VCPU_MEM_SIZE - 1;
 	}
 
-	gic_v3_kvm_info.has_v4 = gic_data.rdists.has_vlpis;
 	gic_set_kvm_info(&gic_v3_kvm_info);
 }
 

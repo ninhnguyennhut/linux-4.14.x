@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _RDS_TCP_H
 #define _RDS_TCP_H
 

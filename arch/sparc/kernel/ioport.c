@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * ioport.c:  Simple io mapping allocator.
  *

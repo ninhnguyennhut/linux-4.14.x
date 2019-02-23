@@ -26,7 +26,6 @@ Arguments
     File descriptor returned by :ref:`open() <func-open>`.
 
 ``argp``
-    Pointer to :c:type:`v4l2_std_id`.
 
 
 Description

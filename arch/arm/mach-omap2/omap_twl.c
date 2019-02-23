@@ -16,7 +16,7 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
-#include <linux/mfd/twl.h>
+#include <linux/i2c/twl.h>
 
 #include "soc.h"
 #include "voltage.h"

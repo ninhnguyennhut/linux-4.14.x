@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _I40E_CLIENT_H_
 #define _I40E_CLIENT_H_
 

@@ -54,6 +54,8 @@
 #define PRIu64 "u"
 #define PRIo64 "o"
 
+#define APIC_BUS_CYCLE_NS 1
+
 /* #define apic_debug(fmt,arg...) printk(KERN_WARNING fmt,##arg) */
 #define apic_debug(fmt, arg...)
 
@@ -266,14 +268,9 @@ static inline void kvm_apic_set_ldr(struct kvm_lapic *apic, u32 id)
 	recalculate_apic_map(apic->vcpu->kvm);
 }
 
-static inline u32 kvm_apic_calc_x2apic_ldr(u32 id)
-{
-	return ((id >> 4) << 16) | (1 << (id & 0xf));
-}
-
 static inline void kvm_apic_set_x2apic_id(struct kvm_lapic *apic, u32 id)
 {
-	u32 ldr = kvm_apic_calc_x2apic_ldr(id);
+	u32 ldr = ((id >> 4) << 16) | (1 << (id & 0xf));
 
 	WARN_ON_ONCE(id != apic->vcpu->vcpu_id);
 
@@ -1329,10 +1326,6 @@ static void apic_timer_expired(struct kvm_lapic *apic)
 	atomic_inc(&apic->lapic_timer.pending);
 	kvm_set_pending_timer(vcpu);
 
-	/*
-	 * For x86, the atomic_inc() is serialized, thus
-	 * using swait_active() is safe.
-	 */
 	if (swait_active(q))
 		swake_up(q);
 
@@ -1997,11 +1990,6 @@ void kvm_lapic_reset(struct kvm_vcpu *vcpu, bool init_event)
 				vcpu->arch.apic_base | MSR_IA32_APICBASE_BSP);
 	vcpu->arch.pv_eoi.msr_val = 0;
 	apic_update_ppr(apic);
-	if (vcpu->arch.apicv_active) {
-		kvm_x86_ops->apicv_post_state_restore(vcpu);
-		kvm_x86_ops->hwapic_irr_update(vcpu, -1);
-		kvm_x86_ops->hwapic_isr_update(vcpu, -1);
-	}
 
 	vcpu->arch.apic_arb_prio = 0;
 	vcpu->arch.apic_attention = 0;
@@ -2201,7 +2189,6 @@ static int kvm_apic_state_fixup(struct kvm_vcpu *vcpu,
 {
 	if (apic_x2apic_mode(vcpu->arch.apic)) {
 		u32 *id = (u32 *)(s->regs + APIC_ID);
-		u32 *ldr = (u32 *)(s->regs + APIC_LDR);
 
 		if (vcpu->kvm->arch.x2apic_format) {
 			if (*id != vcpu->vcpu_id)
@@ -2212,10 +2199,6 @@ static int kvm_apic_state_fixup(struct kvm_vcpu *vcpu,
 			else
 				*id <<= 24;
 		}
-
-		/* In x2APIC mode, the LDR is fixed and based on the id */
-		if (set)
-			*ldr = kvm_apic_calc_x2apic_ldr(*id);
 	}
 
 	return 0;

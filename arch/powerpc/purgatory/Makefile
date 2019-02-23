@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 targets += trampoline.o purgatory.ro kexec-purgatory.c
 
 LDFLAGS_purgatory.ro := -e purgatory_start -r --no-undefined

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef HOST_INT_H
 #define HOST_INT_H
 #include <linux/ieee80211.h>

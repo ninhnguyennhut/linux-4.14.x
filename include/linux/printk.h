@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __KERNEL_PRINTK__
 #define __KERNEL_PRINTK__
 

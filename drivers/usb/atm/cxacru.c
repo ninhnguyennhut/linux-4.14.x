@@ -43,6 +43,7 @@
 #include "usbatm.h"
 
 #define DRIVER_AUTHOR	"Roman Kagan, David Woodhouse, Duncan Sands, Simon Arlott"
+#define DRIVER_VERSION	"0.4"
 #define DRIVER_DESC	"Conexant AccessRunner ADSL USB modem driver"
 
 static const char cxacru_driver_name[] = "cxacru";
@@ -1379,3 +1380,4 @@ module_usb_driver(cxacru_usb_driver);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
+MODULE_VERSION(DRIVER_VERSION);

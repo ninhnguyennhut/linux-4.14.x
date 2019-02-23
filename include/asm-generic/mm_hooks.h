@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Define generic no-op hooks for arch_dup_mmap, arch_exit_mmap
  * and arch_unmap to be included in asm-FOO/mmu_context.h for any
@@ -7,10 +6,9 @@
 #ifndef _ASM_GENERIC_MM_HOOKS_H
 #define _ASM_GENERIC_MM_HOOKS_H
 
-static inline int arch_dup_mmap(struct mm_struct *oldmm,
-				struct mm_struct *mm)
+static inline void arch_dup_mmap(struct mm_struct *oldmm,
+				 struct mm_struct *mm)
 {
-	return 0;
 }
 
 static inline void arch_exit_mmap(struct mm_struct *mm)

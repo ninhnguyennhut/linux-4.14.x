@@ -24,12 +24,18 @@
 #include "vsp1_pipe.h"
 #include "vsp1_rwpf.h"
 
+static inline struct vsp1_entity *
+media_entity_to_vsp1_entity(struct media_entity *entity)
+{
+	return container_of(entity, struct vsp1_entity, subdev.entity);
+}
+
 void vsp1_entity_route_setup(struct vsp1_entity *entity,
 			     struct vsp1_pipeline *pipe,
 			     struct vsp1_dl_list *dl)
 {
 	struct vsp1_entity *source;
-	u32 route;
+	struct vsp1_entity *sink;
 
 	if (entity->type == VSP1_ENTITY_HGO) {
 		u32 smppt;
@@ -38,7 +44,7 @@ void vsp1_entity_route_setup(struct vsp1_entity *entity,
 		 * The HGO is a special case, its routing is configured on the
 		 * sink pad.
 		 */
-		source = entity->sources[0];
+		source = media_entity_to_vsp1_entity(entity->sources[0]);
 		smppt = (pipe->output->entity.index << VI6_DPR_SMPPT_TGW_SHIFT)
 		      | (source->route->output << VI6_DPR_SMPPT_PT_SHIFT);
 
@@ -51,7 +57,7 @@ void vsp1_entity_route_setup(struct vsp1_entity *entity,
 		 * The HGT is a special case, its routing is configured on the
 		 * sink pad.
 		 */
-		source = entity->sources[0];
+		source = media_entity_to_vsp1_entity(entity->sources[0]);
 		smppt = (pipe->output->entity.index << VI6_DPR_SMPPT_TGW_SHIFT)
 		      | (source->route->output << VI6_DPR_SMPPT_PT_SHIFT);
 
@@ -63,14 +69,9 @@ void vsp1_entity_route_setup(struct vsp1_entity *entity,
 	if (source->route->reg == 0)
 		return;
 
-	route = source->sink->route->inputs[source->sink_pad];
-	/*
-	 * The ILV and BRS share the same data path route. The extra BRSSEL bit
-	 * selects between the ILV and BRS.
-	 */
-	if (source->type == VSP1_ENTITY_BRS)
-		route |= VI6_DPR_ROUTE_BRSSEL;
-	vsp1_dl_list_write(dl, source->route->reg, route);
+	sink = media_entity_to_vsp1_entity(source->sink);
+	vsp1_dl_list_write(dl, source->route->reg,
+			   sink->route->inputs[source->sink_pad]);
 }
 
 /* -----------------------------------------------------------------------------
@@ -315,12 +316,6 @@ done:
  * Media Operations
  */
 
-static inline struct vsp1_entity *
-media_entity_to_vsp1_entity(struct media_entity *entity)
-{
-	return container_of(entity, struct vsp1_entity, subdev.entity);
-}
-
 static int vsp1_entity_link_setup_source(const struct media_pad *source_pad,
 					 const struct media_pad *sink_pad,
 					 u32 flags)
@@ -344,7 +339,7 @@ static int vsp1_entity_link_setup_source(const struct media_pad *source_pad,
 		    sink->type != VSP1_ENTITY_HGT) {
 			if (source->sink)
 				return -EBUSY;
-			source->sink = sink;
+			source->sink = sink_pad->entity;
 			source->sink_pad = sink_pad->index;
 		}
 	} else {
@@ -360,17 +355,15 @@ static int vsp1_entity_link_setup_sink(const struct media_pad *source_pad,
 				       u32 flags)
 {
 	struct vsp1_entity *sink;
-	struct vsp1_entity *source;
 
 	sink = media_entity_to_vsp1_entity(sink_pad->entity);
-	source = media_entity_to_vsp1_entity(source_pad->entity);
 
 	if (flags & MEDIA_LNK_FL_ENABLED) {
 		/* Fan-in is limited to one. */
 		if (sink->sources[sink_pad->index])
 			return -EBUSY;
 
-		sink->sources[sink_pad->index] = source;
+		sink->sources[sink_pad->index] = source_pad->entity;
 	} else {
 		sink->sources[sink_pad->index] = NULL;
 	}
@@ -457,8 +450,6 @@ struct media_pad *vsp1_entity_remote_pad(struct media_pad *pad)
 	  { VI6_DPR_NODE_WPF(idx) }, VI6_DPR_NODE_WPF(idx) }
 
 static const struct vsp1_route vsp1_routes[] = {
-	{ VSP1_ENTITY_BRS, 0, VI6_DPR_ILV_BRS_ROUTE,
-	  { VI6_DPR_NODE_BRS_IN(0), VI6_DPR_NODE_BRS_IN(1) }, 0 },
 	{ VSP1_ENTITY_BRU, 0, VI6_DPR_BRU_ROUTE,
 	  { VI6_DPR_NODE_BRU_IN(0), VI6_DPR_NODE_BRU_IN(1),
 	    VI6_DPR_NODE_BRU_IN(2), VI6_DPR_NODE_BRU_IN(3),
@@ -468,8 +459,7 @@ static const struct vsp1_route vsp1_routes[] = {
 	{ VSP1_ENTITY_HGT, 0, 0, { 0, }, 0 },
 	VSP1_ENTITY_ROUTE(HSI),
 	VSP1_ENTITY_ROUTE(HST),
-	{ VSP1_ENTITY_LIF, 0, 0, { 0, }, 0 },
-	{ VSP1_ENTITY_LIF, 1, 0, { 0, }, 0 },
+	{ VSP1_ENTITY_LIF, 0, 0, { VI6_DPR_NODE_LIF, }, VI6_DPR_NODE_LIF },
 	VSP1_ENTITY_ROUTE(LUT),
 	VSP1_ENTITY_ROUTE_RPF(0),
 	VSP1_ENTITY_ROUTE_RPF(1),

@@ -131,8 +131,6 @@ static struct sk_buff *build_linear_skb(struct dpaa2_eth_priv *priv,
 	u16 fd_offset = dpaa2_fd_get_offset(fd);
 	u32 fd_length = dpaa2_fd_get_len(fd);
 
-	ch->buf_count--;
-
 	skb = build_skb(fd_vaddr, DPAA2_ETH_RX_BUF_SIZE +
 			SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
 	if (unlikely(!skb))
@@ -140,6 +138,8 @@ static struct sk_buff *build_linear_skb(struct dpaa2_eth_priv *priv,
 
 	skb_reserve(skb, fd_offset);
 	skb_put(skb, fd_length);
+
+	ch->buf_count--;
 
 	return skb;
 }
@@ -178,15 +178,8 @@ static struct sk_buff *build_frag_skb(struct dpaa2_eth_priv *priv,
 			/* We build the skb around the first data buffer */
 			skb = build_skb(sg_vaddr, DPAA2_ETH_RX_BUF_SIZE +
 				SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
-			if (unlikely(!skb)) {
-				/* We still need to subtract the buffers used
-				 * by this FD from our software counter
-				 */
-				while (!dpaa2_sg_is_final(&sgt[i]) &&
-				       i < DPAA2_ETH_MAX_SG_ENTRIES)
-					i++;
-				break;
-			}
+			if (unlikely(!skb))
+				return NULL;
 
 			sg_offset = dpaa2_sg_get_offset(sge);
 			skb_reserve(skb, sg_offset);
@@ -623,7 +616,7 @@ static netdev_tx_t dpaa2_eth_tx(struct sk_buff *skb, struct net_device *net_dev)
 		free_tx_fd(priv, &fd, NULL);
 	} else {
 		percpu_stats->tx_packets++;
-		percpu_stats->tx_bytes += dpaa2_fd_get_len(&fd);
+		percpu_stats->tx_bytes += skb->len;
 	}
 
 	return NETDEV_TX_OK;
@@ -663,7 +656,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 		has_fas_errors = (fd_errors & DPAA2_FD_CTRL_FAERR) &&
 				 !!(dpaa2_fd_get_frc(fd) & DPAA2_FD_FRC_FASV);
 		if (net_ratelimit())
-			netdev_dbg(priv->net_dev, "TX frame FD error: 0x%08x\n",
+			netdev_dbg(priv->net_dev, "TX frame FD error: %x08\n",
 				   fd_errors);
 	}
 
@@ -677,7 +670,7 @@ static void dpaa2_eth_tx_conf(struct dpaa2_eth_priv *priv,
 	percpu_stats->tx_errors++;
 
 	if (has_fas_errors && net_ratelimit())
-		netdev_dbg(priv->net_dev, "TX frame FAS error: 0x%08x\n",
+		netdev_dbg(priv->net_dev, "TX frame FAS error: %x08\n",
 			   status & DPAA2_FAS_TX_ERR_MASK);
 }
 

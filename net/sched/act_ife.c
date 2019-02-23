@@ -34,6 +34,8 @@
 #include <linux/etherdevice.h>
 #include <net/ife.h>
 
+#define IFE_TAB_MASK 15
+
 static unsigned int ife_net_id;
 static int max_metacnt = IFE_META_MAX + 1;
 static struct tc_action_ops act_ife_ops;
@@ -433,8 +435,8 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 	struct nlattr *tb[TCA_IFE_MAX + 1];
 	struct nlattr *tb2[IFE_META_MAX + 1];
 	struct tcf_ife_info *ife;
-	u16 ife_type = ETH_P_IFE;
 	struct tc_ife *parm;
+	u16 ife_type = 0;
 	u8 *daddr = NULL;
 	u8 *saddr = NULL;
 	bool exists = false;
@@ -450,18 +452,30 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 
 	parm = nla_data(tb[TCA_IFE_PARMS]);
 
-	exists = tcf_idr_check(tn, parm->index, a, bind);
+	exists = tcf_hash_check(tn, parm->index, a, bind);
 	if (exists && bind)
 		return 0;
 
+	if (parm->flags & IFE_ENCODE) {
+		/* Until we get issued the ethertype, we cant have
+		 * a default..
+		**/
+		if (!tb[TCA_IFE_TYPE]) {
+			if (exists)
+				tcf_hash_release(*a, bind);
+			pr_info("You MUST pass etherype for encoding\n");
+			return -EINVAL;
+		}
+	}
+
 	if (!exists) {
-		ret = tcf_idr_create(tn, parm->index, est, a, &act_ife_ops,
-				     bind, false);
+		ret = tcf_hash_create(tn, parm->index, est, a, &act_ife_ops,
+				      bind, false);
 		if (ret)
 			return ret;
 		ret = ACT_P_CREATED;
 	} else {
-		tcf_idr_release(*a, bind);
+		tcf_hash_release(*a, bind);
 		if (!ovr)
 			return -EEXIST;
 	}
@@ -470,8 +484,7 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 	ife->flags = parm->flags;
 
 	if (parm->flags & IFE_ENCODE) {
-		if (tb[TCA_IFE_TYPE])
-			ife_type = nla_get_u16(tb[TCA_IFE_TYPE]);
+		ife_type = nla_get_u16(tb[TCA_IFE_TYPE]);
 		if (tb[TCA_IFE_DMAC])
 			daddr = nla_data(tb[TCA_IFE_DMAC]);
 		if (tb[TCA_IFE_SMAC])
@@ -505,7 +518,7 @@ static int tcf_ife_init(struct net *net, struct nlattr *nla,
 		if (err) {
 metadata_parse_err:
 			if (exists)
-				tcf_idr_release(*a, bind);
+				tcf_hash_release(*a, bind);
 			if (ret == ACT_P_CREATED)
 				_tcf_ife_cleanup(*a, bind);
 
@@ -539,7 +552,7 @@ metadata_parse_err:
 		spin_unlock_bh(&ife->tcf_lock);
 
 	if (ret == ACT_P_CREATED)
-		tcf_idr_insert(tn, *a);
+		tcf_hash_insert(tn, *a);
 
 	return ret;
 }
@@ -798,7 +811,7 @@ static int tcf_ife_search(struct net *net, struct tc_action **a, u32 index)
 {
 	struct tc_action_net *tn = net_generic(net, ife_net_id);
 
-	return tcf_idr_search(tn, a, index);
+	return tcf_hash_search(tn, a, index);
 }
 
 static struct tc_action_ops act_ife_ops = {
@@ -818,7 +831,7 @@ static __net_init int ife_init_net(struct net *net)
 {
 	struct tc_action_net *tn = net_generic(net, ife_net_id);
 
-	return tc_action_net_init(tn, &act_ife_ops);
+	return tc_action_net_init(tn, &act_ife_ops, IFE_TAB_MASK);
 }
 
 static void __net_exit ife_exit_net(struct net *net)

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef EAP_PACKET_H
 #define EAP_PACKET_H
 

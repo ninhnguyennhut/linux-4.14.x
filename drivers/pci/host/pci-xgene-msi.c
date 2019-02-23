@@ -489,7 +489,7 @@ static int xgene_msi_probe(struct platform_device *pdev)
 		if (virt_msir < 0) {
 			dev_err(&pdev->dev, "Cannot translate IRQ index %d\n",
 				irq_index);
-			rc = virt_msir;
+			rc = -EINVAL;
 			goto error;
 		}
 		xgene_msi->msi_groups[irq_index].gic_irq = virt_msir;

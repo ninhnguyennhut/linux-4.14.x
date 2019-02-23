@@ -394,11 +394,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Test requeue functionality\n", basename(argv[0]));
-	ksft_print_msg(
-		"\tArguments: broadcast=%d locked=%d owner=%d timeout=%ldns\n",
-		broadcast, locked, owner, timeout_ns);
+	printf("%s: Test requeue functionality\n", basename(argv[0]));
+	printf("\tArguments: broadcast=%d locked=%d owner=%d timeout=%ldns\n",
+	       broadcast, locked, owner, timeout_ns);
 
 	/*
 	 * FIXME: unit_test is obsolete now that we parse options and the

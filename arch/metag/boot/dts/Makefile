@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 dtb-y	+= skeleton.dtb
 dtb-y	+= tz1090_generic.dtb
 

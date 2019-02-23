@@ -19,6 +19,7 @@
 
 #include "omapdss.h"
 #include "dss.h"
+#include "dss_features.h"
 
 struct dss_video_pll {
 	struct dss_pll pll;
@@ -130,8 +131,6 @@ static const struct dss_pll_hw dss_dra7_video_pll_hw = {
 	.mX_lsb[3] = 5,
 
 	.has_refsel = true,
-
-	.errata_i886 = true,
 };
 
 struct dss_pll *dss_video_pll_init(struct platform_device *pdev, int id,

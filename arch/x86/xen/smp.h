@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XEN_SMP_H
 
 #ifdef CONFIG_SMP

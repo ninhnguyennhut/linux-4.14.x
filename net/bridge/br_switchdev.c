@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/netdevice.h>
@@ -116,7 +115,7 @@ br_switchdev_fdb_call_notifiers(bool adding, const unsigned char *mac,
 void
 br_switchdev_fdb_notify(const struct net_bridge_fdb_entry *fdb, int type)
 {
-	if (!fdb->added_by_user || !fdb->dst)
+	if (!fdb->added_by_user)
 		return;
 
 	switch (type) {

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * CRIS pgtable.h - macros and functions to manipulate page tables.
  */

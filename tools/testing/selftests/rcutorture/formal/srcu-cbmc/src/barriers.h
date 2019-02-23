@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef BARRIERS_H
 #define BARRIERS_H
 

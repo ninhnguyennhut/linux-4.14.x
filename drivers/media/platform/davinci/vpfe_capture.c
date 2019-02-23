@@ -1288,7 +1288,7 @@ static void vpfe_videobuf_release(struct videobuf_queue *vq,
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
-static const struct videobuf_queue_ops vpfe_videobuf_qops = {
+static struct videobuf_queue_ops vpfe_videobuf_qops = {
 	.buf_setup      = vpfe_videobuf_setup,
 	.buf_prepare    = vpfe_videobuf_prepare,
 	.buf_queue      = vpfe_videobuf_queue,

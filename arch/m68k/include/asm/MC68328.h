@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 /* include/asm-m68knommu/MC68328.h: '328 control registers
  *

@@ -232,10 +232,9 @@ static int rmi_f30_map_gpios(struct rmi_function *fn,
 	unsigned int trackstick_button = BTN_LEFT;
 	bool button_mapped = false;
 	int i;
-	int button_count = min_t(u8, f30->gpioled_count, TRACKSTICK_RANGE_END);
 
 	f30->gpioled_key_map = devm_kcalloc(&fn->dev,
-					    button_count,
+					    f30->gpioled_count,
 					    sizeof(f30->gpioled_key_map[0]),
 					    GFP_KERNEL);
 	if (!f30->gpioled_key_map) {
@@ -243,7 +242,7 @@ static int rmi_f30_map_gpios(struct rmi_function *fn,
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < button_count; i++) {
+	for (i = 0; i < f30->gpioled_count; i++) {
 		if (!rmi_f30_is_valid_button(i, f30->ctrl))
 			continue;
 

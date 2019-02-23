@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* copy_user.S: Sparc optimized copy_from_user and copy_to_user code.
  *
  *  Copyright(C) 1995 Linus Torvalds

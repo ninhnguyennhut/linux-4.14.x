@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (C) 2015, He Kuang <hekuang@huawei.com>
  * Copyright (C) 2015, Huawei Inc.

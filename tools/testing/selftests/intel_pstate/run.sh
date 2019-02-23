@@ -1,5 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 #
 # This test runs on Intel x86 based hardware which support the intel_pstate
 # driver.  The test checks the frequency settings from the maximum turbo
@@ -30,12 +29,13 @@
 
 EVALUATE_ONLY=0
 
-if ! uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ | grep -q x86; then
-	echo "$0 # Skipped: Test can only run on x86 architectures."
-	exit 0
-fi
-
 max_cpus=$(($(nproc)-1))
+
+# compile programs
+gcc aperf.c -Wall -D_GNU_SOURCE -o aperf  -lm
+[ $? -ne 0 ] && echo "Problem compiling aperf.c." && exit 1
+gcc -o msr msr.c -lm
+[ $? -ne 0 ] && echo "Problem compiling msr.c." && exit 1
 
 function run_test () {
 

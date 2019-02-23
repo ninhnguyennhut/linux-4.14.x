@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Scheduler topology setup/handling methods
  */
@@ -15,9 +14,11 @@ cpumask_var_t sched_domains_tmpmask2;
 
 #ifdef CONFIG_SCHED_DEBUG
 
+static __read_mostly int sched_debug_enabled;
+
 static int __init sched_debug_setup(char *str)
 {
-	sched_debug_enabled = true;
+	sched_debug_enabled = 1;
 
 	return 0;
 }
@@ -260,6 +261,8 @@ void rq_attach_root(struct rq *rq, struct root_domain *rd)
 
 static int init_rootdomain(struct root_domain *rd)
 {
+	memset(rd, 0, sizeof(*rd));
+
 	if (!zalloc_cpumask_var(&rd->span, GFP_KERNEL))
 		goto out;
 	if (!zalloc_cpumask_var(&rd->online, GFP_KERNEL))
@@ -268,12 +271,6 @@ static int init_rootdomain(struct root_domain *rd)
 		goto free_online;
 	if (!zalloc_cpumask_var(&rd->rto_mask, GFP_KERNEL))
 		goto free_dlo_mask;
-
-#ifdef HAVE_RT_PUSH_IPI
-	rd->rto_cpu = -1;
-	raw_spin_lock_init(&rd->rto_lock);
-	init_irq_work(&rd->rto_push_work, rto_push_irq_work_func);
-#endif
 
 	init_dl_bw(&rd->dl_bw);
 	if (cpudl_init(&rd->cpudl) != 0)
@@ -314,7 +311,7 @@ static struct root_domain *alloc_rootdomain(void)
 {
 	struct root_domain *rd;
 
-	rd = kzalloc(sizeof(*rd), GFP_KERNEL);
+	rd = kmalloc(sizeof(*rd), GFP_KERNEL);
 	if (!rd)
 		return NULL;
 
@@ -340,8 +337,7 @@ static void free_sched_groups(struct sched_group *sg, int free_sgc)
 		if (free_sgc && atomic_dec_and_test(&sg->sgc->ref))
 			kfree(sg->sgc);
 
-		if (atomic_dec_and_test(&sg->ref))
-			kfree(sg);
+		kfree(sg);
 		sg = tmp;
 	} while (sg != first);
 }
@@ -349,12 +345,15 @@ static void free_sched_groups(struct sched_group *sg, int free_sgc)
 static void destroy_sched_domain(struct sched_domain *sd)
 {
 	/*
-	 * A normal sched domain may have multiple group references, an
-	 * overlapping domain, having private groups, only one.  Iterate,
-	 * dropping group/capacity references, freeing where none remain.
+	 * If its an overlapping domain it has private groups, iterate and
+	 * nuke them all.
 	 */
-	free_sched_groups(sd->groups, 1);
-
+	if (sd->flags & SD_OVERLAP) {
+		free_sched_groups(sd->groups, 1);
+	} else if (atomic_dec_and_test(&sd->groups->ref)) {
+		kfree(sd->groups->sgc);
+		kfree(sd->groups);
+	}
 	if (sd->shared && atomic_dec_and_test(&sd->shared->ref))
 		kfree(sd->shared);
 	kfree(sd);
@@ -464,7 +463,6 @@ cpu_attach_domain(struct sched_domain *sd, struct root_domain *rd, int cpu)
 	rq_attach_root(rq, rd);
 	tmp = rq->sd;
 	rcu_assign_pointer(rq->sd, sd);
-	dirty_sched_domain_sysctl(cpu);
 	destroy_sched_domains(tmp);
 
 	update_top_cache_domain(cpu);
@@ -478,7 +476,7 @@ static int __init isolated_cpu_setup(char *str)
 	alloc_bootmem_cpumask_var(&cpu_isolated_map);
 	ret = cpulist_parse(str, cpu_isolated_map);
 	if (ret) {
-		pr_err("sched: Error, all isolcpus= values must be between 0 and %u\n", nr_cpu_ids);
+		pr_err("sched: Error, all isolcpus= values must be between 0 and %d\n", nr_cpu_ids);
 		return 0;
 	}
 	return 1;
@@ -672,7 +670,6 @@ build_group_from_child_sched_domain(struct sched_domain *sd, int cpu)
 	else
 		cpumask_copy(sg_span, sched_domain_span(sd));
 
-	atomic_inc(&sg->ref);
 	return sg;
 }
 
@@ -1598,7 +1595,7 @@ static void __sdt_free(const struct cpumask *cpu_map)
 	}
 }
 
-static struct sched_domain *build_sched_domain(struct sched_domain_topology_level *tl,
+struct sched_domain *build_sched_domain(struct sched_domain_topology_level *tl,
 		const struct cpumask *cpu_map, struct sched_domain_attr *attr,
 		struct sched_domain *child, int cpu)
 {
@@ -1857,17 +1854,7 @@ void partition_sched_domains(int ndoms_new, cpumask_var_t doms_new[],
 	/* Let the architecture update CPU core mappings: */
 	new_topology = arch_update_cpu_topology();
 
-	if (!doms_new) {
-		WARN_ON_ONCE(dattr_new);
-		n = 0;
-		doms_new = alloc_sched_domains(1);
-		if (doms_new) {
-			n = 1;
-			cpumask_andnot(doms_new[0], cpu_active_mask, cpu_isolated_map);
-		}
-	} else {
-		n = ndoms_new;
-	}
+	n = doms_new ? ndoms_new : 0;
 
 	/* Destroy deleted domains: */
 	for (i = 0; i < ndoms_cur; i++) {
@@ -1883,10 +1870,11 @@ match1:
 	}
 
 	n = ndoms_cur;
-	if (!doms_new) {
+	if (doms_new == NULL) {
 		n = 0;
 		doms_new = &fallback_doms;
 		cpumask_andnot(doms_new[0], cpu_active_mask, cpu_isolated_map);
+		WARN_ON_ONCE(dattr_new);
 	}
 
 	/* Build new domains: */

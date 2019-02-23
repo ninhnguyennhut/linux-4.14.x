@@ -25,7 +25,6 @@
 #include "meta_io.h"
 #include "quota.h"
 #include "rgrp.h"
-#include "super.h"
 #include "trans.h"
 #include "util.h"
 
@@ -1210,12 +1209,8 @@ int __gfs2_xattr_set(struct inode *inode, const char *name,
 	if (namel > GFS2_EA_MAX_NAME_LEN)
 		return -ERANGE;
 
-	if (value == NULL) {
-		error = gfs2_xattr_remove(ip, type, name);
-		if (error == -ENODATA && !(flags & XATTR_REPLACE))
-			error = 0;
-		return error;
-	}
+	if (value == NULL)
+		return gfs2_xattr_remove(ip, type, name);
 
 	if (ea_check_size(sdp, namel, size))
 		return -ERANGE;

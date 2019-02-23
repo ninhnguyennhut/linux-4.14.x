@@ -50,8 +50,7 @@ static inline struct ipu_crtc *to_ipu_crtc(struct drm_crtc *crtc)
 	return container_of(crtc, struct ipu_crtc, base);
 }
 
-static void ipu_crtc_atomic_enable(struct drm_crtc *crtc,
-				   struct drm_crtc_state *old_state)
+static void ipu_crtc_enable(struct drm_crtc *crtc)
 {
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
 	struct ipu_soc *ipu = dev_get_drvdata(ipu_crtc->dev->parent);
@@ -294,7 +293,7 @@ static const struct drm_crtc_helper_funcs ipu_helper_funcs = {
 	.atomic_check = ipu_crtc_atomic_check,
 	.atomic_begin = ipu_crtc_atomic_begin,
 	.atomic_disable = ipu_crtc_atomic_disable,
-	.atomic_enable = ipu_crtc_atomic_enable,
+	.enable = ipu_crtc_enable,
 };
 
 static void ipu_put_resources(struct ipu_crtc *ipu_crtc)

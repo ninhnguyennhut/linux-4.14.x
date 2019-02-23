@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * XDR support for nfsd/protocol version 3.
  *

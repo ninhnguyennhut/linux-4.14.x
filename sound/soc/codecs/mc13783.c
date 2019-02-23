@@ -733,7 +733,7 @@ static struct regmap *mc13783_get_regmap(struct device *dev)
 	return dev_get_regmap(dev->parent, NULL);
 }
 
-static const struct snd_soc_codec_driver soc_codec_dev_mc13783 = {
+static struct snd_soc_codec_driver soc_codec_dev_mc13783 = {
 	.probe		= mc13783_probe,
 	.remove		= mc13783_remove,
 	.get_regmap	= mc13783_get_regmap,

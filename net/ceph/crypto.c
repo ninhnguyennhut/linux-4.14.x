@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 
 #include <linux/ceph/ceph_debug.h>
 
@@ -37,9 +36,7 @@ static int set_secret(struct ceph_crypto_key *key, void *buf)
 		return -ENOTSUPP;
 	}
 
-	if (!key->len)
-		return -EINVAL;
-
+	WARN_ON(!key->len);
 	key->key = kmemdup(buf, key->len, GFP_NOIO);
 	if (!key->key) {
 		ret = -ENOMEM;

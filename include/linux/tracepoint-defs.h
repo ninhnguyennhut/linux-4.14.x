@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef TRACEPOINT_DEFS_H
 #define TRACEPOINT_DEFS_H 1
 

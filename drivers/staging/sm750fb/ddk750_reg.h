@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DDK750_REG_H__
 #define DDK750_REG_H__
 

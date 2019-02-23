@@ -475,7 +475,7 @@ static phys_addr_t mx3_camera_base __initdata;
 
 static int __init mx31moboard_init_cam(void)
 {
-	int ret;
+	int dma, ret = -ENOMEM;
 	struct platform_device *pdev;
 
 	imx31_add_ipu_core();
@@ -484,11 +484,11 @@ static int __init mx31moboard_init_cam(void)
 	if (IS_ERR(pdev))
 		return PTR_ERR(pdev);
 
-	ret = dma_declare_coherent_memory(&pdev->dev,
-					  mx3_camera_base, mx3_camera_base,
-					  MX3_CAMERA_BUF_SIZE,
-					  DMA_MEMORY_EXCLUSIVE);
-	if (ret)
+	dma = dma_declare_coherent_memory(&pdev->dev,
+					mx3_camera_base, mx3_camera_base,
+					MX3_CAMERA_BUF_SIZE,
+					DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE);
+	if (!(dma & DMA_MEMORY_MAP))
 		goto err;
 
 	ret = platform_device_add(pdev);

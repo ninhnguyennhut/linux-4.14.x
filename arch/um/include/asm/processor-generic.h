@@ -58,6 +58,11 @@ static inline void release_thread(struct task_struct *task)
 {
 }
 
+static inline void mm_copy_segments(struct mm_struct *from_mm,
+				    struct mm_struct *new_mm)
+{
+}
+
 #define init_stack	(init_thread_union.stack)
 
 /*

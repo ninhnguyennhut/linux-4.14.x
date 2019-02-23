@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __DTS_MT7623_PINFUNC_H
 #define __DTS_MT7623_PINFUNC_H
 

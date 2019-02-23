@@ -167,8 +167,7 @@ ACPI_EXPORT_SYMBOL_INIT(acpi_initialize_tables)
 acpi_status ACPI_INIT_FUNCTION acpi_reallocate_root_table(void)
 {
 	acpi_status status;
-	struct acpi_table_desc *table_desc;
-	u32 i, j;
+	u32 i;
 
 	ACPI_FUNCTION_TRACE(acpi_reallocate_root_table);
 
@@ -180,8 +179,6 @@ acpi_status ACPI_INIT_FUNCTION acpi_reallocate_root_table(void)
 		return_ACPI_STATUS(AE_SUPPORT);
 	}
 
-	(void)acpi_ut_acquire_mutex(ACPI_MTX_TABLES);
-
 	/*
 	 * Ensure OS early boot logic, which is required by some hosts. If the
 	 * table state is reported to be wrong, developers should fix the
@@ -189,39 +186,17 @@ acpi_status ACPI_INIT_FUNCTION acpi_reallocate_root_table(void)
 	 * early stage.
 	 */
 	for (i = 0; i < acpi_gbl_root_table_list.current_table_count; ++i) {
-		table_desc = &acpi_gbl_root_table_list.tables[i];
-		if (table_desc->pointer) {
+		if (acpi_gbl_root_table_list.tables[i].pointer) {
 			ACPI_ERROR((AE_INFO,
 				    "Table [%4.4s] is not invalidated during early boot stage",
-				    table_desc->signature.ascii));
-		}
-	}
-
-	if (!acpi_gbl_enable_table_validation) {
-		/*
-		 * Now it's safe to do full table validation. We can do deferred
-		 * table initilization here once the flag is set.
-		 */
-		acpi_gbl_enable_table_validation = TRUE;
-		for (i = 0; i < acpi_gbl_root_table_list.current_table_count;
-		     ++i) {
-			table_desc = &acpi_gbl_root_table_list.tables[i];
-			if (!(table_desc->flags & ACPI_TABLE_IS_VERIFIED)) {
-				status =
-				    acpi_tb_verify_temp_table(table_desc, NULL,
-							      &j);
-				if (ACPI_FAILURE(status)) {
-					acpi_tb_uninstall_table(table_desc);
-				}
-			}
+				    acpi_gbl_root_table_list.tables[i].
+				    signature.ascii));
 		}
 	}
 
 	acpi_gbl_root_table_list.flags |= ACPI_ROOT_ALLOW_RESIZE;
-	status = acpi_tb_resize_root_table_list();
-	acpi_gbl_root_table_list.flags |= ACPI_ROOT_ORIGIN_ALLOCATED;
 
-	(void)acpi_ut_release_mutex(ACPI_MTX_TABLES);
+	status = acpi_tb_resize_root_table_list();
 	return_ACPI_STATUS(status);
 }
 
@@ -393,10 +368,6 @@ void acpi_put_table(struct acpi_table_header *table)
 	struct acpi_table_desc *table_desc;
 
 	ACPI_FUNCTION_TRACE(acpi_put_table);
-
-	if (!table) {
-		return_VOID;
-	}
 
 	(void)acpi_ut_acquire_mutex(ACPI_MTX_TABLES);
 

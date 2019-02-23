@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * If TRACE_SYSTEM is defined, that will be the directory created
  * in the ftrace directory under /sys/kernel/tracing/events/<system>

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef BLK_MQ_SCHED_H
 #define BLK_MQ_SCHED_H
 

@@ -510,8 +510,6 @@ struct rproc_vdev {
 };
 
 struct rproc *rproc_get_by_phandle(phandle phandle);
-struct rproc *rproc_get_by_child(struct device *dev);
-
 struct rproc *rproc_alloc(struct device *dev, const char *name,
 			  const struct rproc_ops *ops,
 			  const char *firmware, int len);

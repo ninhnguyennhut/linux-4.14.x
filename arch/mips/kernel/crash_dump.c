@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/highmem.h>
 #include <linux/bootmem.h>
 #include <linux/crash_dump.h>

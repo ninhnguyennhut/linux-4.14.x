@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef LINUX_CRASH_DUMP_H
 #define LINUX_CRASH_DUMP_H
 

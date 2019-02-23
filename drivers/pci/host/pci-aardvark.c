@@ -191,6 +191,7 @@
 #define LINK_WAIT_USLEEP_MIN		90000
 #define LINK_WAIT_USLEEP_MAX		100000
 
+#define LEGACY_IRQ_NUM			4
 #define MSI_IRQ_NUM			32
 
 struct advk_pcie {
@@ -728,7 +729,7 @@ static int advk_pcie_init_irq_domain(struct advk_pcie *pcie)
 	irq_chip->irq_unmask = advk_pcie_irq_unmask;
 
 	pcie->irq_domain =
-		irq_domain_add_linear(pcie_intc_node, PCI_NUM_INTX,
+		irq_domain_add_linear(pcie_intc_node, LEGACY_IRQ_NUM,
 				      &advk_pcie_irq_domain_ops, pcie);
 	if (!pcie->irq_domain) {
 		dev_err(dev, "Failed to get a INTx IRQ domain\n");
@@ -785,7 +786,7 @@ static void advk_pcie_handle_int(struct advk_pcie *pcie)
 		advk_pcie_handle_msi(pcie);
 
 	/* Process legacy interrupts */
-	for (i = 0; i < PCI_NUM_INTX; i++) {
+	for (i = 0; i < LEGACY_IRQ_NUM; i++) {
 		if (!(status & PCIE_ISR0_INTX_ASSERT(i)))
 			continue;
 
@@ -935,8 +936,6 @@ static int advk_pcie_probe(struct platform_device *pdev)
 	bridge->sysdata = pcie;
 	bridge->busnr = 0;
 	bridge->ops = &advk_pcie_ops;
-	bridge->map_irq = of_irq_parse_and_map_pci;
-	bridge->swizzle_irq = pci_common_swizzle;
 
 	ret = pci_scan_root_bus_bridge(bridge);
 	if (ret < 0) {

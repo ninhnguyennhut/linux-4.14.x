@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _AF_NETLINK_H
 #define _AF_NETLINK_H
 
@@ -34,7 +33,6 @@ struct netlink_sock {
 	wait_queue_head_t	wait;
 	bool			bound;
 	bool			cb_running;
-	int			dump_done_errno;
 	struct netlink_callback	cb;
 	struct mutex		*cb_mutex;
 	struct mutex		cb_def_mutex;

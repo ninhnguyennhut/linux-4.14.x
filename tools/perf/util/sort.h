@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_SORT_H
 #define __PERF_SORT_H
 #include "../builtin.h"
@@ -246,7 +245,6 @@ enum sort_type {
 	SORT_MEM_SNOOP,
 	SORT_MEM_DCACHELINE,
 	SORT_MEM_IADDR_SYMBOL,
-	SORT_MEM_PHYS_DADDR,
 };
 
 /*

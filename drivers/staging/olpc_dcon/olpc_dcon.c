@@ -456,6 +456,8 @@ static ssize_t dcon_freeze_store(struct device *dev,
 	if (ret)
 		return ret;
 
+	pr_info("dcon_freeze_store: %lu\n", output);
+
 	switch (output) {
 	case 0:
 		dcon_set_source(dcon, DCON_SOURCE_CPU);

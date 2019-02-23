@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *    Copyright IBM Corp. 2007, 2010
  *    Author(s): Peter Oberparleiter <peter.oberparleiter@de.ibm.com>

@@ -69,10 +69,8 @@ static const char acpi_gbl_hex_to_ascii[] = {
 
 char acpi_ut_hex_to_ascii_char(u64 integer, u32 position)
 {
-	u64 index;
 
-	acpi_ut_short_shift_right(integer, position, &index);
-	return (acpi_gbl_hex_to_ascii[index & 0xF]);
+	return (acpi_gbl_hex_to_ascii[(integer >> position) & 0xF]);
 }
 
 /*******************************************************************************

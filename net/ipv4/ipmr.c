@@ -3114,14 +3114,14 @@ int __init ip_mr_init(void)
 	}
 #endif
 	rtnl_register(RTNL_FAMILY_IPMR, RTM_GETROUTE,
-		      ipmr_rtm_getroute, ipmr_rtm_dumproute, 0);
+		      ipmr_rtm_getroute, ipmr_rtm_dumproute, NULL);
 	rtnl_register(RTNL_FAMILY_IPMR, RTM_NEWROUTE,
-		      ipmr_rtm_route, NULL, 0);
+		      ipmr_rtm_route, NULL, NULL);
 	rtnl_register(RTNL_FAMILY_IPMR, RTM_DELROUTE,
-		      ipmr_rtm_route, NULL, 0);
+		      ipmr_rtm_route, NULL, NULL);
 
 	rtnl_register(RTNL_FAMILY_IPMR, RTM_GETLINK,
-		      NULL, ipmr_rtm_dumplink, 0);
+		      NULL, ipmr_rtm_dumplink, NULL);
 	return 0;
 
 #ifdef CONFIG_IP_PIMSM_V2

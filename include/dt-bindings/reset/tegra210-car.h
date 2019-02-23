@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * This header provides Tegra210-specific constants for binding
  * nvidia,tegra210-car.

@@ -522,7 +522,7 @@ void gfs2_recover_func(struct work_struct *work)
 			if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags))
 				ro = 1;
 		} else {
-			if (sb_rdonly(sdp->sd_vfs)) {
+			if (sdp->sd_vfs->s_flags & MS_RDONLY) {
 				/* check if device itself is read-only */
 				ro = bdev_read_only(sdp->sd_vfs->s_bdev);
 				if (!ro) {

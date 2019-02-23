@@ -22,7 +22,6 @@
  *
  */
 
-#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 
 #include "mock_engine.h"
@@ -54,17 +53,15 @@ static void mock_device_release(struct drm_device *dev)
 
 	mutex_lock(&i915->drm.struct_mutex);
 	mock_device_flush(i915);
-	i915_gem_contexts_lost(i915);
 	mutex_unlock(&i915->drm.struct_mutex);
 
 	cancel_delayed_work_sync(&i915->gt.retire_work);
 	cancel_delayed_work_sync(&i915->gt.idle_work);
-	i915_gem_drain_workqueue(i915);
 
 	mutex_lock(&i915->drm.struct_mutex);
 	for_each_engine(engine, i915, id)
 		mock_engine_free(engine);
-	i915_gem_contexts_fini(i915);
+	i915_gem_context_fini(i915);
 	mutex_unlock(&i915->drm.struct_mutex);
 
 	drain_workqueue(i915->wq);
@@ -111,23 +108,6 @@ static void mock_idle_work_handler(struct work_struct *work)
 {
 }
 
-static int pm_domain_resume(struct device *dev)
-{
-	return pm_generic_runtime_resume(dev);
-}
-
-static int pm_domain_suspend(struct device *dev)
-{
-	return pm_generic_runtime_suspend(dev);
-}
-
-static struct dev_pm_domain pm_domain = {
-	.ops = {
-		.runtime_suspend = pm_domain_suspend,
-		.runtime_resume = pm_domain_resume,
-	},
-};
-
 struct drm_i915_private *mock_gem_device(void)
 {
 	struct drm_i915_private *i915;
@@ -146,10 +126,8 @@ struct drm_i915_private *mock_gem_device(void)
 	dev_set_name(&pdev->dev, "mock");
 	dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 
-	dev_pm_domain_set(&pdev->dev, &pm_domain);
-	pm_runtime_enable(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
-	WARN_ON(pm_runtime_get_sync(&pdev->dev));
+	pm_runtime_get_sync(&pdev->dev);
 
 	i915 = (struct drm_i915_private *)(pdev + 1);
 	pci_set_drvdata(pdev, i915);
@@ -182,7 +160,7 @@ struct drm_i915_private *mock_gem_device(void)
 	INIT_LIST_HEAD(&i915->mm.unbound_list);
 	INIT_LIST_HEAD(&i915->mm.bound_list);
 
-	mock_init_contexts(i915);
+	ida_init(&i915->context_hw_ida);
 
 	INIT_DELAYED_WORK(&i915->gt.retire_work, mock_retire_work_handler);
 	INIT_DELAYED_WORK(&i915->gt.idle_work, mock_idle_work_handler);
@@ -226,7 +204,7 @@ struct drm_i915_private *mock_gem_device(void)
 	mutex_unlock(&i915->drm.struct_mutex);
 
 	mkwrite_device_info(i915)->ring_mask = BIT(0);
-	i915->engine[RCS] = mock_engine(i915, "mock", RCS);
+	i915->engine[RCS] = mock_engine(i915, "mock");
 	if (!i915->engine[RCS])
 		goto err_priorities;
 

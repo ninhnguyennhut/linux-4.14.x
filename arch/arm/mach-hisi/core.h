@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __HISILICON_CORE_H
 #define __HISILICON_CORE_H
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Platform data definitions for Atmel USBA gadget driver.
  */

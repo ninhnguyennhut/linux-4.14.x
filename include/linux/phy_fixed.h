@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PHY_FIXED_H
 #define __PHY_FIXED_H
 

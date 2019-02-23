@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * device_cgroup.c - device cgroup subsystem
  *

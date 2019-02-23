@@ -1611,15 +1611,13 @@ static int arm_smmu_domain_finalise(struct iommu_domain *domain)
 	domain->pgsize_bitmap = pgtbl_cfg.pgsize_bitmap;
 	domain->geometry.aperture_end = (1UL << ias) - 1;
 	domain->geometry.force_aperture = true;
+	smmu_domain->pgtbl_ops = pgtbl_ops;
 
 	ret = finalise_stage_fn(smmu_domain, &pgtbl_cfg);
-	if (ret < 0) {
+	if (ret < 0)
 		free_io_pgtable_ops(pgtbl_ops);
-		return ret;
-	}
 
-	smmu_domain->pgtbl_ops = pgtbl_ops;
-	return 0;
+	return ret;
 }
 
 static __le64 *arm_smmu_get_step_for_sid(struct arm_smmu_device *smmu, u32 sid)
@@ -1646,20 +1644,13 @@ static __le64 *arm_smmu_get_step_for_sid(struct arm_smmu_device *smmu, u32 sid)
 
 static void arm_smmu_install_ste_for_dev(struct iommu_fwspec *fwspec)
 {
-	int i, j;
+	int i;
 	struct arm_smmu_master_data *master = fwspec->iommu_priv;
 	struct arm_smmu_device *smmu = master->smmu;
 
 	for (i = 0; i < fwspec->num_ids; ++i) {
 		u32 sid = fwspec->ids[i];
 		__le64 *step = arm_smmu_get_step_for_sid(smmu, sid);
-
-		/* Bridged PCI devices may end up with duplicated IDs */
-		for (j = 0; j < i; j++)
-			if (fwspec->ids[j] == sid)
-				break;
-		if (j < i)
-			continue;
 
 		arm_smmu_write_strtab_ent(smmu, sid, step, &master->ste);
 	}
@@ -2861,13 +2852,7 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
 
 	arm_smmu_device_disable(smmu);
-
 	return 0;
-}
-
-static void arm_smmu_device_shutdown(struct platform_device *pdev)
-{
-	arm_smmu_device_remove(pdev);
 }
 
 static const struct of_device_id arm_smmu_of_match[] = {
@@ -2883,7 +2868,6 @@ static struct platform_driver arm_smmu_driver = {
 	},
 	.probe	= arm_smmu_device_probe,
 	.remove	= arm_smmu_device_remove,
-	.shutdown = arm_smmu_device_shutdown,
 };
 module_platform_driver(arm_smmu_driver);
 

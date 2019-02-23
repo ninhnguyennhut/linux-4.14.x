@@ -83,7 +83,7 @@ struct chip_data {
 	u16 lpss_tx_threshold;
 	u8 enable_dma;
 	union {
-		struct gpio_desc *gpiod_cs;
+		int gpio_cs;
 		unsigned int frm;
 	};
 	int gpio_cs_inverted;

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _PARISC_CACHEFLUSH_H
 #define _PARISC_CACHEFLUSH_H
 

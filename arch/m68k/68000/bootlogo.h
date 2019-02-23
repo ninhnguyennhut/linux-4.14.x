@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/compiler.h>
 
 #define bootlogo_width 160

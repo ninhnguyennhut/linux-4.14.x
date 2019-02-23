@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * XDR types for NFSv3 in nfsd.
  *

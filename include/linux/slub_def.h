@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_SLUB_DEF_H
 #define _LINUX_SLUB_DEF_H
 
@@ -114,10 +113,6 @@ struct kmem_cache {
 #ifdef CONFIG_SYSFS
 	struct kset *memcg_kset;
 #endif
-#endif
-
-#ifdef CONFIG_SLAB_FREELIST_HARDENED
-	unsigned long random;
 #endif
 
 #ifdef CONFIG_NUMA

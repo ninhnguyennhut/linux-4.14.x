@@ -359,6 +359,7 @@
 
 &mmc_0 {
 	status = "okay";
+	num-slots = <1>;
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
 	non-removable;
@@ -374,6 +375,7 @@
 
 &mmc_2 {
 	status = "okay";
+	num-slots = <1>;
 	cap-sd-highspeed;
 	card-detect-delay = <200>;
 	clock-frequency = <400000000>;

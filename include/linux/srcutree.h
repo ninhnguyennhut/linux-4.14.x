@@ -104,6 +104,8 @@ struct srcu_struct {
 #define SRCU_STATE_SCAN1	1
 #define SRCU_STATE_SCAN2	2
 
+void process_srcu(struct work_struct *work);
+
 #define __SRCU_STRUCT_INIT(name)					\
 	{								\
 		.sda = &name##_srcu_data,				\
@@ -139,6 +141,5 @@ struct srcu_struct {
 
 void synchronize_srcu_expedited(struct srcu_struct *sp);
 void srcu_barrier(struct srcu_struct *sp);
-void srcu_torture_stats_print(struct srcu_struct *sp, char *tt, char *tf);
 
 #endif

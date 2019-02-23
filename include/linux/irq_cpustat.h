@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __irq_cpustat_h
 #define __irq_cpustat_h
 

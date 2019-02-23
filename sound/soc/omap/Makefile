@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # OMAP Platform Support
 snd-soc-omap-objs := omap-pcm.o
 snd-soc-omap-dmic-objs := omap-dmic.o

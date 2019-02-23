@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XEN_MMU_H
 
 #include <linux/linkage.h>

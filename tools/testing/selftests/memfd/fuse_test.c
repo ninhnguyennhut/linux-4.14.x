@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * memfd GUP test-case
  * This tests memfd interactions with get_user_pages(). We require the
@@ -34,7 +33,7 @@
 #include <unistd.h>
 
 #define MFD_DEF_SIZE 8192
-#define STACK_SIZE 65536
+#define STACK_SIZE 65535
 
 static int sys_memfd_create(const char *name,
 			    unsigned int flags)

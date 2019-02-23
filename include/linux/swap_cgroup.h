@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_SWAP_CGROUP_H
 #define __LINUX_SWAP_CGROUP_H
 

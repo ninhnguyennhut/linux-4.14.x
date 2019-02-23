@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Author(s)......: Carsten Otte <cotte@de.ibm.com>
  * 		    Rob M van der Heij <rvdheij@nl.ibm.com>

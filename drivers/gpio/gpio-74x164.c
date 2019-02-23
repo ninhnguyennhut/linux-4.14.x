@@ -9,7 +9,6 @@
  *  published by the Free Software Foundation.
  */
 
-#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/mutex.h>
 #include <linux/spi/spi.h>
@@ -32,7 +31,6 @@ struct gen_74x164_chip {
 	 * numbering, store the bytes in reverse order.
 	 */
 	u8			buffer[0];
-	struct gpio_desc	*gpiod_oe;
 };
 
 static int __gen_74x164_write_config(struct gen_74x164_chip *chip)
@@ -128,13 +126,6 @@ static int gen_74x164_probe(struct spi_device *spi)
 	if (!chip)
 		return -ENOMEM;
 
-	chip->gpiod_oe = devm_gpiod_get_optional(&spi->dev, "enable",
-						 GPIOD_OUT_LOW);
-	if (IS_ERR(chip->gpiod_oe))
-		return PTR_ERR(chip->gpiod_oe);
-
-	gpiod_set_value_cansleep(chip->gpiod_oe, 1);
-
 	spi_set_drvdata(spi, chip);
 
 	chip->gpio_chip.label = spi->modalias;
@@ -173,7 +164,6 @@ static int gen_74x164_remove(struct spi_device *spi)
 {
 	struct gen_74x164_chip *chip = spi_get_drvdata(spi);
 
-	gpiod_set_value_cansleep(chip->gpiod_oe, 0);
 	gpiochip_remove(&chip->gpio_chip);
 	mutex_destroy(&chip->lock);
 

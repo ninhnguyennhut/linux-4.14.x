@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Serialport functions for debugging
  *
  * Copyright (c) 2000-2007 Axis Communications AB

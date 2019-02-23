@@ -26,7 +26,6 @@ Arguments
     File descriptor returned by :ref:`open() <func-open>`.
 
 ``argp``
-    Pointer to struct :c:type:`v4l2_capability`.
 
 
 Description
@@ -92,13 +91,12 @@ specification the ioctl returns an ``EINVAL`` error code.
 	stack from a newer kernel.
 
 	The version number is formatted using the ``KERNEL_VERSION()``
-	macro. For example if the media stack corresponds to the V4L2
-	version shipped with Kernel 4.14, it would be equivalent to:
+	macro:
     * - :cspan:`2`
 
 	``#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))``
 
-	``__u32 version = KERNEL_VERSION(4, 14, 0);``
+	``__u32 version = KERNEL_VERSION(0, 8, 1);``
 
 	``printf ("Version: %u.%u.%u\\n",``
 
@@ -133,7 +131,7 @@ specification the ioctl returns an ``EINVAL`` error code.
 
 
 
-.. tabularcolumns:: |p{6.1cm}|p{2.2cm}|p{8.7cm}|
+.. tabularcolumns:: |p{6cm}|p{2.2cm}|p{8.8cm}|
 
 .. _device-capabilities:
 

@@ -41,7 +41,6 @@
 #include <linux/ioctl.h>
 #include <linux/skbuff.h>
 #include <linux/firmware.h>
-#include <linux/serdev.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -299,12 +298,6 @@ void hci_uart_set_flow_control(struct hci_uart *hu, bool enable)
 	unsigned int set = 0;
 	unsigned int clear = 0;
 
-	if (hu->serdev) {
-		serdev_device_set_flow_control(hu->serdev, !enable);
-		serdev_device_set_rts(hu->serdev, !enable);
-		return;
-	}
-
 	if (enable) {
 		/* Disable hardware flow control */
 		ktermios = tty->termios;
@@ -464,8 +457,7 @@ static int hci_uart_tty_open(struct tty_struct *tty)
 	BT_DBG("tty %p", tty);
 
 	/* Error if the tty has no write op instead of leaving an exploitable
-	 * hole
-	 */
+	   hole */
 	if (tty->ops->write == NULL)
 		return -EOPNOTSUPP;
 
@@ -517,12 +509,12 @@ static void hci_uart_tty_close(struct tty_struct *tty)
 	if (hdev)
 		hci_uart_close(hdev);
 
+	cancel_work_sync(&hu->write_work);
+
 	if (test_bit(HCI_UART_PROTO_READY, &hu->flags)) {
 		write_lock_irqsave(&hu->proto_lock, flags);
 		clear_bit(HCI_UART_PROTO_READY, &hu->flags);
 		write_unlock_irqrestore(&hu->proto_lock, flags);
-
-		cancel_work_sync(&hu->write_work);
 
 		if (hdev) {
 			if (test_bit(HCI_UART_REGISTERED, &hu->flags))

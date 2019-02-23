@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /****************************************************************************/
 /*
  *  linux/fs/binfmt_flat.c
@@ -177,32 +176,41 @@ static int create_flat_tables(struct linux_binprm *bprm, unsigned long arg_start
 #define ENCRYPTED    0x20 /* bit 5 set: file is encrypted */
 #define RESERVED     0xC0 /* bit 6,7:   reserved */
 
-static int decompress_exec(struct linux_binprm *bprm, loff_t fpos, char *dst,
-		long len, int fd)
+static int decompress_exec(
+	struct linux_binprm *bprm,
+	unsigned long offset,
+	char *dst,
+	long len,
+	int fd)
 {
 	unsigned char *buf;
 	z_stream strm;
+	loff_t fpos;
 	int ret, retval;
 
-	pr_debug("decompress_exec(offset=%llx,buf=%p,len=%lx)\n", fpos, dst, len);
+	pr_debug("decompress_exec(offset=%lx,buf=%p,len=%lx)\n", offset, dst, len);
 
 	memset(&strm, 0, sizeof(strm));
 	strm.workspace = kmalloc(zlib_inflate_workspacesize(), GFP_KERNEL);
-	if (!strm.workspace)
+	if (strm.workspace == NULL) {
+		pr_debug("no memory for decompress workspace\n");
 		return -ENOMEM;
-
+	}
 	buf = kmalloc(LBUFSIZE, GFP_KERNEL);
-	if (!buf) {
+	if (buf == NULL) {
+		pr_debug("no memory for read buffer\n");
 		retval = -ENOMEM;
 		goto out_free;
 	}
 
 	/* Read in first chunk of data and parse gzip header. */
-	ret = kernel_read(bprm->file, buf, LBUFSIZE, &fpos);
+	fpos = offset;
+	ret = kernel_read(bprm->file, offset, buf, LBUFSIZE);
 
 	strm.next_in = buf;
 	strm.avail_in = ret;
 	strm.total_in = 0;
+	fpos += ret;
 
 	retval = -ENOEXEC;
 
@@ -268,7 +276,7 @@ static int decompress_exec(struct linux_binprm *bprm, loff_t fpos, char *dst,
 	}
 
 	while ((ret = zlib_inflate(&strm, Z_NO_FLUSH)) == Z_OK) {
-		ret = kernel_read(bprm->file, buf, LBUFSIZE, &fpos);
+		ret = kernel_read(bprm->file, fpos, buf, LBUFSIZE);
 		if (ret <= 0)
 			break;
 		len -= ret;
@@ -276,6 +284,7 @@ static int decompress_exec(struct linux_binprm *bprm, loff_t fpos, char *dst,
 		strm.next_in = buf;
 		strm.avail_in = ret;
 		strm.total_in = 0;
+		fpos += ret;
 	}
 
 	if (ret < 0) {
@@ -881,7 +890,7 @@ static int load_flat_shared_library(int id, struct lib_info *libs)
 	 * as we're past the point of no return and are dealing with shared
 	 * libraries.
 	 */
-	bprm.called_set_creds = 1;
+	bprm.cred_prepared = 1;
 
 	res = prepare_binprm(&bprm);
 

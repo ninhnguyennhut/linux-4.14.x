@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _UVC_QUEUE_H_
 #define _UVC_QUEUE_H_
 

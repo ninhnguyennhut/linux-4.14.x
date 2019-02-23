@@ -72,7 +72,6 @@ struct bcm_sf2_priv {
 	u32 				type;
 	const u16			*reg_offsets;
 	unsigned int			core_reg_align;
-	unsigned int			num_cfp_rules;
 
 	/* spinlock protecting access to the indirect registers */
 	spinlock_t			indir_lock;
@@ -131,12 +130,12 @@ static inline u32 bcm_sf2_mangle_addr(struct bcm_sf2_priv *priv, u32 off)
 #define SF2_IO_MACRO(name) \
 static inline u32 name##_readl(struct bcm_sf2_priv *priv, u32 off)	\
 {									\
-	return readl_relaxed(priv->name + off);				\
+	return __raw_readl(priv->name + off);				\
 }									\
 static inline void name##_writel(struct bcm_sf2_priv *priv,		\
 				  u32 val, u32 off)			\
 {									\
-	writel_relaxed(val, priv->name + off);				\
+	__raw_writel(val, priv->name + off);				\
 }									\
 
 /* Accesses to 64-bits register requires us to latch the hi/lo pairs
@@ -180,23 +179,23 @@ static inline void intrl2_##which##_mask_set(struct bcm_sf2_priv *priv, \
 static inline u32 core_readl(struct bcm_sf2_priv *priv, u32 off)
 {
 	u32 tmp = bcm_sf2_mangle_addr(priv, off);
-	return readl_relaxed(priv->core + tmp);
+	return __raw_readl(priv->core + tmp);
 }
 
 static inline void core_writel(struct bcm_sf2_priv *priv, u32 val, u32 off)
 {
 	u32 tmp = bcm_sf2_mangle_addr(priv, off);
-	writel_relaxed(val, priv->core + tmp);
+	__raw_writel(val, priv->core + tmp);
 }
 
 static inline u32 reg_readl(struct bcm_sf2_priv *priv, u16 off)
 {
-	return readl_relaxed(priv->reg + priv->reg_offsets[off]);
+	return __raw_readl(priv->reg + priv->reg_offsets[off]);
 }
 
 static inline void reg_writel(struct bcm_sf2_priv *priv, u32 val, u16 off)
 {
-	writel_relaxed(val, priv->reg + priv->reg_offsets[off]);
+	__raw_writel(val, priv->reg + priv->reg_offsets[off]);
 }
 
 SF2_IO64_MACRO(core);

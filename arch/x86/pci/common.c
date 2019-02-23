@@ -674,7 +674,7 @@ int pcibios_add_device(struct pci_dev *dev)
 
 	pa_data = boot_params.hdr.setup_data;
 	while (pa_data) {
-		data = memremap(pa_data, sizeof(*rom), MEMREMAP_WB);
+		data = ioremap(pa_data, sizeof(*rom));
 		if (!data)
 			return -ENOMEM;
 
@@ -693,7 +693,7 @@ int pcibios_add_device(struct pci_dev *dev)
 			}
 		}
 		pa_data = data->next;
-		memunmap(data);
+		iounmap(data);
 	}
 	set_dma_domain_ops(dev);
 	set_dev_domain_options(dev);

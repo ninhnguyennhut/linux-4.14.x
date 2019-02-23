@@ -150,7 +150,6 @@ LEAF(__r4k_wait)
 	.align	5
 BUILD_ROLLBACK_PROLOGUE handle_int
 NESTED(handle_int, PT_SIZE, sp)
-	.cfi_signal_frame
 #ifdef CONFIG_TRACE_IRQFLAGS
 	/*
 	 * Check to see if the interrupted code has just disabled
@@ -182,7 +181,7 @@ NESTED(handle_int, PT_SIZE, sp)
 1:
 	.set pop
 #endif
-	SAVE_ALL docfi=1
+	SAVE_ALL
 	CLI
 	TRACE_IRQS_OFF
 
@@ -270,8 +269,8 @@ NESTED(except_vec_ejtag_debug, 0, sp)
  */
 BUILD_ROLLBACK_PROLOGUE except_vec_vi
 NESTED(except_vec_vi, 0, sp)
-	SAVE_SOME docfi=1
-	SAVE_AT docfi=1
+	SAVE_SOME
+	SAVE_AT
 	.set	push
 	.set	noreorder
 	PTR_LA	v1, except_vec_vi_handler
@@ -397,7 +396,6 @@ NESTED(except_vec_nmi, 0, sp)
 	__FINIT
 
 NESTED(nmi_handler, PT_SIZE, sp)
-	.cfi_signal_frame
 	.set	push
 	.set	noat
 	/*
@@ -480,7 +478,6 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.macro	__BUILD_HANDLER exception handler clear verbose ext
 	.align	5
 	NESTED(handle_\exception, PT_SIZE, sp)
-	.cfi_signal_frame
 	.set	noat
 	SAVE_ALL
 	FEXPORT(handle_\exception\ext)
@@ -488,8 +485,8 @@ NESTED(nmi_handler, PT_SIZE, sp)
 	.set	at
 	__BUILD_\verbose \exception
 	move	a0, sp
-	jal	do_\handler
-	j	ret_from_exception
+	PTR_LA	ra, ret_from_exception
+	j	do_\handler
 	END(handle_\exception)
 	.endm
 

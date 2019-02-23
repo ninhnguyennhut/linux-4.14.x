@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Objects to go into the VDSO.
 obj-vdso-y := elf.o gettimeofday.o sigreturn.o
 

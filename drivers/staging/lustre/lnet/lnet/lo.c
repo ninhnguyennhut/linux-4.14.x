@@ -29,8 +29,7 @@
  */
 
 #define DEBUG_SUBSYSTEM S_LNET
-
-#include <linux/lnet/lib-lnet.h>
+#include "../../include/linux/lnet/lib-lnet.h"
 
 static int
 lolnd_send(struct lnet_ni *ni, void *private, struct lnet_msg *lntmsg)

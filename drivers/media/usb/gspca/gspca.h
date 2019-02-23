@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef GSPCAV2_H
 #define GSPCAV2_H
 

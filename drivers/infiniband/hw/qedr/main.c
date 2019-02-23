@@ -47,6 +47,7 @@
 MODULE_DESCRIPTION("QLogic 40G/100G ROCE Driver");
 MODULE_AUTHOR("QLogic Corporation");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_VERSION(QEDR_MODULE_VERSION);
 
 #define QEDR_WQ_MULTIPLIER_DFT	(3)
 
@@ -68,12 +69,13 @@ static enum rdma_link_layer qedr_link_layer(struct ib_device *device,
 	return IB_LINK_LAYER_ETHERNET;
 }
 
-static void qedr_get_dev_fw_str(struct ib_device *ibdev, char *str)
+static void qedr_get_dev_fw_str(struct ib_device *ibdev, char *str,
+				size_t str_len)
 {
 	struct qedr_dev *qedr = get_qedr_dev(ibdev);
 	u32 fw_ver = (u32)qedr->attr.fw_ver;
 
-	snprintf(str, IB_FW_VERSION_NAME_MAX, "%d. %d. %d. %d",
+	snprintf(str, str_len, "%d. %d. %d. %d",
 		 (fw_ver >> 24) & 0xFF, (fw_ver >> 16) & 0xFF,
 		 (fw_ver >> 8) & 0xFF, fw_ver & 0xFF);
 }
@@ -776,7 +778,6 @@ static struct qedr_dev *qedr_add(struct qed_dev *cdev, struct pci_dev *pdev,
 	if (rc)
 		goto init_err;
 
-	dev->user_dpm_enabled = dev_info.user_dpm_enabled;
 	dev->num_hwfns = dev_info.common.num_hwfns;
 	dev->rdma_ctx = dev->ops->rdma_get_rdma_ctx(cdev);
 

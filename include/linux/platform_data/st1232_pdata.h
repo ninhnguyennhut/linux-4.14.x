@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_ST1232_PDATA_H
 #define _LINUX_ST1232_PDATA_H
 

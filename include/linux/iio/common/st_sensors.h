@@ -139,7 +139,7 @@ struct st_sensor_das {
  * @mask_ihl: mask to enable/disable active low on the INT lines.
  * @addr_od: address to enable/disable Open Drain on the INT lines.
  * @mask_od: mask to enable/disable Open Drain on the INT lines.
- * struct stat_drdy - status register of DRDY (data ready) interrupt.
+ * @addr_stat_drdy: address to read status of DRDY (data ready) interrupt
  * struct ig1 - represents the Interrupt Generator 1 of sensors.
  * @en_addr: address of the enable ig1 register.
  * @en_mask: mask to write the on/off value for enable.
@@ -152,10 +152,7 @@ struct st_sensor_data_ready_irq {
 	u8 mask_ihl;
 	u8 addr_od;
 	u8 mask_od;
-	struct {
-		u8 addr;
-		u8 mask;
-	} stat_drdy;
+	u8 addr_stat_drdy;
 	struct {
 		u8 en_addr;
 		u8 en_mask;
@@ -334,17 +331,5 @@ ssize_t st_sensors_sysfs_sampling_frequency_avail(struct device *dev,
 
 ssize_t st_sensors_sysfs_scale_avail(struct device *dev,
 				struct device_attribute *attr, char *buf);
-
-#ifdef CONFIG_OF
-void st_sensors_of_name_probe(struct device *dev,
-			      const struct of_device_id *match,
-			      char *name, int len);
-#else
-static inline void st_sensors_of_name_probe(struct device *dev,
-					    const struct of_device_id *match,
-					    char *name, int len)
-{
-}
-#endif
 
 #endif /* ST_SENSORS_H */

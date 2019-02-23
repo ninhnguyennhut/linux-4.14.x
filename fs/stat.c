@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/stat.c
  *
@@ -711,7 +710,7 @@ loff_t inode_get_bytes(struct inode *inode)
 	loff_t ret;
 
 	spin_lock(&inode->i_lock);
-	ret = __inode_get_bytes(inode);
+	ret = (((loff_t)inode->i_blocks) << 9) + inode->i_bytes;
 	spin_unlock(&inode->i_lock);
 	return ret;
 }

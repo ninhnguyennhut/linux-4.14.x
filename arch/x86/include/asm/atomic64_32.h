@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_ATOMIC64_32_H
 #define _ASM_X86_ATOMIC64_32_H
 
@@ -313,70 +312,37 @@ static inline long long atomic64_dec_if_positive(atomic64_t *v)
 #undef alternative_atomic64
 #undef __alternative_atomic64
 
-static inline void atomic64_and(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c & i)) != c)
-		c = old;
+#define ATOMIC64_OP(op, c_op)						\
+static inline void atomic64_##op(long long i, atomic64_t *v)		\
+{									\
+	long long old, c = 0;						\
+	while ((old = atomic64_cmpxchg(v, c, c c_op i)) != c)		\
+		c = old;						\
 }
 
-static inline long long atomic64_fetch_and(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c & i)) != c)
-		c = old;
-
-	return old;
+#define ATOMIC64_FETCH_OP(op, c_op)					\
+static inline long long atomic64_fetch_##op(long long i, atomic64_t *v)	\
+{									\
+	long long old, c = 0;						\
+	while ((old = atomic64_cmpxchg(v, c, c c_op i)) != c)		\
+		c = old;						\
+	return old;							\
 }
 
-static inline void atomic64_or(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c | i)) != c)
-		c = old;
-}
-
-static inline long long atomic64_fetch_or(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c | i)) != c)
-		c = old;
-
-	return old;
-}
-
-static inline void atomic64_xor(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c ^ i)) != c)
-		c = old;
-}
-
-static inline long long atomic64_fetch_xor(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c ^ i)) != c)
-		c = old;
-
-	return old;
-}
-
-static inline long long atomic64_fetch_add(long long i, atomic64_t *v)
-{
-	long long old, c = 0;
-
-	while ((old = atomic64_cmpxchg(v, c, c + i)) != c)
-		c = old;
-
-	return old;
-}
+ATOMIC64_FETCH_OP(add, +)
 
 #define atomic64_fetch_sub(i, v)	atomic64_fetch_add(-(i), (v))
+
+#define ATOMIC64_OPS(op, c_op)						\
+	ATOMIC64_OP(op, c_op)						\
+	ATOMIC64_FETCH_OP(op, c_op)
+
+ATOMIC64_OPS(and, &)
+ATOMIC64_OPS(or, |)
+ATOMIC64_OPS(xor, ^)
+
+#undef ATOMIC64_OPS
+#undef ATOMIC64_FETCH_OP
+#undef ATOMIC64_OP
 
 #endif /* _ASM_X86_ATOMIC64_32_H */

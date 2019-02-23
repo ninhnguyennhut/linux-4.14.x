@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config NIOS2
 	def_bool y
 	select TIMER_OF

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NET_NF_TABLES_CORE_H
 #define _NET_NF_TABLES_CORE_H
 
@@ -50,8 +49,6 @@ struct nft_payload_set {
 };
 
 extern const struct nft_expr_ops nft_payload_fast_ops;
-
-extern struct static_key_false nft_counters_enabled;
 extern struct static_key_false nft_trace_enabled;
 
 #endif /* _NET_NF_TABLES_CORE_H */

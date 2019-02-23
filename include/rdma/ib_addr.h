@@ -172,8 +172,7 @@ static inline int rdma_ip2gid(struct sockaddr *addr, union ib_gid *gid)
 				       (struct in6_addr *)gid);
 		break;
 	case AF_INET6:
-		*(struct in6_addr *)&gid->raw =
-			((struct sockaddr_in6 *)addr)->sin6_addr;
+		memcpy(gid->raw, &((struct sockaddr_in6 *)addr)->sin6_addr, 16);
 		break;
 	default:
 		return -EINVAL;
@@ -245,11 +244,10 @@ static inline void rdma_addr_set_dgid(struct rdma_dev_addr *dev_addr, union ib_g
 static inline enum ib_mtu iboe_get_mtu(int mtu)
 {
 	/*
-	 * Reduce IB headers from effective IBoE MTU.
+	 * reduce IB headers from effective IBoE MTU. 28 stands for
+	 * atomic header which is the biggest possible header after BTH
 	 */
-	mtu = mtu - (IB_GRH_BYTES + IB_UDP_BYTES + IB_BTH_BYTES +
-		     IB_EXT_XRC_BYTES + IB_EXT_ATOMICETH_BYTES +
-		     IB_ICRC_BYTES);
+	mtu = mtu - IB_GRH_BYTES - IB_BTH_BYTES - 28;
 
 	if (mtu >= ib_mtu_enum_to_int(IB_MTU_4096))
 		return IB_MTU_4096;
@@ -306,13 +304,7 @@ static inline void rdma_get_ll_mac(struct in6_addr *addr, u8 *mac)
 
 static inline int rdma_is_multicast_addr(struct in6_addr *addr)
 {
-	__be32 ipv4_addr;
-
-	if (addr->s6_addr[0] == 0xff)
-		return 1;
-
-	ipv4_addr = addr->s6_addr32[3];
-	return (ipv6_addr_v4mapped(addr) && ipv4_is_multicast(ipv4_addr));
+	return addr->s6_addr[0] == 0xff;
 }
 
 static inline void rdma_get_mcast_mac(struct in6_addr *addr, u8 *mac)

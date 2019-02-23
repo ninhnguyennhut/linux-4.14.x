@@ -223,13 +223,12 @@ static int aspeed_vuart_probe(struct platform_device *pdev)
 		if (IS_ERR(vuart->clk)) {
 			dev_warn(&pdev->dev,
 				"clk or clock-frequency not defined\n");
-			rc = PTR_ERR(vuart->clk);
-			goto err_sysfs_remove;
+			return PTR_ERR(vuart->clk);
 		}
 
 		rc = clk_prepare_enable(vuart->clk);
 		if (rc < 0)
-			goto err_sysfs_remove;
+			return rc;
 
 		clk = clk_get_rate(vuart->clk);
 	}
@@ -287,8 +286,6 @@ static int aspeed_vuart_probe(struct platform_device *pdev)
 err_clk_disable:
 	clk_disable_unprepare(vuart->clk);
 	irq_dispose_mapping(port.port.irq);
-err_sysfs_remove:
-	sysfs_remove_group(&vuart->dev->kobj, &aspeed_vuart_attr_group);
 	return rc;
 }
 

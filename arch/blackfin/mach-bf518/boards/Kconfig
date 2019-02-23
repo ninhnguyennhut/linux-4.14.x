@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 choice
 	prompt "System type"
 	default BFIN518F_EZBRD

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __KVM_IO_APIC_H
 #define __KVM_IO_APIC_H
 

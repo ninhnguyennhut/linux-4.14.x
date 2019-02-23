@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 
 if [ ! -f "$1" ]; then
 	SEED=`od -A n -t x8 -N 32 /dev/urandom | tr -d ' \n'`

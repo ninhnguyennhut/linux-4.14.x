@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* MN10300 Kernel base address
  *
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.

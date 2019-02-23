@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009-2010 PetaLogix
  * Copyright (C) 2006 Benjamin Herrenschmidt, IBM Corporation
@@ -166,7 +165,7 @@ int dma_direct_mmap_coherent(struct device *dev, struct vm_area_struct *vma,
 			     unsigned long attrs)
 {
 #ifdef CONFIG_MMU
-	unsigned long user_count = vma_pages(vma);
+	unsigned long user_count = (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
 	unsigned long count = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	unsigned long off = vma->vm_pgoff;
 	unsigned long pfn;

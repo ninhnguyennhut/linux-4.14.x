@@ -406,7 +406,9 @@ static void intel_fbc_work_fn(struct work_struct *__work)
 	struct drm_vblank_crtc *vblank = &dev_priv->drm.vblank[crtc->pipe];
 
 	if (drm_crtc_vblank_get(&crtc->base)) {
-		/* CRTC is now off, leave FBC deactivated */
+		DRM_ERROR("vblank not available for FBC on pipe %c\n",
+			  pipe_name(crtc->pipe));
+
 		mutex_lock(&fbc->lock);
 		work->scheduled = false;
 		mutex_unlock(&fbc->lock);
@@ -459,8 +461,6 @@ static void intel_fbc_schedule_activation(struct intel_crtc *crtc)
 	struct intel_fbc_work *work = &fbc->work;
 
 	WARN_ON(!mutex_is_locked(&fbc->lock));
-	if (WARN_ON(!fbc->enabled))
-		return;
 
 	if (drm_crtc_vblank_get(&crtc->base)) {
 		DRM_ERROR("vblank not available for FBC on pipe %c\n",
@@ -1216,7 +1216,7 @@ static void intel_fbc_underrun_work_fn(struct work_struct *work)
 	mutex_lock(&fbc->lock);
 
 	/* Maybe we were scheduled twice. */
-	if (fbc->underrun_detected || !fbc->enabled)
+	if (fbc->underrun_detected)
 		goto out;
 
 	DRM_DEBUG_KMS("Disabling FBC due to FIFO underrun.\n");

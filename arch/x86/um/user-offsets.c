@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <stdio.h>
 #include <stddef.h>
 #include <signal.h>
@@ -51,8 +50,8 @@ void foo(void)
 	DEFINE(HOST_GS, GS);
 	DEFINE(HOST_ORIG_AX, ORIG_EAX);
 #else
-#ifdef FP_XSTATE_MAGIC1
-	DEFINE_LONGS(HOST_FP_SIZE, 2696);
+#if defined(PTRACE_GETREGSET) && defined(PTRACE_SETREGSET)
+	DEFINE(HOST_FP_SIZE, sizeof(struct _xstate) / sizeof(unsigned long));
 #else
 	DEFINE(HOST_FP_SIZE, sizeof(struct _fpstate) / sizeof(unsigned long));
 #endif

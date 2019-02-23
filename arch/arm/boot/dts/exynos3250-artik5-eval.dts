@@ -22,6 +22,7 @@
 };
 
 &mshc_2 {
+	num-slots = <1>;
 	cap-sd-highspeed;
 	disable-wp;
 	vqmmc-supply = <&ldo3_reg>;

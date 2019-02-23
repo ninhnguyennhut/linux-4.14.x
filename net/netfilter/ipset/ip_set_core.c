@@ -1191,17 +1191,14 @@ static int ip_set_swap(struct net *net, struct sock *ctnl, struct sk_buff *skb,
 	      from->family == to->family))
 		return -IPSET_ERR_TYPE_MISMATCH;
 
-	write_lock_bh(&ip_set_ref_lock);
-
-	if (from->ref_netlink || to->ref_netlink) {
-		write_unlock_bh(&ip_set_ref_lock);
+	if (from->ref_netlink || to->ref_netlink)
 		return -EBUSY;
-	}
 
 	strncpy(from_name, from->name, IPSET_MAXNAMELEN);
 	strncpy(from->name, to->name, IPSET_MAXNAMELEN);
 	strncpy(to->name, from_name, IPSET_MAXNAMELEN);
 
+	write_lock_bh(&ip_set_ref_lock);
 	swap(from->ref, to->ref);
 	ip_set(inst, from_id) = to;
 	ip_set(inst, to_id) = from;
@@ -2075,28 +2072,25 @@ static struct pernet_operations ip_set_net_ops = {
 static int __init
 ip_set_init(void)
 {
-	int ret = register_pernet_subsys(&ip_set_net_ops);
+	int ret = nfnetlink_subsys_register(&ip_set_netlink_subsys);
 
-	if (ret) {
-		pr_err("ip_set: cannot register pernet_subsys.\n");
-		return ret;
-	}
-
-	ret = nfnetlink_subsys_register(&ip_set_netlink_subsys);
 	if (ret != 0) {
 		pr_err("ip_set: cannot register with nfnetlink.\n");
-		unregister_pernet_subsys(&ip_set_net_ops);
 		return ret;
 	}
-
 	ret = nf_register_sockopt(&so_set);
 	if (ret != 0) {
 		pr_err("SO_SET registry failed: %d\n", ret);
 		nfnetlink_subsys_unregister(&ip_set_netlink_subsys);
-		unregister_pernet_subsys(&ip_set_net_ops);
 		return ret;
 	}
-
+	ret = register_pernet_subsys(&ip_set_net_ops);
+	if (ret) {
+		pr_err("ip_set: cannot register pernet_subsys.\n");
+		nf_unregister_sockopt(&so_set);
+		nfnetlink_subsys_unregister(&ip_set_netlink_subsys);
+		return ret;
+	}
 	pr_info("ip_set: protocol %u\n", IPSET_PROTOCOL);
 	return 0;
 }
@@ -2104,10 +2098,9 @@ ip_set_init(void)
 static void __exit
 ip_set_fini(void)
 {
+	unregister_pernet_subsys(&ip_set_net_ops);
 	nf_unregister_sockopt(&so_set);
 	nfnetlink_subsys_unregister(&ip_set_netlink_subsys);
-
-	unregister_pernet_subsys(&ip_set_net_ops);
 	pr_debug("these are the famous last words\n");
 }
 

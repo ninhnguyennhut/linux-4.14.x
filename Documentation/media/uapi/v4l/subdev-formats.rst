@@ -1586,7 +1586,7 @@ JEIDA defined bit mapping will be named
 
 .. raw:: latex
 
-    \tiny
+    \begin{adjustbox}{width=\columnwidth}
 
 .. _v4l2-mbus-pixelcode-rgb-lvds:
 
@@ -1784,7 +1784,7 @@ JEIDA defined bit mapping will be named
 
 .. raw:: latex
 
-    \normalsize
+    \end{adjustbox}\newline\newline
 
 
 Bayer Formats
@@ -7321,14 +7321,11 @@ following information.
 
 The following table lists existing HSV/HSL formats.
 
-
 .. raw:: latex
 
-    \begingroup
-    \tiny
-    \setlength{\tabcolsep}{2pt}
+    \newline\newline\begin{adjustbox}{width=\columnwidth}
 
-.. tabularcolumns:: |p{3.0cm}|p{0.60cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
+.. tabularcolumns:: |p{6.2cm}|p{1.6cm}|p{0.7cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|p{0.5cm}|
 
 .. _v4l2-mbus-pixelcode-hsv:
 
@@ -7416,7 +7413,7 @@ The following table lists existing HSV/HSL formats.
 
 .. raw:: latex
 
-    \normalsize
+    \end{adjustbox}\newline\newline
 
 
 JPEG Compressed Formats
@@ -7438,7 +7435,7 @@ The following table lists existing JPEG compressed formats.
 
 .. _v4l2-mbus-pixelcode-jpeg:
 
-.. tabularcolumns:: |p{5.4cm}|p{1.4cm}|p{10.7cm}|
+.. tabularcolumns:: |p{5.6cm}|p{1.2cm}|p{10.7cm}|
 
 .. flat-table:: JPEG Formats
     :header-rows:  1
@@ -7471,7 +7468,7 @@ formats.
 
 .. _v4l2-mbus-pixelcode-vendor-specific:
 
-.. tabularcolumns:: |p{6.8cm}|p{1.4cm}|p{9.3cm}|
+.. tabularcolumns:: |p{6.6cm}|p{1.2cm}|p{9.7cm}|
 
 .. flat-table:: Vendor and device specific formats
     :header-rows:  1

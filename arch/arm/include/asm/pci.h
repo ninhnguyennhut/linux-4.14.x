@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ASMARM_PCI_H
 #define ASMARM_PCI_H
 

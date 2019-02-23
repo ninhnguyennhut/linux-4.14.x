@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 vimc-objs := vimc-core.o
 vimc_capture-objs := vimc-capture.o
 vimc_common-objs := vimc-common.o

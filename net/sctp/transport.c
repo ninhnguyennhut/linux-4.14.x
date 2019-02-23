@@ -251,37 +251,28 @@ void sctp_transport_pmtu(struct sctp_transport *transport, struct sock *sk)
 		transport->pathmtu = SCTP_DEFAULT_MAXSEGMENT;
 }
 
-bool sctp_transport_update_pmtu(struct sctp_transport *t, u32 pmtu)
+void sctp_transport_update_pmtu(struct sctp_transport *t, u32 pmtu)
 {
 	struct dst_entry *dst = sctp_transport_dst_check(t);
-	bool change = true;
 
 	if (unlikely(pmtu < SCTP_DEFAULT_MINSEGMENT)) {
-		pr_warn_ratelimited("%s: Reported pmtu %d too low, using default minimum of %d\n",
-				    __func__, pmtu, SCTP_DEFAULT_MINSEGMENT);
-		/* Use default minimum segment instead */
-		pmtu = SCTP_DEFAULT_MINSEGMENT;
+		pr_warn("%s: Reported pmtu %d too low, using default minimum of %d\n",
+			__func__, pmtu, SCTP_DEFAULT_MINSEGMENT);
+		/* Use default minimum segment size and disable
+		 * pmtu discovery on this transport.
+		 */
+		t->pathmtu = SCTP_DEFAULT_MINSEGMENT;
+	} else {
+		t->pathmtu = pmtu;
 	}
-	pmtu = SCTP_TRUNC4(pmtu);
 
 	if (dst) {
 		dst->ops->update_pmtu(dst, t->asoc->base.sk, NULL, pmtu);
 		dst = sctp_transport_dst_check(t);
 	}
 
-	if (!dst) {
+	if (!dst)
 		t->af_specific->get_dst(t, &t->saddr, &t->fl, t->asoc->base.sk);
-		dst = t->dst;
-	}
-
-	if (dst) {
-		/* Re-fetch, as under layers may have a higher minimum size */
-		pmtu = SCTP_TRUNC4(dst_mtu(dst));
-		change = t->pathmtu != pmtu;
-	}
-	t->pathmtu = pmtu;
-
-	return change;
 }
 
 /* Caches the dst entry and source address for a transport's destination
@@ -499,7 +490,7 @@ void sctp_transport_raise_cwnd(struct sctp_transport *transport,
  * detected.
  */
 void sctp_transport_lower_cwnd(struct sctp_transport *transport,
-			       enum sctp_lower_cwnd reason)
+			       sctp_lower_cwnd_t reason)
 {
 	struct sctp_association *asoc = transport->asoc;
 

@@ -995,12 +995,12 @@ int comedi_auto_config(struct device *hardware_device,
 	int ret;
 
 	if (!hardware_device) {
-		pr_warn("BUG! %s called with NULL hardware_device\n", __func__);
+		pr_warn("BUG! comedi_auto_config called with NULL hardware_device\n");
 		return -EINVAL;
 	}
 	if (!driver) {
 		dev_warn(hardware_device,
-			 "BUG! %s called with NULL comedi driver\n", __func__);
+			 "BUG! comedi_auto_config called with NULL comedi driver\n");
 		return -EINVAL;
 	}
 

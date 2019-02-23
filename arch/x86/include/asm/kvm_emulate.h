@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  * x86_emulate.h
  *
@@ -220,8 +219,8 @@ struct x86_emulate_ops {
 			 struct x86_instruction_info *info,
 			 enum x86_intercept_stage stage);
 
-	bool (*get_cpuid)(struct x86_emulate_ctxt *ctxt, u32 *eax, u32 *ebx,
-			  u32 *ecx, u32 *edx, bool check_limit);
+	void (*get_cpuid)(struct x86_emulate_ctxt *ctxt,
+			  u32 *eax, u32 *ebx, u32 *ecx, u32 *edx);
 	void (*set_nmi_mask)(struct x86_emulate_ctxt *ctxt, bool masked);
 
 	unsigned (*get_hflags)(struct x86_emulate_ctxt *ctxt);

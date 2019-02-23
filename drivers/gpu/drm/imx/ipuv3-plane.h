@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __IPUV3_PLANE_H__
 #define __IPUV3_PLANE_H__
 

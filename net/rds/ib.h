@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _RDS_IB_H
 #define _RDS_IB_H
 

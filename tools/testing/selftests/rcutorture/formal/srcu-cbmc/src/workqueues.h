@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef WORKQUEUES_H
 #define WORKQUEUES_H
 

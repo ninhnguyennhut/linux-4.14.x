@@ -190,14 +190,14 @@ static struct armada_37xx_pin_group armada_37xx_sb_groups[] = {
 		       "mii", "mii_err"),
 };
 
-static const struct armada_37xx_pin_data armada_37xx_pin_nb = {
+const struct armada_37xx_pin_data armada_37xx_pin_nb = {
 	.nr_pins = 36,
 	.name = "GPIO1",
 	.groups = armada_37xx_nb_groups,
 	.ngroups = ARRAY_SIZE(armada_37xx_nb_groups),
 };
 
-static const struct armada_37xx_pin_data armada_37xx_pin_sb = {
+const struct armada_37xx_pin_data armada_37xx_pin_sb = {
 	.nr_pins = 30,
 	.name = "GPIO2",
 	.groups = armada_37xx_sb_groups,
@@ -254,7 +254,7 @@ static int armada_37xx_pin_config_group_set(struct pinctrl_dev *pctldev,
 	return -ENOTSUPP;
 }
 
-static const struct pinconf_ops armada_37xx_pinconf_ops = {
+static struct pinconf_ops armada_37xx_pinconf_ops = {
 	.is_generic = true,
 	.pin_config_group_get = armada_37xx_pin_config_group_get,
 	.pin_config_group_set = armada_37xx_pin_config_group_set,
@@ -408,21 +408,12 @@ static int armada_37xx_gpio_direction_output(struct gpio_chip *chip,
 {
 	struct armada_37xx_pinctrl *info = gpiochip_get_data(chip);
 	unsigned int reg = OUTPUT_EN;
-	unsigned int mask, val, ret;
+	unsigned int mask;
 
 	armada_37xx_update_reg(&reg, offset);
 	mask = BIT(offset);
 
-	ret = regmap_update_bits(info->regmap, reg, mask, mask);
-
-	if (ret)
-		return ret;
-
-	reg = OUTPUT_VAL;
-	val = value ? mask : 0;
-	regmap_update_bits(info->regmap, reg, mask, val);
-
-	return 0;
+	return regmap_update_bits(info->regmap, reg, mask, mask);
 }
 
 static int armada_37xx_gpio_get(struct gpio_chip *chip, unsigned int offset)
@@ -559,9 +550,9 @@ static int armada_37xx_irq_set_wake(struct irq_data *d, unsigned int on)
 	spin_lock_irqsave(&info->irq_lock, flags);
 	val = readl(info->base + reg);
 	if (on)
-		val |= (BIT(d->hwirq % GPIO_PER_REG));
+		val |= d->mask;
 	else
-		val &= ~(BIT(d->hwirq % GPIO_PER_REG));
+		val &= ~d->mask;
 	writel(val, info->base + reg);
 	spin_unlock_irqrestore(&info->irq_lock, flags);
 
@@ -580,10 +571,10 @@ static int armada_37xx_irq_set_type(struct irq_data *d, unsigned int type)
 	val = readl(info->base + reg);
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
-		val &= ~(BIT(d->hwirq % GPIO_PER_REG));
+		val &= ~d->mask;
 		break;
 	case IRQ_TYPE_EDGE_FALLING:
-		val |= (BIT(d->hwirq % GPIO_PER_REG));
+		val |= d->mask;
 		break;
 	default:
 		spin_unlock_irqrestore(&info->irq_lock, flags);
@@ -633,27 +624,11 @@ static void armada_37xx_irq_handler(struct irq_desc *desc)
 	chained_irq_exit(chip, desc);
 }
 
-static unsigned int armada_37xx_irq_startup(struct irq_data *d)
-{
-	struct gpio_chip *chip = irq_data_get_irq_chip_data(d);
-	int irq = d->hwirq - chip->irq_base;
-	/*
-	 * The mask field is a "precomputed bitmask for accessing the
-	 * chip registers" which was introduced for the generic
-	 * irqchip framework. As we don't use this framework, we can
-	 * reuse this field for our own usage.
-	 */
-	d->mask = BIT(irq % GPIO_PER_REG);
-
-	armada_37xx_irq_unmask(d);
-
-	return 0;
-}
-
 static int armada_37xx_irqchip_register(struct platform_device *pdev,
 					struct armada_37xx_pinctrl *info)
 {
 	struct device_node *np = info->dev->of_node;
+	int nrirqs = info->data->nr_pins;
 	struct gpio_chip *gc = &info->gpio_chip;
 	struct irq_chip *irqchip = &info->irq_chip;
 	struct resource res;
@@ -691,8 +666,8 @@ static int armada_37xx_irqchip_register(struct platform_device *pdev,
 	irqchip->irq_unmask = armada_37xx_irq_unmask;
 	irqchip->irq_set_wake = armada_37xx_irq_set_wake;
 	irqchip->irq_set_type = armada_37xx_irq_set_type;
-	irqchip->irq_startup = armada_37xx_irq_startup;
 	irqchip->name = info->data->name;
+
 	ret = gpiochip_irqchip_add(gc, irqchip, 0,
 				   handle_edge_irq, IRQ_TYPE_NONE);
 	if (ret) {
@@ -705,6 +680,19 @@ static int armada_37xx_irqchip_register(struct platform_device *pdev,
 	 * controller. But we do not take advantage of this and use
 	 * the chained irq with all of them.
 	 */
+	for (i = 0; i < nrirqs; i++) {
+		struct irq_data *d = irq_get_irq_data(gc->irq_base + i);
+
+		/*
+		 * The mask field is a "precomputed bitmask for
+		 * accessing the chip registers" which was introduced
+		 * for the generic irqchip framework. As we don't use
+		 * this framework, we can reuse this field for our own
+		 * usage.
+		 */
+		d->mask = BIT(i % GPIO_PER_REG);
+	}
+
 	for (i = 0; i < nr_irq_parent; i++) {
 		int irq = irq_of_parse_and_map(np, i);
 

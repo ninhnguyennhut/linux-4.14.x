@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_PAGE_COUNTER_H
 #define _LINUX_PAGE_COUNTER_H
 

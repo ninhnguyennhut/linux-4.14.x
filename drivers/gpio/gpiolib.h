@@ -219,13 +219,12 @@ int gpiod_hog(struct gpio_desc *desc, const char *name,
 /*
  * Return the GPIO number of the passed descriptor relative to its chip
  */
-static inline int gpio_chip_hwgpio(const struct gpio_desc *desc)
+static int __maybe_unused gpio_chip_hwgpio(const struct gpio_desc *desc)
 {
 	return desc - &desc->gdev->descs[0];
 }
 
-void devprop_gpiochip_set_names(struct gpio_chip *chip,
-				const struct fwnode_handle *fwnode);
+void devprop_gpiochip_set_names(struct gpio_chip *chip);
 
 /* With descriptor prefix */
 

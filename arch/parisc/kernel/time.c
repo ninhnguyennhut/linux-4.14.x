@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/arch/parisc/kernel/time.c
  *
@@ -254,10 +253,7 @@ static int __init init_cr16_clocksource(void)
 		cpu0_loc = per_cpu(cpu_data, 0).cpu_loc;
 
 		for_each_online_cpu(cpu) {
-			if (cpu == 0)
-				continue;
-			if ((cpu0_loc != 0) &&
-			    (cpu0_loc == per_cpu(cpu_data, cpu).cpu_loc))
+			if (cpu0_loc == per_cpu(cpu_data, cpu).cpu_loc)
 				continue;
 
 			clocksource_cr16.name = "cr16_unstable";

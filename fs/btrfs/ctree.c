@@ -1032,17 +1032,14 @@ static noinline int update_ref_for_cow(struct btrfs_trans_handle *trans,
 		     root->root_key.objectid == BTRFS_TREE_RELOC_OBJECTID) &&
 		    !(flags & BTRFS_BLOCK_FLAG_FULL_BACKREF)) {
 			ret = btrfs_inc_ref(trans, root, buf, 1);
-			if (ret)
-				return ret;
+			BUG_ON(ret); /* -ENOMEM */
 
 			if (root->root_key.objectid ==
 			    BTRFS_TREE_RELOC_OBJECTID) {
 				ret = btrfs_dec_ref(trans, root, buf, 0);
-				if (ret)
-					return ret;
+				BUG_ON(ret); /* -ENOMEM */
 				ret = btrfs_inc_ref(trans, root, cow, 1);
-				if (ret)
-					return ret;
+				BUG_ON(ret); /* -ENOMEM */
 			}
 			new_flags |= BTRFS_BLOCK_FLAG_FULL_BACKREF;
 		} else {
@@ -1052,8 +1049,7 @@ static noinline int update_ref_for_cow(struct btrfs_trans_handle *trans,
 				ret = btrfs_inc_ref(trans, root, cow, 1);
 			else
 				ret = btrfs_inc_ref(trans, root, cow, 0);
-			if (ret)
-				return ret;
+			BUG_ON(ret); /* -ENOMEM */
 		}
 		if (new_flags != 0) {
 			int level = btrfs_header_level(buf);
@@ -1072,11 +1068,9 @@ static noinline int update_ref_for_cow(struct btrfs_trans_handle *trans,
 				ret = btrfs_inc_ref(trans, root, cow, 1);
 			else
 				ret = btrfs_inc_ref(trans, root, cow, 0);
-			if (ret)
-				return ret;
+			BUG_ON(ret); /* -ENOMEM */
 			ret = btrfs_dec_ref(trans, root, buf, 1);
-			if (ret)
-				return ret;
+			BUG_ON(ret); /* -ENOMEM */
 		}
 		clean_tree_block(fs_info, buf);
 		*last_ref = 1;
@@ -4656,7 +4650,7 @@ void btrfs_truncate_item(struct btrfs_fs_info *fs_info,
 	btrfs_mark_buffer_dirty(leaf);
 
 	if (btrfs_leaf_free_space(fs_info, leaf) < 0) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		BUG();
 	}
 }
@@ -4685,7 +4679,7 @@ void btrfs_extend_item(struct btrfs_fs_info *fs_info, struct btrfs_path *path,
 	data_end = leaf_data_end(fs_info, leaf);
 
 	if (btrfs_leaf_free_space(fs_info, leaf) < data_size) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		BUG();
 	}
 	slot = path->slots[0];
@@ -4693,7 +4687,7 @@ void btrfs_extend_item(struct btrfs_fs_info *fs_info, struct btrfs_path *path,
 
 	BUG_ON(slot < 0);
 	if (slot >= nritems) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		btrfs_crit(fs_info, "slot %d too large, nritems %d",
 			   slot, nritems);
 		BUG_ON(1);
@@ -4724,7 +4718,7 @@ void btrfs_extend_item(struct btrfs_fs_info *fs_info, struct btrfs_path *path,
 	btrfs_mark_buffer_dirty(leaf);
 
 	if (btrfs_leaf_free_space(fs_info, leaf) < 0) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		BUG();
 	}
 }
@@ -4763,7 +4757,7 @@ void setup_items_for_insert(struct btrfs_root *root, struct btrfs_path *path,
 	data_end = leaf_data_end(fs_info, leaf);
 
 	if (btrfs_leaf_free_space(fs_info, leaf) < total_size) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		btrfs_crit(fs_info, "not enough freespace need %u have %d",
 			   total_size, btrfs_leaf_free_space(fs_info, leaf));
 		BUG();
@@ -4773,7 +4767,7 @@ void setup_items_for_insert(struct btrfs_root *root, struct btrfs_path *path,
 		unsigned int old_data = btrfs_item_end_nr(leaf, slot);
 
 		if (old_data < data_end) {
-			btrfs_print_leaf(leaf);
+			btrfs_print_leaf(fs_info, leaf);
 			btrfs_crit(fs_info, "slot %d old_data %d data_end %d",
 				   slot, old_data, data_end);
 			BUG_ON(1);
@@ -4817,7 +4811,7 @@ void setup_items_for_insert(struct btrfs_root *root, struct btrfs_path *path,
 	btrfs_mark_buffer_dirty(leaf);
 
 	if (btrfs_leaf_free_space(fs_info, leaf) < 0) {
-		btrfs_print_leaf(leaf);
+		btrfs_print_leaf(fs_info, leaf);
 		BUG();
 	}
 }

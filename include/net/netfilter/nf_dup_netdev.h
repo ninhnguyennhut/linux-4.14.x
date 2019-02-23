@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NF_DUP_NETDEV_H_
 #define _NF_DUP_NETDEV_H_
 

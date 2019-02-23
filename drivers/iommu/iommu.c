@@ -527,8 +527,6 @@ static int iommu_group_create_direct_mappings(struct iommu_group *group,
 
 	}
 
-	iommu_flush_tlb_all(domain);
-
 out:
 	iommu_put_resv_regions(dev, &mappings);
 
@@ -1007,10 +1005,11 @@ struct iommu_group *iommu_group_get_for_dev(struct device *dev)
 	if (group)
 		return group;
 
-	if (!ops)
-		return ERR_PTR(-EINVAL);
+	group = ERR_PTR(-EINVAL);
 
-	group = ops->device_group(dev);
+	if (ops && ops->device_group)
+		group = ops->device_group(dev);
+
 	if (WARN_ON_ONCE(group == NULL))
 		return ERR_PTR(-EINVAL);
 
@@ -1284,10 +1283,6 @@ static int __iommu_attach_device(struct iommu_domain *domain,
 				 struct device *dev)
 {
 	int ret;
-	if ((domain->ops->is_attach_deferred != NULL) &&
-	    domain->ops->is_attach_deferred(domain, dev))
-		return 0;
-
 	if (unlikely(domain->ops->attach_dev == NULL))
 		return -ENODEV;
 
@@ -1303,8 +1298,12 @@ int iommu_attach_device(struct iommu_domain *domain, struct device *dev)
 	int ret;
 
 	group = iommu_group_get(dev);
+	/* FIXME: Remove this when groups a mandatory for iommu drivers */
+	if (group == NULL)
+		return __iommu_attach_device(domain, dev);
+
 	/*
-	 * Lock the group to make sure the device-count doesn't
+	 * We have a group - lock it to make sure the device-count doesn't
 	 * change while we are attaching
 	 */
 	mutex_lock(&group->mutex);
@@ -1325,10 +1324,6 @@ EXPORT_SYMBOL_GPL(iommu_attach_device);
 static void __iommu_detach_device(struct iommu_domain *domain,
 				  struct device *dev)
 {
-	if ((domain->ops->is_attach_deferred != NULL) &&
-	    domain->ops->is_attach_deferred(domain, dev))
-		return;
-
 	if (unlikely(domain->ops->detach_dev == NULL))
 		return;
 
@@ -1341,6 +1336,9 @@ void iommu_detach_device(struct iommu_domain *domain, struct device *dev)
 	struct iommu_group *group;
 
 	group = iommu_group_get(dev);
+	/* FIXME: Remove this when groups a mandatory for iommu drivers */
+	if (group == NULL)
+		return __iommu_detach_device(domain, dev);
 
 	mutex_lock(&group->mutex);
 	if (iommu_group_device_count(group) != 1) {
@@ -1362,7 +1360,8 @@ struct iommu_domain *iommu_get_domain_for_dev(struct device *dev)
 	struct iommu_group *group;
 
 	group = iommu_group_get(dev);
-	if (!group)
+	/* FIXME: Remove this when groups a mandatory for iommu drivers */
+	if (group == NULL)
 		return NULL;
 
 	domain = group->domain;
@@ -1557,16 +1556,13 @@ int iommu_map(struct iommu_domain *domain, unsigned long iova,
 }
 EXPORT_SYMBOL_GPL(iommu_map);
 
-static size_t __iommu_unmap(struct iommu_domain *domain,
-			    unsigned long iova, size_t size,
-			    bool sync)
+size_t iommu_unmap(struct iommu_domain *domain, unsigned long iova, size_t size)
 {
-	const struct iommu_ops *ops = domain->ops;
 	size_t unmapped_page, unmapped = 0;
-	unsigned long orig_iova = iova;
 	unsigned int min_pagesz;
+	unsigned long orig_iova = iova;
 
-	if (unlikely(ops->unmap == NULL ||
+	if (unlikely(domain->ops->unmap == NULL ||
 		     domain->pgsize_bitmap == 0UL))
 		return -ENODEV;
 
@@ -1596,12 +1592,9 @@ static size_t __iommu_unmap(struct iommu_domain *domain,
 	while (unmapped < size) {
 		size_t pgsize = iommu_pgsize(domain, iova, size - unmapped);
 
-		unmapped_page = ops->unmap(domain, iova, pgsize);
+		unmapped_page = domain->ops->unmap(domain, iova, pgsize);
 		if (!unmapped_page)
 			break;
-
-		if (sync && ops->iotlb_range_add)
-			ops->iotlb_range_add(domain, iova, pgsize);
 
 		pr_debug("unmapped: iova 0x%lx size 0x%zx\n",
 			 iova, unmapped_page);
@@ -1610,26 +1603,10 @@ static size_t __iommu_unmap(struct iommu_domain *domain,
 		unmapped += unmapped_page;
 	}
 
-	if (sync && ops->iotlb_sync)
-		ops->iotlb_sync(domain);
-
 	trace_unmap(orig_iova, size, unmapped);
 	return unmapped;
 }
-
-size_t iommu_unmap(struct iommu_domain *domain,
-		   unsigned long iova, size_t size)
-{
-	return __iommu_unmap(domain, iova, size, true);
-}
 EXPORT_SYMBOL_GPL(iommu_unmap);
-
-size_t iommu_unmap_fast(struct iommu_domain *domain,
-			unsigned long iova, size_t size)
-{
-	return __iommu_unmap(domain, iova, size, false);
-}
-EXPORT_SYMBOL_GPL(iommu_unmap_fast);
 
 size_t default_iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 			 struct scatterlist *sg, unsigned int nents, int prot)

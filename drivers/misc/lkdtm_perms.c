@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This is for all the tests related to validating kernel memory
  * permissions: non-executable regions, non-writable regions, and

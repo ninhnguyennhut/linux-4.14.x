@@ -1595,7 +1595,12 @@ static void pmcraid_handle_config_change(struct pmcraid_instance *pinstance)
 	if (pinstance->ccn.hcam->notification_type ==
 	    NOTIFICATION_TYPE_ENTRY_CHANGED &&
 	    cfg_entry->resource_type == RES_TYPE_VSET) {
-		hidden_entry = (cfg_entry->unique_flags1 & 0x80) != 0;
+
+		if (fw_version <= PMCRAID_FW_VERSION_1)
+			hidden_entry = (cfg_entry->unique_flags1 & 0x80) != 0;
+		else
+			hidden_entry = (cfg_entry->unique_flags1 & 0x80) != 0;
+
 	} else if (!pmcraid_expose_resource(fw_version, cfg_entry)) {
 		goto out_notify_apps;
 	}
@@ -4650,13 +4655,13 @@ pmcraid_release_control_blocks(
 		return;
 
 	for (i = 0; i < max_index; i++) {
-		dma_pool_free(pinstance->control_pool,
+		pci_pool_free(pinstance->control_pool,
 			      pinstance->cmd_list[i]->ioa_cb,
 			      pinstance->cmd_list[i]->ioa_cb_bus_addr);
 		pinstance->cmd_list[i]->ioa_cb = NULL;
 		pinstance->cmd_list[i]->ioa_cb_bus_addr = 0;
 	}
-	dma_pool_destroy(pinstance->control_pool);
+	pci_pool_destroy(pinstance->control_pool);
 	pinstance->control_pool = NULL;
 }
 
@@ -4713,8 +4718,8 @@ static int pmcraid_allocate_control_blocks(struct pmcraid_instance *pinstance)
 		pinstance->host->unique_id);
 
 	pinstance->control_pool =
-		dma_pool_create(pinstance->ctl_pool_name,
-				&pinstance->pdev->dev,
+		pci_pool_create(pinstance->ctl_pool_name,
+				pinstance->pdev,
 				sizeof(struct pmcraid_control_block),
 				PMCRAID_IOARCB_ALIGNMENT, 0);
 
@@ -4723,7 +4728,7 @@ static int pmcraid_allocate_control_blocks(struct pmcraid_instance *pinstance)
 
 	for (i = 0; i < PMCRAID_MAX_CMD; i++) {
 		pinstance->cmd_list[i]->ioa_cb =
-			dma_pool_alloc(
+			pci_pool_alloc(
 				pinstance->control_pool,
 				GFP_KERNEL,
 				&(pinstance->cmd_list[i]->ioa_cb_bus_addr));

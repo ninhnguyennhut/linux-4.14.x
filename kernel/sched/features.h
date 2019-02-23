@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Only give sleepers 50% of their service deficit. This allows
  * them to run sooner, but does not allow tons of sleepers to
@@ -82,6 +81,3 @@ SCHED_FEAT(RT_RUNTIME_SHARE, true)
 SCHED_FEAT(LB_MIN, false)
 SCHED_FEAT(ATTACH_AGE_LOAD, true)
 
-SCHED_FEAT(WA_IDLE, true)
-SCHED_FEAT(WA_WEIGHT, true)
-SCHED_FEAT(WA_BIAS, true)

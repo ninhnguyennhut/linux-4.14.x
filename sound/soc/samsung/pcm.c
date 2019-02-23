@@ -522,9 +522,7 @@ static int s3c_pcm_dev_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get audio-bus clock\n");
 		return PTR_ERR(pcm->cclk);
 	}
-	ret = clk_prepare_enable(pcm->cclk);
-	if (ret)
-		return ret;
+	clk_prepare_enable(pcm->cclk);
 
 	/* record our pcm structure for later use in the callbacks */
 	dev_set_drvdata(&pdev->dev, pcm);
@@ -535,9 +533,7 @@ static int s3c_pcm_dev_probe(struct platform_device *pdev)
 		ret = PTR_ERR(pcm->pclk);
 		goto err_dis_cclk;
 	}
-	ret = clk_prepare_enable(pcm->pclk);
-	if (ret)
-		goto err_dis_cclk;
+	clk_prepare_enable(pcm->pclk);
 
 	s3c_pcm_stereo_in[pdev->id].addr = mem_res->start + S3C_PCM_RXFIFO;
 	s3c_pcm_stereo_out[pdev->id].addr = mem_res->start + S3C_PCM_TXFIFO;

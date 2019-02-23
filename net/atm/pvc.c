@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* net/atm/pvc.c - ATM PVC sockets */
 
 /* Written 1995-2000 by Werner Almesberger, EPFL LRC/ICA */

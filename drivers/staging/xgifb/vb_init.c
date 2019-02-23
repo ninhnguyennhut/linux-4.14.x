@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
 

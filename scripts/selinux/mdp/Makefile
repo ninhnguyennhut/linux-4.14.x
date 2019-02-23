@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 hostprogs-y	:= mdp
 HOST_EXTRACFLAGS += \
 	-I$(srctree)/include/uapi -I$(srctree)/include \

@@ -40,13 +40,9 @@
 #include <linux/ioport.h>
 #include <linux/acpi.h>
 #include <linux/highmem.h>
-#include <linux/idr.h>
-#include <linux/platform_data/x86/apple.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/spi.h>
-
-static DEFINE_IDR(spi_master_idr);
 
 static void spidev_release(struct device *dev)
 {
@@ -325,7 +321,8 @@ static int spi_uevent(struct device *dev, struct kobj_uevent_env *env)
 	if (rc != -ENODEV)
 		return rc;
 
-	return add_uevent_var(env, "MODALIAS=%s%s", SPI_MODULE_PREFIX, spi->modalias);
+	add_uevent_var(env, "MODALIAS=%s%s", SPI_MODULE_PREFIX, spi->modalias);
+	return 0;
 }
 
 struct bus_type spi_bus_type = {
@@ -424,7 +421,6 @@ static LIST_HEAD(spi_controller_list);
 /*
  * Used to protect add/del opertion for board_info list and
  * spi_controller list, and their matching process
- * also used to protect object of type struct idr
  */
 static DEFINE_MUTEX(board_lock);
 
@@ -1537,15 +1533,15 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
 	int rc;
 
 	/* Mode (clock phase/polarity/etc.) */
-	if (of_property_read_bool(nc, "spi-cpha"))
+	if (of_find_property(nc, "spi-cpha", NULL))
 		spi->mode |= SPI_CPHA;
-	if (of_property_read_bool(nc, "spi-cpol"))
+	if (of_find_property(nc, "spi-cpol", NULL))
 		spi->mode |= SPI_CPOL;
-	if (of_property_read_bool(nc, "spi-cs-high"))
+	if (of_find_property(nc, "spi-cs-high", NULL))
 		spi->mode |= SPI_CS_HIGH;
-	if (of_property_read_bool(nc, "spi-3wire"))
+	if (of_find_property(nc, "spi-3wire", NULL))
 		spi->mode |= SPI_3WIRE;
-	if (of_property_read_bool(nc, "spi-lsb-first"))
+	if (of_find_property(nc, "spi-lsb-first", NULL))
 		spi->mode |= SPI_LSB_FIRST;
 
 	/* Device DUAL/QUAD mode */
@@ -1587,8 +1583,8 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
 
 	if (spi_controller_is_slave(ctlr)) {
 		if (strcmp(nc->name, "slave")) {
-			dev_err(&ctlr->dev, "%pOF is not called 'slave'\n",
-				nc);
+			dev_err(&ctlr->dev, "%s is not called 'slave'\n",
+				nc->full_name);
 			return -EINVAL;
 		}
 		return 0;
@@ -1597,8 +1593,8 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
 	/* Device address */
 	rc = of_property_read_u32(nc, "reg", &value);
 	if (rc) {
-		dev_err(&ctlr->dev, "%pOF has no valid 'reg' property (%d)\n",
-			nc, rc);
+		dev_err(&ctlr->dev, "%s has no valid 'reg' property (%d)\n",
+			nc->full_name, rc);
 		return rc;
 	}
 	spi->chip_select = value;
@@ -1607,7 +1603,8 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
 	rc = of_property_read_u32(nc, "spi-max-frequency", &value);
 	if (rc) {
 		dev_err(&ctlr->dev,
-			"%pOF has no valid 'spi-max-frequency' property (%d)\n", nc, rc);
+			"%s has no valid 'spi-max-frequency' property (%d)\n",
+			nc->full_name, rc);
 		return rc;
 	}
 	spi->max_speed_hz = value;
@@ -1624,7 +1621,8 @@ of_register_spi_device(struct spi_controller *ctlr, struct device_node *nc)
 	/* Alloc an spi_device */
 	spi = spi_alloc_device(ctlr);
 	if (!spi) {
-		dev_err(&ctlr->dev, "spi_device alloc error for %pOF\n", nc);
+		dev_err(&ctlr->dev, "spi_device alloc error for %s\n",
+			nc->full_name);
 		rc = -ENOMEM;
 		goto err_out;
 	}
@@ -1633,7 +1631,8 @@ of_register_spi_device(struct spi_controller *ctlr, struct device_node *nc)
 	rc = of_modalias_node(nc, spi->modalias,
 				sizeof(spi->modalias));
 	if (rc < 0) {
-		dev_err(&ctlr->dev, "cannot find modalias for %pOF\n", nc);
+		dev_err(&ctlr->dev, "cannot find modalias for %s\n",
+			nc->full_name);
 		goto err_out;
 	}
 
@@ -1648,7 +1647,8 @@ of_register_spi_device(struct spi_controller *ctlr, struct device_node *nc)
 	/* Register the new device */
 	rc = spi_add_device(spi);
 	if (rc) {
-		dev_err(&ctlr->dev, "spi_device register error %pOF\n", nc);
+		dev_err(&ctlr->dev, "spi_device register error %s\n",
+			nc->full_name);
 		goto err_of_node_put;
 	}
 
@@ -1682,7 +1682,8 @@ static void of_register_spi_devices(struct spi_controller *ctlr)
 		spi = of_register_spi_device(ctlr, nc);
 		if (IS_ERR(spi)) {
 			dev_warn(&ctlr->dev,
-				 "Failed to create SPI device for %pOF\n", nc);
+				 "Failed to create SPI device for %s\n",
+				 nc->full_name);
 			of_node_clear_flag(nc, OF_POPULATED);
 		}
 	}
@@ -1692,35 +1693,6 @@ static void of_register_spi_devices(struct spi_controller *ctlr) { }
 #endif
 
 #ifdef CONFIG_ACPI
-static void acpi_spi_parse_apple_properties(struct spi_device *spi)
-{
-	struct acpi_device *dev = ACPI_COMPANION(&spi->dev);
-	const union acpi_object *obj;
-
-	if (!x86_apple_machine)
-		return;
-
-	if (!acpi_dev_get_property(dev, "spiSclkPeriod", ACPI_TYPE_BUFFER, &obj)
-	    && obj->buffer.length >= 4)
-		spi->max_speed_hz  = NSEC_PER_SEC / *(u32 *)obj->buffer.pointer;
-
-	if (!acpi_dev_get_property(dev, "spiWordSize", ACPI_TYPE_BUFFER, &obj)
-	    && obj->buffer.length == 8)
-		spi->bits_per_word = *(u64 *)obj->buffer.pointer;
-
-	if (!acpi_dev_get_property(dev, "spiBitOrder", ACPI_TYPE_BUFFER, &obj)
-	    && obj->buffer.length == 8 && !*(u64 *)obj->buffer.pointer)
-		spi->mode |= SPI_LSB_FIRST;
-
-	if (!acpi_dev_get_property(dev, "spiSPO", ACPI_TYPE_BUFFER, &obj)
-	    && obj->buffer.length == 8 &&  *(u64 *)obj->buffer.pointer)
-		spi->mode |= SPI_CPOL;
-
-	if (!acpi_dev_get_property(dev, "spiSPH", ACPI_TYPE_BUFFER, &obj)
-	    && obj->buffer.length == 8 &&  *(u64 *)obj->buffer.pointer)
-		spi->mode |= SPI_CPHA;
-}
-
 static int acpi_spi_add_resource(struct acpi_resource *ares, void *data)
 {
 	struct spi_device *spi = data;
@@ -1793,8 +1765,6 @@ static acpi_status acpi_register_spi_device(struct spi_controller *ctlr,
 	ret = acpi_dev_get_resources(adev, &resource_list,
 				     acpi_spi_add_resource, spi);
 	acpi_dev_free_resource_list(&resource_list);
-
-	acpi_spi_parse_apple_properties(spi);
 
 	if (ret < 0 || !spi->max_speed_hz) {
 		spi_dev_put(spi);
@@ -2082,10 +2052,11 @@ static int of_spi_register_master(struct spi_controller *ctlr)
  */
 int spi_register_controller(struct spi_controller *ctlr)
 {
+	static atomic_t		dyn_bus_id = ATOMIC_INIT((1<<15) - 1);
 	struct device		*dev = ctlr->dev.parent;
 	struct boardinfo	*bi;
 	int			status = -ENODEV;
-	int			id, first_dynamic;
+	int			dynamic = 0;
 
 	if (!dev)
 		return -ENODEV;
@@ -2101,34 +2072,19 @@ int spi_register_controller(struct spi_controller *ctlr)
 	 */
 	if (ctlr->num_chipselect == 0)
 		return -EINVAL;
-	/* allocate dynamic bus number using Linux idr */
-	if ((ctlr->bus_num < 0) && ctlr->dev.of_node) {
-		id = of_alias_get_id(ctlr->dev.of_node, "spi");
-		if (id >= 0) {
-			ctlr->bus_num = id;
-			mutex_lock(&board_lock);
-			id = idr_alloc(&spi_master_idr, ctlr, ctlr->bus_num,
-				       ctlr->bus_num + 1, GFP_KERNEL);
-			mutex_unlock(&board_lock);
-			if (WARN(id < 0, "couldn't get idr"))
-				return id == -ENOSPC ? -EBUSY : id;
-		}
-	}
-	if (ctlr->bus_num < 0) {
-		first_dynamic = of_alias_get_highest_id("spi");
-		if (first_dynamic < 0)
-			first_dynamic = 0;
-		else
-			first_dynamic++;
 
-		mutex_lock(&board_lock);
-		id = idr_alloc(&spi_master_idr, ctlr, first_dynamic,
-			       0, GFP_KERNEL);
-		mutex_unlock(&board_lock);
-		if (WARN(id < 0, "couldn't get idr"))
-			return id;
-		ctlr->bus_num = id;
+	if ((ctlr->bus_num < 0) && ctlr->dev.of_node)
+		ctlr->bus_num = of_alias_get_id(ctlr->dev.of_node, "spi");
+
+	/* convention:  dynamically assigned bus IDs count down from the max */
+	if (ctlr->bus_num < 0) {
+		/* FIXME switch to an IDR based scheme, something like
+		 * I2C now uses, so we can't run out of "dynamic" IDs
+		 */
+		ctlr->bus_num = atomic_dec_return(&dyn_bus_id);
+		dynamic = 1;
 	}
+
 	INIT_LIST_HEAD(&ctlr->queue);
 	spin_lock_init(&ctlr->queue_lock);
 	spin_lock_init(&ctlr->bus_lock_spinlock);
@@ -2144,16 +2100,11 @@ int spi_register_controller(struct spi_controller *ctlr)
 	 */
 	dev_set_name(&ctlr->dev, "spi%u", ctlr->bus_num);
 	status = device_add(&ctlr->dev);
-	if (status < 0) {
-		/* free bus id */
-		mutex_lock(&board_lock);
-		idr_remove(&spi_master_idr, ctlr->bus_num);
-		mutex_unlock(&board_lock);
+	if (status < 0)
 		goto done;
-	}
-	dev_dbg(dev, "registered %s %s\n",
+	dev_dbg(dev, "registered %s %s%s\n",
 			spi_controller_is_slave(ctlr) ? "slave" : "master",
-			dev_name(&ctlr->dev));
+			dev_name(&ctlr->dev), dynamic ? " (dynamic)" : "");
 
 	/* If we're using a queued driver, start the queue */
 	if (ctlr->transfer)
@@ -2162,10 +2113,6 @@ int spi_register_controller(struct spi_controller *ctlr)
 		status = spi_controller_initialize_queue(ctlr);
 		if (status) {
 			device_del(&ctlr->dev);
-			/* free bus id */
-			mutex_lock(&board_lock);
-			idr_remove(&spi_master_idr, ctlr->bus_num);
-			mutex_unlock(&board_lock);
 			goto done;
 		}
 	}
@@ -2244,34 +2191,19 @@ static int __unregister(struct device *dev, void *null)
  */
 void spi_unregister_controller(struct spi_controller *ctlr)
 {
-	struct spi_controller *found;
-	int id = ctlr->bus_num;
 	int dummy;
 
-	/* First make sure that this controller was ever added */
-	mutex_lock(&board_lock);
-	found = idr_find(&spi_master_idr, id);
-	mutex_unlock(&board_lock);
-	if (found != ctlr) {
-		dev_dbg(&ctlr->dev,
-			"attempting to delete unregistered controller [%s]\n",
-			dev_name(&ctlr->dev));
-		return;
-	}
 	if (ctlr->queued) {
 		if (spi_destroy_queue(ctlr))
 			dev_err(&ctlr->dev, "queue remove failed\n");
 	}
+
 	mutex_lock(&board_lock);
 	list_del(&ctlr->list);
 	mutex_unlock(&board_lock);
 
 	dummy = device_for_each_child(&ctlr->dev, NULL, __unregister);
 	device_unregister(&ctlr->dev);
-	/* free bus id */
-	mutex_lock(&board_lock);
-	idr_remove(&spi_master_idr, id);
-	mutex_unlock(&board_lock);
 }
 EXPORT_SYMBOL_GPL(spi_unregister_controller);
 
@@ -3379,8 +3311,8 @@ static int of_spi_notify(struct notifier_block *nb, unsigned long action,
 		put_device(&ctlr->dev);
 
 		if (IS_ERR(spi)) {
-			pr_err("%s: failed to create for '%pOF'\n",
-					__func__, rd->dn);
+			pr_err("%s: failed to create for '%s'\n",
+					__func__, rd->dn->full_name);
 			of_node_clear_flag(rd->dn, OF_POPULATED);
 			return notifier_from_errno(PTR_ERR(spi));
 		}

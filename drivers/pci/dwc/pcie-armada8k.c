@@ -134,15 +134,13 @@ static void armada8k_pcie_establish_link(struct armada8k_pcie *pcie)
 		dev_err(pci->dev, "Link not up after reconfiguration\n");
 }
 
-static int armada8k_pcie_host_init(struct pcie_port *pp)
+static void armada8k_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	struct armada8k_pcie *pcie = to_armada8k_pcie(pci);
 
 	dw_pcie_setup_rc(pp);
 	armada8k_pcie_establish_link(pcie);
-
-	return 0;
 }
 
 static irqreturn_t armada8k_pcie_irq_handler(int irq, void *arg)
@@ -178,9 +176,9 @@ static int armada8k_add_pcie_port(struct armada8k_pcie *pcie,
 	pp->ops = &armada8k_pcie_host_ops;
 
 	pp->irq = platform_get_irq(pdev, 0);
-	if (pp->irq < 0) {
+	if (!pp->irq) {
 		dev_err(dev, "failed to get irq for port\n");
-		return pp->irq;
+		return -ENODEV;
 	}
 
 	ret = devm_request_irq(dev, pp->irq, armada8k_pcie_irq_handler,
@@ -228,9 +226,7 @@ static int armada8k_pcie_probe(struct platform_device *pdev)
 	if (IS_ERR(pcie->clk))
 		return PTR_ERR(pcie->clk);
 
-	ret = clk_prepare_enable(pcie->clk);
-	if (ret)
-		return ret;
+	clk_prepare_enable(pcie->clk);
 
 	/* Get the dw-pcie unit configuration/control registers base. */
 	base = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ctrl");

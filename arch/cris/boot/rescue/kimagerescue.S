@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Rescue code to be prepended on a kimage and copied to the
  * rescue serial port.

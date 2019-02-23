@@ -227,10 +227,13 @@ static int ohci_hcd_tmio_drv_probe(struct platform_device *dev)
 		goto err_ioremap_regs;
 	}
 
-	ret = dma_declare_coherent_memory(&dev->dev, sram->start, sram->start,
-				resource_size(sram), DMA_MEMORY_EXCLUSIVE);
-	if (ret)
+	if (!dma_declare_coherent_memory(&dev->dev, sram->start,
+				sram->start,
+				resource_size(sram),
+				DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE)) {
+		ret = -EBUSY;
 		goto err_dma_declare;
+	}
 
 	if (cell->enable) {
 		ret = cell->enable(dev);

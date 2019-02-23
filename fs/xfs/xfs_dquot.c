@@ -383,7 +383,7 @@ xfs_qm_dqalloc(
 
 	xfs_trans_bhold(tp, bp);
 
-	error = xfs_defer_finish(tpp, &dfops);
+	error = xfs_defer_finish(tpp, &dfops, NULL);
 	if (error)
 		goto error1;
 

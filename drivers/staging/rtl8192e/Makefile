@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 rtllib-objs :=			\
 	dot11d.o		\
 	rtllib_module.o		\

@@ -1676,7 +1676,7 @@ static struct attribute *aiptek_attributes[] = {
 	NULL
 };
 
-static const struct attribute_group aiptek_attribute_group = {
+static struct attribute_group aiptek_attribute_group = {
 	.attrs	= aiptek_attributes,
 };
 

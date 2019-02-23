@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * CAAM/SEC 4.x definitions for handling key-generation jobs
  *

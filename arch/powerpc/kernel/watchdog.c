@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Watchdog support on powerpc systems.
  *
@@ -217,9 +216,6 @@ void soft_nmi_interrupt(struct pt_regs *regs)
 		return;
 
 	nmi_enter();
-
-	__this_cpu_inc(irq_stat.soft_nmi_irqs);
-
 	tb = get_tb();
 	if (tb - per_cpu(wd_timer_tb, cpu) >= wd_panic_timeout_tb) {
 		per_cpu(wd_timer_tb, cpu) = tb;
@@ -276,12 +272,9 @@ void arch_touch_nmi_watchdog(void)
 {
 	unsigned long ticks = tb_ticks_per_usec * wd_timer_period_ms * 1000;
 	int cpu = smp_processor_id();
-	u64 tb = get_tb();
 
-	if (tb - per_cpu(wd_timer_tb, cpu) >= ticks) {
-		per_cpu(wd_timer_tb, cpu) = tb;
-		wd_smp_clear_cpu_pending(cpu, tb);
-	}
+	if (get_tb() - per_cpu(wd_timer_tb, cpu) >= ticks)
+		watchdog_timer_interrupt(cpu);
 }
 EXPORT_SYMBOL(arch_touch_nmi_watchdog);
 
@@ -312,6 +305,9 @@ static int start_wd_on_cpu(unsigned int cpu)
 	}
 
 	if (!(watchdog_enabled & NMI_WATCHDOG_ENABLED))
+		return 0;
+
+	if (watchdog_suspended)
 		return 0;
 
 	if (!cpumask_test_cpu(cpu, &watchdog_cpumask))
@@ -359,39 +355,36 @@ static void watchdog_calc_timeouts(void)
 	wd_timer_period_ms = watchdog_thresh * 1000 * 2 / 5;
 }
 
-void watchdog_nmi_stop(void)
-{
-	int cpu;
-
-	for_each_cpu(cpu, &wd_cpus_enabled)
-		stop_wd_on_cpu(cpu);
-}
-
-void watchdog_nmi_start(void)
+void watchdog_nmi_reconfigure(void)
 {
 	int cpu;
 
 	watchdog_calc_timeouts();
+
+	for_each_cpu(cpu, &wd_cpus_enabled)
+		stop_wd_on_cpu(cpu);
+
 	for_each_cpu_and(cpu, cpu_online_mask, &watchdog_cpumask)
 		start_wd_on_cpu(cpu);
 }
 
 /*
- * Invoked from core watchdog init.
+ * This runs after lockup_detector_init() which sets up watchdog_cpumask.
  */
-int __init watchdog_nmi_probe(void)
+static int __init powerpc_watchdog_init(void)
 {
 	int err;
 
-	err = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
-					"powerpc/watchdog:online",
-					start_wd_on_cpu, stop_wd_on_cpu);
-	if (err < 0) {
+	watchdog_calc_timeouts();
+
+	err = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "powerpc/watchdog:online",
+				start_wd_on_cpu, stop_wd_on_cpu);
+	if (err < 0)
 		pr_warn("Watchdog could not be initialized");
-		return err;
-	}
+
 	return 0;
 }
+arch_initcall(powerpc_watchdog_init);
 
 static void handle_backtrace_ipi(struct pt_regs *regs)
 {

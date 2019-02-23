@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This file contains various system calls that have different calling
  * conventions on different platforms.

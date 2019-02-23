@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kbuild.h>
 #include <linux/mod_devicetable.h>
 

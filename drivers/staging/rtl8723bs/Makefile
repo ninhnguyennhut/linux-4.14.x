@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 r8723bs-y = \
 		core/rtw_ap.o \
 		core/rtw_btcoex.o \

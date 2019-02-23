@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_ALARMTIMER_H
 #define _LINUX_ALARMTIMER_H
 

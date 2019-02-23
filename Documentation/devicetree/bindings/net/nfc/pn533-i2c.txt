@@ -15,6 +15,7 @@ Example (for ARM-based BeagleBone with PN532 on I2C2):
 
 &i2c2 {
 
+	status = "okay";
 
 	pn532: pn532@24 {
 

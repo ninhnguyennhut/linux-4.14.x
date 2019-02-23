@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * x86_64 specific EFI support functions
  * Based on Extensible Firmware Interface Specification version 1.0
@@ -134,9 +133,7 @@ pgd_t * __init efi_call_phys_prolog(void)
 				pud[j] = *pud_offset(p4d_k, vaddr);
 			}
 		}
-		pgd_offset_k(pgd * PGDIR_SIZE)->pgd &= ~_PAGE_NX;
 	}
-
 out:
 	__flush_tlb_all();
 
@@ -197,9 +194,6 @@ static pgd_t *efi_pgd;
  * because we want to avoid inserting EFI region mappings (EFI_VA_END
  * to EFI_VA_START) into the standard kernel page tables. Everything
  * else can be shared, see efi_sync_low_kernel_mappings().
- *
- * We don't want the pgd on the pgd_list and cannot use pgd_alloc() for the
- * allocation.
  */
 int __init efi_alloc_page_tables(void)
 {
@@ -212,7 +206,7 @@ int __init efi_alloc_page_tables(void)
 		return 0;
 
 	gfp_mask = GFP_KERNEL | __GFP_NOTRACK | __GFP_ZERO;
-	efi_pgd = (pgd_t *)__get_free_pages(gfp_mask, PGD_ALLOCATION_ORDER);
+	efi_pgd = (pgd_t *)__get_free_page(gfp_mask);
 	if (!efi_pgd)
 		return -ENOMEM;
 
@@ -333,7 +327,7 @@ virt_to_phys_or_null_size(void *va, unsigned long size)
 
 int __init efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 {
-	unsigned long pfn, text, pf;
+	unsigned long pfn, text;
 	struct page *page;
 	unsigned npages;
 	pgd_t *pgd;
@@ -341,12 +335,7 @@ int __init efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 	if (efi_enabled(EFI_OLD_MEMMAP))
 		return 0;
 
-	/*
-	 * Since the PGD is encrypted, set the encryption mask so that when
-	 * this value is loaded into cr3 the PGD will be decrypted during
-	 * the pagetable walk.
-	 */
-	efi_scratch.efi_pgt = (pgd_t *)__sme_pa(efi_pgd);
+	efi_scratch.efi_pgt = (pgd_t *)__pa(efi_pgd);
 	pgd = efi_pgd;
 
 	/*
@@ -356,8 +345,7 @@ int __init efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 	 * phys_efi_set_virtual_address_map().
 	 */
 	pfn = pa_memmap >> PAGE_SHIFT;
-	pf = _PAGE_NX | _PAGE_RW | _PAGE_ENC;
-	if (kernel_map_pages_in_pgd(pgd, pfn, pa_memmap, num_pages, pf)) {
+	if (kernel_map_pages_in_pgd(pgd, pfn, pa_memmap, num_pages, _PAGE_NX | _PAGE_RW)) {
 		pr_err("Error ident-mapping new memmap (0x%lx)!\n", pa_memmap);
 		return 1;
 	}
@@ -400,8 +388,7 @@ int __init efi_setup_page_tables(unsigned long pa_memmap, unsigned num_pages)
 	text = __pa(_text);
 	pfn = text >> PAGE_SHIFT;
 
-	pf = _PAGE_RW | _PAGE_ENC;
-	if (kernel_map_pages_in_pgd(pgd, pfn, text, npages, pf)) {
+	if (kernel_map_pages_in_pgd(pgd, pfn, text, npages, _PAGE_RW)) {
 		pr_err("Failed to map kernel text 1:1\n");
 		return 1;
 	}

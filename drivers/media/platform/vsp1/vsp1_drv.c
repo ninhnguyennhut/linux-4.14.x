@@ -68,6 +68,14 @@ static irqreturn_t vsp1_irq_handler(int irq, void *data)
 		}
 	}
 
+	status = vsp1_read(vsp1, VI6_DISP_IRQ_STA);
+	vsp1_write(vsp1, VI6_DISP_IRQ_STA, ~status & VI6_DISP_IRQ_STA_DST);
+
+	if (status & VI6_DISP_IRQ_STA_DST) {
+		vsp1_drm_display_start(vsp1);
+		ret = IRQ_HANDLED;
+	}
+
 	return ret;
 }
 
@@ -84,10 +92,6 @@ static irqreturn_t vsp1_irq_handler(int irq, void *data)
  *
  * - from a UDS to a UDS (UDS entities can't be chained)
  * - from an entity to itself (no loops are allowed)
- *
- * Furthermore, the BRS can't be connected to histogram generators, but no
- * special check is currently needed as all VSP instances that include a BRS
- * have no histogram generator.
  */
 static int vsp1_create_sink_links(struct vsp1_device *vsp1,
 				  struct vsp1_entity *sink)
@@ -125,7 +129,7 @@ static int vsp1_create_sink_links(struct vsp1_device *vsp1,
 				return ret;
 
 			if (flags & MEDIA_LNK_FL_ENABLED)
-				source->sink = sink;
+				source->sink = entity;
 		}
 	}
 
@@ -168,13 +172,10 @@ static int vsp1_uapi_create_links(struct vsp1_device *vsp1)
 			return ret;
 	}
 
-	for (i = 0; i < vsp1->info->lif_count; ++i) {
-		if (!vsp1->lif[i])
-			continue;
-
-		ret = media_create_pad_link(&vsp1->wpf[i]->entity.subdev.entity,
+	if (vsp1->lif) {
+		ret = media_create_pad_link(&vsp1->wpf[0]->entity.subdev.entity,
 					    RWPF_PAD_SOURCE,
-					    &vsp1->lif[i]->entity.subdev.entity,
+					    &vsp1->lif->entity.subdev.entity,
 					    LIF_PAD_SINK, 0);
 		if (ret < 0)
 			return ret;
@@ -268,18 +269,8 @@ static int vsp1_create_entities(struct vsp1_device *vsp1)
 	}
 
 	/* Instantiate all the entities. */
-	if (vsp1->info->features & VSP1_HAS_BRS) {
-		vsp1->brs = vsp1_bru_create(vsp1, VSP1_ENTITY_BRS);
-		if (IS_ERR(vsp1->brs)) {
-			ret = PTR_ERR(vsp1->brs);
-			goto done;
-		}
-
-		list_add_tail(&vsp1->brs->entity.list_dev, &vsp1->entities);
-	}
-
 	if (vsp1->info->features & VSP1_HAS_BRU) {
-		vsp1->bru = vsp1_bru_create(vsp1, VSP1_ENTITY_BRU);
+		vsp1->bru = vsp1_bru_create(vsp1);
 		if (IS_ERR(vsp1->bru)) {
 			ret = PTR_ERR(vsp1->bru);
 			goto done;
@@ -337,23 +328,18 @@ static int vsp1_create_entities(struct vsp1_device *vsp1)
 	}
 
 	/*
-	 * The LIFs are only supported when used in conjunction with the DU, in
+	 * The LIF is only supported when used in conjunction with the DU, in
 	 * which case the userspace API is disabled. If the userspace API is
-	 * enabled skip the LIFs, even when present.
+	 * enabled skip the LIF, even when present.
 	 */
-	if (!vsp1->info->uapi) {
-		for (i = 0; i < vsp1->info->lif_count; ++i) {
-			struct vsp1_lif *lif;
-
-			lif = vsp1_lif_create(vsp1, i);
-			if (IS_ERR(lif)) {
-				ret = PTR_ERR(lif);
-				goto done;
-			}
-
-			vsp1->lif[i] = lif;
-			list_add_tail(&lif->entity.list_dev, &vsp1->entities);
+	if (vsp1->info->features & VSP1_HAS_LIF && !vsp1->info->uapi) {
+		vsp1->lif = vsp1_lif_create(vsp1);
+		if (IS_ERR(vsp1->lif)) {
+			ret = PTR_ERR(vsp1->lif);
+			goto done;
 		}
+
+		list_add_tail(&vsp1->lif->entity.list_dev, &vsp1->entities);
 	}
 
 	if (vsp1->info->features & VSP1_HAS_LUT) {
@@ -434,6 +420,7 @@ static int vsp1_create_entities(struct vsp1_device *vsp1)
 			}
 
 			list_add_tail(&video->list, &vsp1->videos);
+			wpf->entity.sink = &video->video.entity;
 		}
 	}
 
@@ -445,15 +432,19 @@ static int vsp1_create_entities(struct vsp1_device *vsp1)
 			goto done;
 	}
 
+	/* Create links. */
+	if (vsp1->info->uapi)
+		ret = vsp1_uapi_create_links(vsp1);
+	else
+		ret = vsp1_drm_create_links(vsp1);
+	if (ret < 0)
+		goto done;
+
 	/*
-	 * Create links and register subdev nodes if the userspace API is
-	 * enabled or initialize the DRM pipeline otherwise.
+	 * Register subdev nodes if the userspace API is enabled or initialize
+	 * the DRM pipeline otherwise.
 	 */
 	if (vsp1->info->uapi) {
-		ret = vsp1_uapi_create_links(vsp1);
-		if (ret < 0)
-			goto done;
-
 		ret = v4l2_device_register_subdev_nodes(&vsp1->v4l2_dev);
 		if (ret < 0)
 			goto done;
@@ -523,9 +514,6 @@ static int vsp1_device_init(struct vsp1_device *vsp1)
 	vsp1_write(vsp1, VI6_DPR_HST_ROUTE, VI6_DPR_NODE_UNUSED);
 	vsp1_write(vsp1, VI6_DPR_HSI_ROUTE, VI6_DPR_NODE_UNUSED);
 	vsp1_write(vsp1, VI6_DPR_BRU_ROUTE, VI6_DPR_NODE_UNUSED);
-
-	if (vsp1->info->features & VSP1_HAS_BRS)
-		vsp1_write(vsp1, VI6_DPR_ILV_BRS_ROUTE, VI6_DPR_NODE_UNUSED);
 
 	vsp1_write(vsp1, VI6_DPR_HGO_SMPPT, (7 << VI6_DPR_SMPPT_TGW_SHIFT) |
 		   (VI6_DPR_NODE_UNUSED << VI6_DPR_SMPPT_PT_SHIFT));
@@ -646,8 +634,8 @@ static const struct vsp1_device_info vsp1_device_infos[] = {
 		.version = VI6_IP_VERSION_MODEL_VSPD_GEN2,
 		.model = "VSP1-D",
 		.gen = 2,
-		.features = VSP1_HAS_BRU | VSP1_HAS_HGO | VSP1_HAS_LUT,
-		.lif_count = 1,
+		.features = VSP1_HAS_BRU | VSP1_HAS_HGO | VSP1_HAS_LIF
+			  | VSP1_HAS_LUT,
 		.rpf_count = 4,
 		.uds_count = 1,
 		.wpf_count = 1,
@@ -680,8 +668,8 @@ static const struct vsp1_device_info vsp1_device_infos[] = {
 		.version = VI6_IP_VERSION_MODEL_VSPD_V2H,
 		.model = "VSP1V-D",
 		.gen = 2,
-		.features = VSP1_HAS_BRU | VSP1_HAS_CLU | VSP1_HAS_LUT,
-		.lif_count = 1,
+		.features = VSP1_HAS_BRU | VSP1_HAS_CLU | VSP1_HAS_LUT
+			  | VSP1_HAS_LIF,
 		.rpf_count = 4,
 		.uds_count = 1,
 		.wpf_count = 1,
@@ -718,37 +706,10 @@ static const struct vsp1_device_info vsp1_device_infos[] = {
 		.num_bru_inputs = 5,
 		.uapi = true,
 	}, {
-		.version = VI6_IP_VERSION_MODEL_VSPBS_GEN3,
-		.model = "VSP2-BS",
-		.gen = 3,
-		.features = VSP1_HAS_BRS | VSP1_HAS_WPF_VFLIP,
-		.rpf_count = 2,
-		.wpf_count = 1,
-		.uapi = true,
-	}, {
 		.version = VI6_IP_VERSION_MODEL_VSPD_GEN3,
 		.model = "VSP2-D",
 		.gen = 3,
-		.features = VSP1_HAS_BRU | VSP1_HAS_WPF_VFLIP,
-		.lif_count = 1,
-		.rpf_count = 5,
-		.wpf_count = 2,
-		.num_bru_inputs = 5,
-	}, {
-		.version = VI6_IP_VERSION_MODEL_VSPD_V3,
-		.model = "VSP2-D",
-		.gen = 3,
-		.features = VSP1_HAS_BRS | VSP1_HAS_BRU,
-		.lif_count = 1,
-		.rpf_count = 5,
-		.wpf_count = 1,
-		.num_bru_inputs = 5,
-	}, {
-		.version = VI6_IP_VERSION_MODEL_VSPDL_GEN3,
-		.model = "VSP2-DL",
-		.gen = 3,
-		.features = VSP1_HAS_BRS | VSP1_HAS_BRU,
-		.lif_count = 2,
+		.features = VSP1_HAS_BRU | VSP1_HAS_LIF | VSP1_HAS_WPF_VFLIP,
 		.rpf_count = 5,
 		.wpf_count = 2,
 		.num_bru_inputs = 5,

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/compiler.h>
 #include "builtin.h"
 #include "perf.h"
@@ -70,7 +69,7 @@ static int cmd_data_convert(int argc, const char **argv)
 	};
 
 #ifndef HAVE_LIBBABELTRACE_SUPPORT
-	pr_err("No conversion support compiled in. perf should be compiled with environment variables LIBBABELTRACE=1 and LIBBABELTRACE_DIR=/path/to/libbabeltrace/\n");
+	pr_err("No conversion support compiled in.\n");
 	return -1;
 #endif
 

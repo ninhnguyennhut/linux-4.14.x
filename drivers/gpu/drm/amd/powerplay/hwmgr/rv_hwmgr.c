@@ -265,15 +265,6 @@ static int rv_tf_set_clock_limit(struct pp_hwmgr *hwmgr, void *input,
 		}
 	} */
 
-	if (((hwmgr->uvd_arbiter.vclk_soft_min / 100) != rv_data->vclk_soft_min) ||
-	    ((hwmgr->uvd_arbiter.dclk_soft_min / 100) != rv_data->dclk_soft_min)) {
-		rv_data->vclk_soft_min = hwmgr->uvd_arbiter.vclk_soft_min / 100;
-		rv_data->dclk_soft_min = hwmgr->uvd_arbiter.dclk_soft_min / 100;
-		smum_send_msg_to_smc_with_parameter(hwmgr->smumgr,
-			PPSMC_MSG_SetSoftMinVcn,
-			(rv_data->vclk_soft_min << 16) | rv_data->vclk_soft_min);
-	}
-
 	if((hwmgr->gfx_arbiter.sclk_hard_min != 0) &&
 		((hwmgr->gfx_arbiter.sclk_hard_min / 100) != rv_data->soc_actual_hard_min_freq)) {
 		smum_send_msg_to_smc_with_parameter(hwmgr->smumgr,
@@ -317,8 +308,8 @@ static int rv_tf_set_num_active_display(struct pp_hwmgr *hwmgr, void *input,
 }
 
 static const struct phm_master_table_item rv_set_power_state_list[] = {
-	{ .tableFunction = rv_tf_set_clock_limit },
-	{ .tableFunction = rv_tf_set_num_active_display },
+	{ NULL, rv_tf_set_clock_limit },
+	{ NULL, rv_tf_set_num_active_display },
 	{ }
 };
 
@@ -391,7 +382,7 @@ static int rv_tf_disable_gfx_off(struct pp_hwmgr *hwmgr,
 }
 
 static const struct phm_master_table_item rv_disable_dpm_list[] = {
-	{ .tableFunction = rv_tf_disable_gfx_off },
+	{NULL, rv_tf_disable_gfx_off},
 	{ },
 };
 
@@ -416,7 +407,7 @@ static int rv_tf_enable_gfx_off(struct pp_hwmgr *hwmgr,
 }
 
 static const struct phm_master_table_item rv_enable_dpm_list[] = {
-	{ .tableFunction = rv_tf_enable_gfx_off },
+	{NULL, rv_tf_enable_gfx_off},
 	{ },
 };
 

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 #	KMS driver for the GMA500
 #

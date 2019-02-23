@@ -176,6 +176,7 @@ static bool mlx5e_query_global_pause_combined(struct mlx5e_priv *priv)
 
 int mlx5e_ethtool_get_sset_count(struct mlx5e_priv *priv, int sset)
 {
+
 	switch (sset) {
 	case ETH_SS_STATS:
 		return NUM_SW_COUNTERS +
@@ -206,7 +207,7 @@ static int mlx5e_get_sset_count(struct net_device *dev, int sset)
 	return mlx5e_ethtool_get_sset_count(priv, sset);
 }
 
-static void mlx5e_fill_stats_strings(struct mlx5e_priv *priv, u8 *data)
+static void mlx5e_fill_stats_strings(struct mlx5e_priv *priv, uint8_t *data)
 {
 	int i, j, tc, prio, idx = 0;
 	unsigned long pfc_combined;
@@ -241,21 +242,9 @@ static void mlx5e_fill_stats_strings(struct mlx5e_priv *priv, u8 *data)
 		strcpy(data + (idx++) * ETH_GSTRING_LEN,
 		       pport_phy_statistical_stats_desc[i].format);
 
-	for (i = 0; i < NUM_PPORT_ETH_EXT_COUNTERS(priv); i++)
-		strcpy(data + (idx++) * ETH_GSTRING_LEN,
-		       pport_eth_ext_stats_desc[i].format);
-
 	for (i = 0; i < NUM_PCIE_PERF_COUNTERS(priv); i++)
 		strcpy(data + (idx++) * ETH_GSTRING_LEN,
 		       pcie_perf_stats_desc[i].format);
-
-	for (i = 0; i < NUM_PCIE_PERF_COUNTERS64(priv); i++)
-		strcpy(data + (idx++) * ETH_GSTRING_LEN,
-		       pcie_perf_stats_desc64[i].format);
-
-	for (i = 0; i < NUM_PCIE_PERF_STALL_COUNTERS(priv); i++)
-		strcpy(data + (idx++) * ETH_GSTRING_LEN,
-		       pcie_perf_stall_stats_desc[i].format);
 
 	for (prio = 0; prio < NUM_PPORT_PRIO; prio++) {
 		for (i = 0; i < NUM_PPORT_PER_PRIO_TRAFFIC_COUNTERS; i++)
@@ -308,7 +297,8 @@ static void mlx5e_fill_stats_strings(struct mlx5e_priv *priv, u8 *data)
 					priv->channel_tc2txq[i][tc]);
 }
 
-void mlx5e_ethtool_get_strings(struct mlx5e_priv *priv, u32 stringset, u8 *data)
+void mlx5e_ethtool_get_strings(struct mlx5e_priv *priv,
+			       uint32_t stringset, uint8_t *data)
 {
 	int i;
 
@@ -330,7 +320,8 @@ void mlx5e_ethtool_get_strings(struct mlx5e_priv *priv, u32 stringset, u8 *data)
 	}
 }
 
-static void mlx5e_get_strings(struct net_device *dev, u32 stringset, u8 *data)
+static void mlx5e_get_strings(struct net_device *dev,
+			      uint32_t stringset, uint8_t *data)
 {
 	struct mlx5e_priv *priv = netdev_priv(dev);
 
@@ -382,21 +373,9 @@ void mlx5e_ethtool_get_ethtool_stats(struct mlx5e_priv *priv,
 		data[idx++] = MLX5E_READ_CTR64_BE(&priv->stats.pport.phy_statistical_counters,
 						  pport_phy_statistical_stats_desc, i);
 
-	for (i = 0; i < NUM_PPORT_ETH_EXT_COUNTERS(priv); i++)
-		data[idx++] = MLX5E_READ_CTR64_BE(&priv->stats.pport.eth_ext_counters,
-						  pport_eth_ext_stats_desc, i);
-
 	for (i = 0; i < NUM_PCIE_PERF_COUNTERS(priv); i++)
 		data[idx++] = MLX5E_READ_CTR32_BE(&priv->stats.pcie.pcie_perf_counters,
 						  pcie_perf_stats_desc, i);
-
-	for (i = 0; i < NUM_PCIE_PERF_COUNTERS64(priv); i++)
-		data[idx++] = MLX5E_READ_CTR64_BE(&priv->stats.pcie.pcie_perf_counters,
-						  pcie_perf_stats_desc64, i);
-
-	for (i = 0; i < NUM_PCIE_PERF_STALL_COUNTERS(priv); i++)
-		data[idx++] = MLX5E_READ_CTR32_BE(&priv->stats.pcie.pcie_perf_counters,
-						  pcie_perf_stall_stats_desc, i);
 
 	for (prio = 0; prio < NUM_PPORT_PRIO; prio++) {
 		for (i = 0; i < NUM_PPORT_PER_PRIO_TRAFFIC_COUNTERS; i++)
@@ -662,9 +641,8 @@ int mlx5e_ethtool_set_channels(struct mlx5e_priv *priv,
 
 	new_channels.params = priv->channels.params;
 	new_channels.params.num_channels = count;
-	if (!netif_is_rxfh_configured(priv->netdev))
-		mlx5e_build_default_indir_rqt(new_channels.params.indirection_rqt,
-					      MLX5E_INDIR_RQT_SIZE, count);
+	mlx5e_build_default_indir_rqt(priv->mdev, new_channels.params.indirection_rqt,
+				      MLX5E_INDIR_RQT_SIZE, count);
 
 	if (!test_bit(MLX5E_STATE_OPENED, &priv->state)) {
 		priv->channels.params = new_channels.params;
@@ -986,27 +964,24 @@ static u8 get_connector_port(u32 eth_proto, u8 connector_type)
 	if (connector_type && connector_type < MLX5E_CONNECTOR_TYPE_NUMBER)
 		return ptys2connector_type[connector_type];
 
-	if (eth_proto &
-	    (MLX5E_PROT_MASK(MLX5E_10GBASE_SR)   |
-	     MLX5E_PROT_MASK(MLX5E_40GBASE_SR4)  |
-	     MLX5E_PROT_MASK(MLX5E_100GBASE_SR4) |
-	     MLX5E_PROT_MASK(MLX5E_1000BASE_CX_SGMII))) {
-		return PORT_FIBRE;
+	if (eth_proto & (MLX5E_PROT_MASK(MLX5E_10GBASE_SR)
+			 | MLX5E_PROT_MASK(MLX5E_40GBASE_SR4)
+			 | MLX5E_PROT_MASK(MLX5E_100GBASE_SR4)
+			 | MLX5E_PROT_MASK(MLX5E_1000BASE_CX_SGMII))) {
+			return PORT_FIBRE;
 	}
 
-	if (eth_proto &
-	    (MLX5E_PROT_MASK(MLX5E_40GBASE_CR4) |
-	     MLX5E_PROT_MASK(MLX5E_10GBASE_CR)  |
-	     MLX5E_PROT_MASK(MLX5E_100GBASE_CR4))) {
-		return PORT_DA;
+	if (eth_proto & (MLX5E_PROT_MASK(MLX5E_40GBASE_CR4)
+			 | MLX5E_PROT_MASK(MLX5E_10GBASE_CR)
+			 | MLX5E_PROT_MASK(MLX5E_100GBASE_CR4))) {
+			return PORT_DA;
 	}
 
-	if (eth_proto &
-	    (MLX5E_PROT_MASK(MLX5E_10GBASE_KX4) |
-	     MLX5E_PROT_MASK(MLX5E_10GBASE_KR)  |
-	     MLX5E_PROT_MASK(MLX5E_40GBASE_KR4) |
-	     MLX5E_PROT_MASK(MLX5E_100GBASE_KR4))) {
-		return PORT_NONE;
+	if (eth_proto & (MLX5E_PROT_MASK(MLX5E_10GBASE_KX4)
+			 | MLX5E_PROT_MASK(MLX5E_10GBASE_KR)
+			 | MLX5E_PROT_MASK(MLX5E_40GBASE_KR4)
+			 | MLX5E_PROT_MASK(MLX5E_100GBASE_KR4))) {
+			return PORT_NONE;
 	}
 
 	return PORT_OTHER;
@@ -1213,17 +1188,8 @@ static void mlx5e_modify_tirs_hash(struct mlx5e_priv *priv, void *in, int inlen)
 
 	for (tt = 0; tt < MLX5E_NUM_INDIR_TIRS; tt++) {
 		memset(tirc, 0, ctxlen);
-		mlx5e_build_indir_tir_ctx_hash(&priv->channels.params, tt, tirc, false);
+		mlx5e_build_indir_tir_ctx_hash(&priv->channels.params, tt, tirc);
 		mlx5_core_modify_tir(mdev, priv->indir_tir[tt].tirn, in, inlen);
-	}
-
-	if (!mlx5e_tunnel_inner_ft_supported(priv->mdev))
-		return;
-
-	for (tt = 0; tt < MLX5E_NUM_INDIR_TIRS; tt++) {
-		memset(tirc, 0, ctxlen);
-		mlx5e_build_indir_tir_ctx_hash(&priv->channels.params, tt, tirc, true);
-		mlx5_core_modify_tir(mdev, priv->inner_indir_tir[tt].tirn, in, inlen);
 	}
 }
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #define EOF	(-1)
 
 #define printf	xmon_printf

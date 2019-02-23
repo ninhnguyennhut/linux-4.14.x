@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __MOCK_GEM_OBJECT_H__
 #define __MOCK_GEM_OBJECT_H__
 

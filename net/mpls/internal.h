@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef MPLS_INTERNAL_H
 #define MPLS_INTERNAL_H
 #include <net/mpls.h>

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _H8300_DMA_MAPPING_H
 #define _H8300_DMA_MAPPING_H
 

@@ -157,9 +157,9 @@ static int vmw_gmrid_man_takedown(struct ttm_mem_type_manager *man)
 }
 
 static void vmw_gmrid_man_debug(struct ttm_mem_type_manager *man,
-				struct drm_printer *printer)
+				const char *prefix)
 {
-	drm_printf(printer, "No debug info available for the GMR id manager\n");
+	pr_info("%s: No debug info available for the GMR id manager\n", prefix);
 }
 
 const struct ttm_mem_type_manager_func vmw_gmrid_manager_func = {

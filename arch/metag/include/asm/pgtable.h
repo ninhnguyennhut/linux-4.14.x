@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Macros and functions to manipulate Meta page tables.
  */

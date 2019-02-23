@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * linux/mii.h: definitions for MII-compatible transceivers
  * Originally drivers/net/sunhme.h.

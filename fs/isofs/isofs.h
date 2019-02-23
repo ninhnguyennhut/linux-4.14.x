@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/fs.h>
 #include <linux/buffer_head.h>
 #include <linux/exportfs.h>
@@ -107,7 +106,7 @@ static inline unsigned int isonum_733(char *p)
 	/* Ignore bigendian datum due to broken mastering programs */
 	return get_unaligned_le32(p);
 }
-extern int iso_date(u8 *, int);
+extern int iso_date(char *, int);
 
 struct inode;		/* To make gcc happy */
 

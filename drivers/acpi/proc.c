@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/export.h>

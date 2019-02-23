@@ -2073,17 +2073,15 @@ static int stfsm_probe(struct platform_device *pdev)
 	ret = stfsm_init(fsm);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to initialise FSM Controller\n");
-		goto err_clk_unprepare;
+		return ret;
 	}
 
 	stfsm_fetch_platform_configs(pdev);
 
 	/* Detect SPI FLASH device */
 	info = stfsm_jedec_probe(fsm);
-	if (!info) {
-		ret = -ENODEV;
-		goto err_clk_unprepare;
-	}
+	if (!info)
+		return -ENODEV;
 	fsm->info = info;
 
 	/* Use device size to determine address width */
@@ -2097,11 +2095,11 @@ static int stfsm_probe(struct platform_device *pdev)
 	if (info->config) {
 		ret = info->config(fsm);
 		if (ret)
-			goto err_clk_unprepare;
+			return ret;
 	} else {
 		ret = stfsm_prepare_rwe_seqs_default(fsm);
 		if (ret)
-			goto err_clk_unprepare;
+			return ret;
 	}
 
 	fsm->mtd.name		= info->name;
@@ -2126,10 +2124,6 @@ static int stfsm_probe(struct platform_device *pdev)
 		fsm->mtd.erasesize, (fsm->mtd.erasesize >> 10));
 
 	return mtd_device_register(&fsm->mtd, NULL, 0);
-
-err_clk_unprepare:
-	clk_disable_unprepare(fsm->clk);
-	return ret;
 }
 
 static int stfsm_remove(struct platform_device *pdev)
@@ -2153,7 +2147,9 @@ static int stfsmfsm_resume(struct device *dev)
 {
 	struct stfsm *fsm = dev_get_drvdata(dev);
 
-	return clk_prepare_enable(fsm->clk);
+	clk_prepare_enable(fsm->clk);
+
+	return 0;
 }
 #endif
 

@@ -1362,6 +1362,8 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw,
 				       txi->control.rates,
 				       ARRAY_SIZE(txi->control.rates));
 
+	txi->rate_driver_data[0] = channel;
+
 	if (skb->len >= 24 + 8 &&
 	    ieee80211_is_probe_resp(hdr->frame_control)) {
 		/* fake header transmission time */
@@ -3108,7 +3110,6 @@ static int hwsim_new_radio_nl(struct sk_buff *msg, struct genl_info *info)
 {
 	struct hwsim_new_radio_params param = { 0 };
 	const char *hwname = NULL;
-	int ret;
 
 	param.reg_strict = info->attrs[HWSIM_ATTR_REG_STRICT_REG];
 	param.p2p_device = info->attrs[HWSIM_ATTR_SUPPORT_P2P_DEVICE];
@@ -3148,9 +3149,7 @@ static int hwsim_new_radio_nl(struct sk_buff *msg, struct genl_info *info)
 		param.regd = hwsim_world_regdom_custom[idx];
 	}
 
-	ret = mac80211_hwsim_new_radio(info, &param);
-	kfree(hwname);
-	return ret;
+	return mac80211_hwsim_new_radio(info, &param);
 }
 
 static int hwsim_del_radio_nl(struct sk_buff *msg, struct genl_info *info)

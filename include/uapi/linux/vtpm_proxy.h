@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Definitions for the VTPM proxy driver
  * Copyright (c) 2015, 2016, IBM Corporation

@@ -19,9 +19,8 @@
 #include <net/netfilter/nf_tables.h>
 
 struct nft_rbtree {
-	struct rb_root		root;
 	rwlock_t		lock;
-	seqcount_t		count;
+	struct rb_root		root;
 };
 
 struct nft_rbtree_elem {
@@ -41,9 +40,8 @@ static bool nft_rbtree_equal(const struct nft_set *set, const void *this,
 	return memcmp(this, nft_set_ext_key(&interval->ext), set->klen) == 0;
 }
 
-static bool __nft_rbtree_lookup(const struct net *net, const struct nft_set *set,
-				const u32 *key, const struct nft_set_ext **ext,
-				unsigned int seq)
+static bool nft_rbtree_lookup(const struct net *net, const struct nft_set *set,
+			      const u32 *key, const struct nft_set_ext **ext)
 {
 	struct nft_rbtree *priv = nft_set_priv(set);
 	const struct nft_rbtree_elem *rbe, *interval = NULL;
@@ -52,17 +50,15 @@ static bool __nft_rbtree_lookup(const struct net *net, const struct nft_set *set
 	const void *this;
 	int d;
 
-	parent = rcu_dereference_raw(priv->root.rb_node);
+	read_lock_bh(&priv->lock);
+	parent = priv->root.rb_node;
 	while (parent != NULL) {
-		if (read_seqcount_retry(&priv->count, seq))
-			return false;
-
 		rbe = rb_entry(parent, struct nft_rbtree_elem, node);
 
 		this = nft_set_ext_key(&rbe->ext);
 		d = memcmp(this, key, set->klen);
 		if (d < 0) {
-			parent = rcu_dereference_raw(parent->rb_left);
+			parent = parent->rb_left;
 			if (interval &&
 			    nft_rbtree_equal(set, this, interval) &&
 			    nft_rbtree_interval_end(this) &&
@@ -70,14 +66,15 @@ static bool __nft_rbtree_lookup(const struct net *net, const struct nft_set *set
 				continue;
 			interval = rbe;
 		} else if (d > 0)
-			parent = rcu_dereference_raw(parent->rb_right);
+			parent = parent->rb_right;
 		else {
 			if (!nft_set_elem_active(&rbe->ext, genmask)) {
-				parent = rcu_dereference_raw(parent->rb_left);
+				parent = parent->rb_left;
 				continue;
 			}
 			if (nft_rbtree_interval_end(rbe))
 				goto out;
+			read_unlock_bh(&priv->lock);
 
 			*ext = &rbe->ext;
 			return true;
@@ -87,30 +84,13 @@ static bool __nft_rbtree_lookup(const struct net *net, const struct nft_set *set
 	if (set->flags & NFT_SET_INTERVAL && interval != NULL &&
 	    nft_set_elem_active(&interval->ext, genmask) &&
 	    !nft_rbtree_interval_end(interval)) {
+		read_unlock_bh(&priv->lock);
 		*ext = &interval->ext;
 		return true;
 	}
 out:
-	return false;
-}
-
-static bool nft_rbtree_lookup(const struct net *net, const struct nft_set *set,
-			      const u32 *key, const struct nft_set_ext **ext)
-{
-	struct nft_rbtree *priv = nft_set_priv(set);
-	unsigned int seq = read_seqcount_begin(&priv->count);
-	bool ret;
-
-	ret = __nft_rbtree_lookup(net, set, key, ext, seq);
-	if (ret || !read_seqcount_retry(&priv->count, seq))
-		return ret;
-
-	read_lock_bh(&priv->lock);
-	seq = read_seqcount_begin(&priv->count);
-	ret = __nft_rbtree_lookup(net, set, key, ext, seq);
 	read_unlock_bh(&priv->lock);
-
-	return ret;
+	return false;
 }
 
 static int __nft_rbtree_insert(const struct net *net, const struct nft_set *set,
@@ -150,7 +130,7 @@ static int __nft_rbtree_insert(const struct net *net, const struct nft_set *set,
 			}
 		}
 	}
-	rb_link_node_rcu(&new->node, parent, p);
+	rb_link_node(&new->node, parent, p);
 	rb_insert_color(&new->node, &priv->root);
 	return 0;
 }
@@ -164,9 +144,7 @@ static int nft_rbtree_insert(const struct net *net, const struct nft_set *set,
 	int err;
 
 	write_lock_bh(&priv->lock);
-	write_seqcount_begin(&priv->count);
 	err = __nft_rbtree_insert(net, set, rbe, ext);
-	write_seqcount_end(&priv->count);
 	write_unlock_bh(&priv->lock);
 
 	return err;
@@ -180,9 +158,7 @@ static void nft_rbtree_remove(const struct net *net,
 	struct nft_rbtree_elem *rbe = elem->priv;
 
 	write_lock_bh(&priv->lock);
-	write_seqcount_begin(&priv->count);
 	rb_erase(&rbe->node, &priv->root);
-	write_seqcount_end(&priv->count);
 	write_unlock_bh(&priv->lock);
 }
 
@@ -288,7 +264,6 @@ static int nft_rbtree_init(const struct nft_set *set,
 	struct nft_rbtree *priv = nft_set_priv(set);
 
 	rwlock_init(&priv->lock);
-	seqcount_init(&priv->count);
 	priv->root = RB_ROOT;
 	return 0;
 }

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_PM_QOS_H
 #define _LINUX_PM_QOS_H
 /* interface for the pm_qos_power infrastructure of the linux kernel.

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SKEIN_IV_H_
 #define _SKEIN_IV_H_
 

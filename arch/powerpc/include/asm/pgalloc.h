@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_POWERPC_PGALLOC_H
 #define _ASM_POWERPC_PGALLOC_H
 
@@ -17,8 +16,6 @@ static inline gfp_t pgtable_gfp_flags(struct mm_struct *mm, gfp_t gfp)
 	return gfp | __GFP_ACCOUNT;
 }
 #endif /* MODULE */
-
-#define PGALLOC_GFP (GFP_KERNEL | __GFP_NOTRACK | __GFP_ZERO)
 
 #ifdef CONFIG_PPC_BOOK3S
 #include <asm/book3s/pgalloc.h>

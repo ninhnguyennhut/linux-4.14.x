@@ -283,8 +283,7 @@ int wilc_wlan_get_num_conn_ifcs(struct wilc *wilc)
 
 static int linux_wlan_txq_task(void *vp)
 {
-	int ret;
-	u32 txq_count;
+	int ret, txq_count;
 	struct wilc_vif *vif;
 	struct wilc *wl;
 	struct net_device *dev = vp;
@@ -813,7 +812,7 @@ _fail_wilc_wlan_:
 		wilc_wlan_cleanup(dev);
 _fail_locks_:
 		wlan_deinit_locks(dev);
-		netdev_err(dev, "WLAN initialization FAILED\n");
+		netdev_err(dev, "WLAN Iinitialization FAILED\n");
 	} else {
 		netdev_dbg(dev, "wilc1000 already initialized\n");
 	}

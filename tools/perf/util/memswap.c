@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <byteswap.h>
 #include "memswap.h"
 #include <linux/types.h>

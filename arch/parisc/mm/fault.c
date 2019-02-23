@@ -17,7 +17,6 @@
 #include <linux/interrupt.h>
 #include <linux/extable.h>
 #include <linux/uaccess.h>
-#include <linux/hugetlb.h>
 
 #include <asm/traps.h>
 
@@ -262,7 +261,7 @@ void do_page_fault(struct pt_regs *regs, unsigned long code,
 	struct task_struct *tsk;
 	struct mm_struct *mm;
 	unsigned long acc_type;
-	int fault = 0;
+	int fault;
 	unsigned int flags;
 
 	if (faulthandler_disabled())
@@ -316,8 +315,7 @@ good_area:
 			goto out_of_memory;
 		else if (fault & VM_FAULT_SIGSEGV)
 			goto bad_area;
-		else if (fault & (VM_FAULT_SIGBUS|VM_FAULT_HWPOISON|
-				  VM_FAULT_HWPOISON_LARGE))
+		else if (fault & VM_FAULT_SIGBUS)
 			goto bad_area;
 		BUG();
 	}
@@ -354,7 +352,8 @@ bad_area:
 
 	if (user_mode(regs)) {
 		struct siginfo si;
-		unsigned int lsb = 0;
+
+		show_signal_msg(regs, code, address, tsk, vma);
 
 		switch (code) {
 		case 15:	/* Data TLB miss fault/Data page fault */
@@ -387,30 +386,6 @@ bad_area:
 			si.si_code = (code == 26) ? SEGV_ACCERR : SEGV_MAPERR;
 			break;
 		}
-
-#ifdef CONFIG_MEMORY_FAILURE
-		if (fault & (VM_FAULT_HWPOISON|VM_FAULT_HWPOISON_LARGE)) {
-			printk(KERN_ERR
-	"MCE: Killing %s:%d due to hardware memory corruption fault at %08lx\n",
-			tsk->comm, tsk->pid, address);
-			si.si_signo = SIGBUS;
-			si.si_code = BUS_MCEERR_AR;
-		}
-#endif
-
-		/*
-		 * Either small page or large page may be poisoned.
-		 * In other words, VM_FAULT_HWPOISON_LARGE and
-		 * VM_FAULT_HWPOISON are mutually exclusive.
-		 */
-		if (fault & VM_FAULT_HWPOISON_LARGE)
-			lsb = hstate_index_to_shift(VM_FAULT_GET_HINDEX(fault));
-		else if (fault & VM_FAULT_HWPOISON)
-			lsb = PAGE_SHIFT;
-		else
-			show_signal_msg(regs, code, address, tsk, vma);
-		si.si_addr_lsb = lsb;
-
 		si.si_errno = 0;
 		si.si_addr = (void __user *) address;
 		force_sig_info(si.si_signo, &si, current);

@@ -287,6 +287,7 @@
 		fifo-depth = <0x100>;
 		mmc-ddr-1_8v;
 		non-removable;
+		num-slots = <1>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
 		resets = <&cru SRST_EMMC>;
@@ -598,7 +599,7 @@
 				rockchip,pins = <1 15 RK_FUNC_1 &pcfg_pull_default>;
 			};
 
-			sdmmc_cd: sdmmc-cd {
+			sdmmc_cd: sdmcc-cd {
 				rockchip,pins = <1 17 RK_FUNC_1 &pcfg_pull_default>;
 			};
 

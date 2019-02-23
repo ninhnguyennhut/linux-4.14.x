@@ -111,12 +111,6 @@ void mmc_retune_hold(struct mmc_host *host)
 	host->hold_retune += 1;
 }
 
-void mmc_retune_hold_now(struct mmc_host *host)
-{
-	host->retune_now = 0;
-	host->hold_retune += 1;
-}
-
 void mmc_retune_release(struct mmc_host *host)
 {
 	if (host->hold_retune)

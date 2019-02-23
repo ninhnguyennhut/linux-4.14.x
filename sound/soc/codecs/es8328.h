@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * es8328.h  --  ES8328 ALSA SoC Audio driver
  */

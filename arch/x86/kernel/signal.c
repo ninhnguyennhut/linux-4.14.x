@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 1991, 1992  Linus Torvalds
  *  Copyright (C) 2000, 2001, 2002 Andi Kleen SuSE Labs
@@ -257,14 +256,14 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size,
 			sp = current->sas_ss_sp + current->sas_ss_size;
 	} else if (IS_ENABLED(CONFIG_X86_32) &&
 		   !onsigstack &&
-		   regs->ss != __USER_DS &&
+		   (regs->ss & 0xffff) != __USER_DS &&
 		   !(ka->sa.sa_flags & SA_RESTORER) &&
 		   ka->sa.sa_restorer) {
 		/* This is the legacy signal stack switching. */
 		sp = (unsigned long) ka->sa.sa_restorer;
 	}
 
-	if (fpu->initialized) {
+	if (fpu->fpstate_active) {
 		sp = fpu__alloc_mathframe(sp, IS_ENABLED(CONFIG_X86_32),
 					  &buf_fx, &math_size);
 		*fpstate = (void __user *)sp;
@@ -280,7 +279,7 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size,
 		return (void __user *)-1L;
 
 	/* save i387 and extended state */
-	if (fpu->initialized &&
+	if (fpu->fpstate_active &&
 	    copy_fpstate_to_sigframe(*fpstate, (void __user *)buf_fx, math_size) < 0)
 		return (void __user *)-1L;
 
@@ -756,7 +755,7 @@ handle_signal(struct ksignal *ksig, struct pt_regs *regs)
 		/*
 		 * Ensure the signal handler starts with the new fpu state.
 		 */
-		if (fpu->initialized)
+		if (fpu->fpstate_active)
 			fpu__clear(fpu);
 	}
 	signal_setup_done(failed, ksig, stepping);

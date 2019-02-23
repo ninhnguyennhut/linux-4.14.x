@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *	Definitions for the UDP-Lite (RFC 3828) code.
  */

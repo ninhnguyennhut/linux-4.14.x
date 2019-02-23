@@ -19,8 +19,6 @@
 #include <linux/ctype.h>
 #include <linux/slab.h>
 #include <linux/namei.h>
-#include <linux/kernel.h>
-
 #include "fat.h"
 
 static inline unsigned long vfat_d_version(struct dentry *dentry)
@@ -512,8 +510,10 @@ xlate_to_uni(const unsigned char *name, int len, unsigned char *outname,
 	     struct nls_table *nls)
 {
 	const unsigned char *ip;
+	unsigned char nc;
 	unsigned char *op;
-	int i, fill;
+	unsigned int ec;
+	int i, k, fill;
 	int charlen;
 
 	if (utf8) {
@@ -530,22 +530,33 @@ xlate_to_uni(const unsigned char *name, int len, unsigned char *outname,
 			 i < len && *outlen < FAT_LFN_LEN;
 			 *outlen += 1) {
 			if (escape && (*ip == ':')) {
-				u8 uc[2];
-
 				if (i > len - 5)
 					return -EINVAL;
-
-				if (hex2bin(uc, ip + 1, 2) < 0)
+				ec = 0;
+				for (k = 1; k < 5; k++) {
+					nc = ip[k];
+					ec <<= 4;
+					if (nc >= '0' && nc <= '9') {
+						ec |= nc - '0';
+						continue;
+					}
+					if (nc >= 'a' && nc <= 'f') {
+						ec |= nc - ('a' - 10);
+						continue;
+					}
+					if (nc >= 'A' && nc <= 'F') {
+						ec |= nc - ('A' - 10);
+						continue;
+					}
 					return -EINVAL;
-
-				*(wchar_t *)op = uc[0] << 8 | uc[1];
-
-				op += 2;
+				}
+				*op++ = ec & 0xFF;
+				*op++ = ec >> 8;
 				ip += 5;
 				i += 5;
 			} else {
 				charlen = nls->char2uni(ip, len - i,
-							(wchar_t *)op);
+									(wchar_t *)op);
 				if (charlen < 0)
 					return -EINVAL;
 				ip += charlen;

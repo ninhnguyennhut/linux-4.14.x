@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __MVEBU_GICP_H__
 #define __MVEBU_GICP_H__
 

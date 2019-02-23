@@ -139,8 +139,10 @@ struct serial_ir {
 	struct platform_device *pdev;
 	struct timer_list timeout_timer;
 
-	unsigned int carrier;
+	unsigned int freq;
 	unsigned int duty_cycle;
+
+	unsigned int pulse_width, space_width;
 };
 
 static struct serial_ir serial_ir;
@@ -179,6 +181,18 @@ static void off(void)
 		soutp(UART_MCR, hardware[type].on);
 	else
 		soutp(UART_MCR, hardware[type].off);
+}
+
+static void init_timing_params(unsigned int new_duty_cycle,
+			       unsigned int new_freq)
+{
+	serial_ir.duty_cycle = new_duty_cycle;
+	serial_ir.freq = new_freq;
+
+	serial_ir.pulse_width = DIV_ROUND_CLOSEST(
+		new_duty_cycle * NSEC_PER_SEC, new_freq * 100l);
+	serial_ir.space_width = DIV_ROUND_CLOSEST(
+		(100l - new_duty_cycle) * NSEC_PER_SEC, new_freq * 100l);
 }
 
 static void send_pulse_irdeo(unsigned int length, ktime_t target)
@@ -227,20 +241,13 @@ static void send_pulse_homebrew_softcarrier(unsigned int length, ktime_t edge)
 	 * ndelay(s64) does not compile; so use s32 rather than s64.
 	 */
 	s32 delta;
-	unsigned int pulse, space;
-
-	/* Ensure the dividend fits into 32 bit */
-	pulse = DIV_ROUND_CLOSEST(serial_ir.duty_cycle * (NSEC_PER_SEC / 100),
-				  serial_ir.carrier);
-	space = DIV_ROUND_CLOSEST((100 - serial_ir.duty_cycle) *
-				  (NSEC_PER_SEC / 100), serial_ir.carrier);
 
 	for (;;) {
 		now = ktime_get();
 		if (ktime_compare(now, target) >= 0)
 			break;
 		on();
-		edge = ktime_add_ns(edge, pulse);
+		edge = ktime_add_ns(edge, serial_ir.pulse_width);
 		delta = ktime_to_ns(ktime_sub(edge, now));
 		if (delta > 0)
 			ndelay(delta);
@@ -248,7 +255,7 @@ static void send_pulse_homebrew_softcarrier(unsigned int length, ktime_t edge)
 		off();
 		if (ktime_compare(now, target) >= 0)
 			break;
-		edge = ktime_add_ns(edge, space);
+		edge = ktime_add_ns(edge, serial_ir.space_width);
 		delta = ktime_to_ns(ktime_sub(edge, now));
 		if (delta > 0)
 			ndelay(delta);
@@ -506,19 +513,19 @@ static int serial_ir_probe(struct platform_device *dev)
 
 	switch (type) {
 	case IR_HOMEBREW:
-		rcdev->device_name = "Serial IR type home-brew";
+		rcdev->input_name = "Serial IR type home-brew";
 		break;
 	case IR_IRDEO:
-		rcdev->device_name = "Serial IR type IRdeo";
+		rcdev->input_name = "Serial IR type IRdeo";
 		break;
 	case IR_IRDEO_REMOTE:
-		rcdev->device_name = "Serial IR type IRdeo remote";
+		rcdev->input_name = "Serial IR type IRdeo remote";
 		break;
 	case IR_ANIMAX:
-		rcdev->device_name = "Serial IR type AnimaX";
+		rcdev->input_name = "Serial IR type AnimaX";
 		break;
 	case IR_IGOR:
-		rcdev->device_name = "Serial IR type IgorPlug";
+		rcdev->input_name = "Serial IR type IgorPlug";
 		break;
 	}
 
@@ -530,7 +537,7 @@ static int serial_ir_probe(struct platform_device *dev)
 	rcdev->open = serial_ir_open;
 	rcdev->close = serial_ir_close;
 	rcdev->dev.parent = &serial_ir.pdev->dev;
-	rcdev->allowed_protocols = RC_PROTO_BIT_ALL_IR_DECODER;
+	rcdev->allowed_protocols = RC_BIT_ALL_IR_DECODER;
 	rcdev->driver_name = KBUILD_MODNAME;
 	rcdev->map_name = RC_MAP_RC6_MCE;
 	rcdev->min_timeout = 1;
@@ -573,8 +580,7 @@ static int serial_ir_probe(struct platform_device *dev)
 		return result;
 
 	/* Initialize pulse/space widths */
-	serial_ir.duty_cycle = 50;
-	serial_ir.carrier = 38000;
+	init_timing_params(50, 38000);
 
 	/* If pin is high, then this must be an active low receiver. */
 	if (sense == -1) {
@@ -678,7 +684,7 @@ static int serial_ir_tx(struct rc_dev *dev, unsigned int *txbuf,
 
 static int serial_ir_tx_duty_cycle(struct rc_dev *dev, u32 cycle)
 {
-	serial_ir.duty_cycle = cycle;
+	init_timing_params(cycle, serial_ir.freq);
 	return 0;
 }
 
@@ -687,7 +693,7 @@ static int serial_ir_tx_carrier(struct rc_dev *dev, u32 carrier)
 	if (carrier > 500000 || carrier < 20000)
 		return -EINVAL;
 
-	serial_ir.carrier = carrier;
+	init_timing_params(serial_ir.duty_cycle, carrier);
 	return 0;
 }
 

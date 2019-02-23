@@ -40,6 +40,7 @@
 #include "omapdss.h"
 #include "hdmi4_core.h"
 #include "dss.h"
+#include "dss_features.h"
 #include "hdmi.h"
 
 static struct omap_hdmi hdmi;
@@ -667,7 +668,7 @@ static int hdmi_audio_register(struct device *dev)
 {
 	struct omap_hdmi_audio_pdata pdata = {
 		.dev = dev,
-		.version = 4,
+		.dss_version = omapdss_get_version(),
 		.audio_dma_addr = hdmi_wp_get_audio_dma_addr(&hdmi.wp),
 		.ops = &hdmi_audio_ops,
 	};
@@ -699,7 +700,7 @@ static int hdmi4_bind(struct device *dev, struct device *master, void *data)
 	if (r)
 		return r;
 
-	r = hdmi_wp_init(pdev, &hdmi.wp, 4);
+	r = hdmi_wp_init(pdev, &hdmi.wp);
 	if (r)
 		return r;
 
@@ -707,7 +708,7 @@ static int hdmi4_bind(struct device *dev, struct device *master, void *data)
 	if (r)
 		return r;
 
-	r = hdmi_phy_init(pdev, &hdmi.phy, 4);
+	r = hdmi_phy_init(pdev, &hdmi.phy);
 	if (r)
 		goto err;
 

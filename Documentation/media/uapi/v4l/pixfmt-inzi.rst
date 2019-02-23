@@ -34,12 +34,11 @@ The second plane provides 16-bit per-pixel Depth data arranged in
 Each cell is a 16-bit word with more significant data stored at higher
 memory address (byte order is little-endian).
 
-
 .. raw:: latex
 
-    \small
+    \newline\newline\begin{adjustbox}{width=\columnwidth}
 
-.. tabularcolumns:: |p{2.5cm}|p{2.5cm}|p{2.5cm}|p{2.5cm}|p{2.5cm}|p{2.5cm}|
+.. tabularcolumns:: |p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|p{4.0cm}|
 
 .. flat-table::
     :header-rows:  0
@@ -79,4 +78,4 @@ memory address (byte order is little-endian).
 
 .. raw:: latex
 
-    \normalsize
+    \end{adjustbox}\newline\newline

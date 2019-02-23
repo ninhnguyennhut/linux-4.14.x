@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/hfsplus/wrapper.c
  *
@@ -66,7 +65,7 @@ int hfsplus_submit_bio(struct super_block *sb, sector_t sector,
 
 	bio = bio_alloc(GFP_NOIO, 1);
 	bio->bi_iter.bi_sector = sector;
-	bio_set_dev(bio, sb->s_bdev);
+	bio->bi_bdev = sb->s_bdev;
 	bio_set_op_attrs(bio, op, op_flags);
 
 	if (op != WRITE && data)

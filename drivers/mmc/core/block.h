@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _MMC_CORE_BLOCK_H
 #define _MMC_CORE_BLOCK_H
 

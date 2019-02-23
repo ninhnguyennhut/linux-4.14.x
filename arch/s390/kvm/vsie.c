@@ -349,9 +349,6 @@ static int shadow_scb(struct kvm_vcpu *vcpu, struct vsie_page *vsie_page)
 		scb_s->eca |= scb_o->eca & ECA_IB;
 	if (test_kvm_cpu_feat(vcpu->kvm, KVM_S390_VM_CPU_FEAT_CEI))
 		scb_s->eca |= scb_o->eca & ECA_CEI;
-	/* Epoch Extension */
-	if (test_kvm_facility(vcpu->kvm, 139))
-		scb_s->ecd |= scb_o->ecd & ECD_MEF;
 
 	prepare_ibc(vcpu, vsie_page);
 	rc = shadow_crycb(vcpu, vsie_page);
@@ -809,6 +806,8 @@ static int do_vsie_run(struct kvm_vcpu *vcpu, struct vsie_page *vsie_page)
 {
 	struct kvm_s390_sie_block *scb_s = &vsie_page->scb_s;
 	struct kvm_s390_sie_block *scb_o = vsie_page->scb_o;
+	struct mcck_volatile_info *mcck_info;
+	struct sie_page *sie_page;
 	int rc;
 
 	handle_last_fault(vcpu, vsie_page);
@@ -832,7 +831,9 @@ static int do_vsie_run(struct kvm_vcpu *vcpu, struct vsie_page *vsie_page)
 
 	if (rc == -EINTR) {
 		VCPU_EVENT(vcpu, 3, "%s", "machine check");
-		kvm_s390_reinject_machine_check(vcpu, &vsie_page->mcck_info);
+		sie_page = container_of(scb_s, struct sie_page, sie_block);
+		mcck_info = &sie_page->mcck_info;
+		kvm_s390_reinject_machine_check(vcpu, mcck_info);
 		return 0;
 	}
 
@@ -918,13 +919,6 @@ static void register_shadow_scb(struct kvm_vcpu *vcpu,
 	 */
 	preempt_disable();
 	scb_s->epoch += vcpu->kvm->arch.epoch;
-
-	if (scb_s->ecd & ECD_MEF) {
-		scb_s->epdx += vcpu->kvm->arch.epdx;
-		if (scb_s->epoch < vcpu->kvm->arch.epoch)
-			scb_s->epdx += 1;
-	}
-
 	preempt_enable();
 }
 
@@ -1075,7 +1069,7 @@ int kvm_s390_handle_vsie(struct kvm_vcpu *vcpu)
 	if (vcpu->arch.sie_block->gpsw.mask & PSW_MASK_PSTATE)
 		return kvm_s390_inject_program_int(vcpu, PGM_PRIVILEGED_OP);
 
-	BUILD_BUG_ON(sizeof(struct vsie_page) != PAGE_SIZE);
+	BUILD_BUG_ON(sizeof(struct vsie_page) != 4096);
 	scb_addr = kvm_s390_get_base_disp_s(vcpu, NULL);
 
 	/* 512 byte alignment */

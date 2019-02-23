@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __GF100_BAR_H__
 #define __GF100_BAR_H__
 #define gf100_bar(p) container_of((p), struct gf100_bar, base)
@@ -12,7 +11,6 @@ struct gf100_bar_vm {
 
 struct gf100_bar {
 	struct nvkm_bar base;
-	bool bar2_halve;
 	struct gf100_bar_vm bar[2];
 };
 

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # List of files in the vdso, has to be asm only for now
 
 KCOV_INSTRUMENT := n

@@ -806,8 +806,7 @@ int dm_table_add_target(struct dm_table *t, const char *type,
 /*
  * Target argument parsing helpers.
  */
-static int validate_next_arg(const struct dm_arg *arg,
-			     struct dm_arg_set *arg_set,
+static int validate_next_arg(struct dm_arg *arg, struct dm_arg_set *arg_set,
 			     unsigned *value, char **error, unsigned grouped)
 {
 	const char *arg_str = dm_shift_arg(arg_set);
@@ -825,14 +824,14 @@ static int validate_next_arg(const struct dm_arg *arg,
 	return 0;
 }
 
-int dm_read_arg(const struct dm_arg *arg, struct dm_arg_set *arg_set,
+int dm_read_arg(struct dm_arg *arg, struct dm_arg_set *arg_set,
 		unsigned *value, char **error)
 {
 	return validate_next_arg(arg, arg_set, value, error, 0);
 }
 EXPORT_SYMBOL(dm_read_arg);
 
-int dm_read_arg_group(const struct dm_arg *arg, struct dm_arg_set *arg_set,
+int dm_read_arg_group(struct dm_arg *arg, struct dm_arg_set *arg_set,
 		      unsigned *value, char **error)
 {
 	return validate_next_arg(arg, arg_set, value, error, 1);
@@ -1758,12 +1757,13 @@ static bool dm_table_supports_write_zeroes(struct dm_table *t)
 	return true;
 }
 
-static int device_not_discard_capable(struct dm_target *ti, struct dm_dev *dev,
-				      sector_t start, sector_t len, void *data)
+
+static int device_discard_capable(struct dm_target *ti, struct dm_dev *dev,
+				  sector_t start, sector_t len, void *data)
 {
 	struct request_queue *q = bdev_get_queue(dev->bdev);
 
-	return q && !blk_queue_discard(q);
+	return q && blk_queue_discard(q);
 }
 
 static bool dm_table_supports_discards(struct dm_table *t)
@@ -1771,24 +1771,28 @@ static bool dm_table_supports_discards(struct dm_table *t)
 	struct dm_target *ti;
 	unsigned i;
 
+	/*
+	 * Unless any target used by the table set discards_supported,
+	 * require at least one underlying device to support discards.
+	 * t->devices includes internal dm devices such as mirror logs
+	 * so we need to use iterate_devices here, which targets
+	 * supporting discard selectively must provide.
+	 */
 	for (i = 0; i < dm_table_get_num_targets(t); i++) {
 		ti = dm_table_get_target(t, i);
 
 		if (!ti->num_discard_bios)
-			return false;
+			continue;
 
-		/*
-		 * Either the target provides discard support (as implied by setting
-		 * 'discards_supported') or it relies on _all_ data devices having
-		 * discard support.
-		 */
-		if (!ti->discards_supported &&
-		    (!ti->type->iterate_devices ||
-		     ti->type->iterate_devices(ti, device_not_discard_capable, NULL)))
-			return false;
+		if (ti->discards_supported)
+			return true;
+
+		if (ti->type->iterate_devices &&
+		    ti->type->iterate_devices(ti, device_discard_capable, NULL))
+			return true;
 	}
 
-	return true;
+	return false;
 }
 
 void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,

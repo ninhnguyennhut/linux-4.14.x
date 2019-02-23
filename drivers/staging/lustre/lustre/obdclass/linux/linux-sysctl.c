@@ -43,9 +43,9 @@
 
 #define DEBUG_SUBSYSTEM S_CLASS
 
-#include <obd_support.h>
-#include <lprocfs_status.h>
-#include <obd_class.h>
+#include "../../include/obd_support.h"
+#include "../../include/lprocfs_status.h"
+#include "../../include/obd_class.h"
 
 struct static_lustre_uintvalue_attr {
 	struct {
@@ -151,7 +151,7 @@ static struct attribute *lustre_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group lustre_attr_group = {
+static struct attribute_group lustre_attr_group = {
 	.attrs = lustre_attrs,
 };
 

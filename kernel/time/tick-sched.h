@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _TICK_SCHED_H
 #define _TICK_SCHED_H
 

@@ -180,9 +180,11 @@ static struct region_code_mapping region_code_mapping_t[] = {
 u8 *mwifiex_11d_code_2_region(u8 code)
 {
 	u8 i;
+	u8 size = sizeof(region_code_mapping_t)/
+				sizeof(struct region_code_mapping);
 
 	/* Look for code in mapping table */
-	for (i = 0; i < ARRAY_SIZE(region_code_mapping_t); i++)
+	for (i = 0; i < size; i++)
 		if (region_code_mapping_t[i].code == code)
 			return region_code_mapping_t[i].region;
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * File operations used by nfsd. Some of these have been ripped from
  * other parts of the kernel because they weren't exported, others
@@ -970,7 +969,7 @@ nfsd_vfs_write(struct svc_rqst *rqstp, struct svc_fh *fhp, struct file *file,
 	int			use_wgather;
 	loff_t			pos = offset;
 	unsigned int		pflags = current->flags;
-	rwf_t			flags = 0;
+	int			flags = 0;
 
 	if (test_bit(RQ_LOCAL, &rqstp->rq_flags))
 		/*

@@ -32,50 +32,39 @@
 #include "spi-test.h"
 
 /* flag to only simulate transfers */
-static int simulate_only;
+int simulate_only;
 module_param(simulate_only, int, 0);
 MODULE_PARM_DESC(simulate_only, "if not 0 do not execute the spi message");
 
 /* dump spi messages */
-static int dump_messages;
+int dump_messages;
 module_param(dump_messages, int, 0);
 MODULE_PARM_DESC(dump_messages,
 		 "=1 dump the basic spi_message_structure, " \
 		 "=2 dump the spi_message_structure including data, " \
 		 "=3 dump the spi_message structure before and after execution");
 /* the device is jumpered for loopback - enabling some rx_buf tests */
-static int loopback;
+int loopback;
 module_param(loopback, int, 0);
 MODULE_PARM_DESC(loopback,
 		 "if set enable loopback mode, where the rx_buf "	\
 		 "is checked to match tx_buf after the spi_message "	\
 		 "is executed");
 
-static int loop_req;
-module_param(loop_req, int, 0);
-MODULE_PARM_DESC(loop_req,
-		 "if set controller will be asked to enable test loop mode. " \
-		 "If controller supported it, MISO and MOSI will be connected");
-
-static int no_cs;
-module_param(no_cs, int, 0);
-MODULE_PARM_DESC(no_cs,
-		 "if set Chip Select (CS) will not be used");
-
 /* run only a specific test */
-static int run_only_test = -1;
+int run_only_test = -1;
 module_param(run_only_test, int, 0);
 MODULE_PARM_DESC(run_only_test,
 		 "only run the test with this number (0-based !)");
 
 /* use vmalloc'ed buffers */
-static int use_vmalloc;
+int use_vmalloc;
 module_param(use_vmalloc, int, 0644);
 MODULE_PARM_DESC(use_vmalloc,
 		 "use vmalloc'ed buffers instead of kmalloc'ed");
 
 /* check rx ranges */
-static int check_ranges = 1;
+int check_ranges = 1;
 module_param(check_ranges, int, 0644);
 MODULE_PARM_DESC(check_ranges,
 		 "checks rx_buffer pattern are valid");
@@ -323,17 +312,6 @@ static struct spi_test spi_tests[] = {
 static int spi_loopback_test_probe(struct spi_device *spi)
 {
 	int ret;
-
-	if (loop_req || no_cs) {
-		spi->mode |= loop_req ? SPI_LOOP : 0;
-		spi->mode |= no_cs ? SPI_NO_CS : 0;
-		ret = spi_setup(spi);
-		if (ret) {
-			dev_err(&spi->dev, "SPI setup with SPI_LOOP or SPI_NO_CS failed (%d)\n",
-				ret);
-			return ret;
-		}
-	}
 
 	dev_info(&spi->dev, "Executing spi-loopback-tests\n");
 

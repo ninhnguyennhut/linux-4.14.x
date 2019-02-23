@@ -362,7 +362,7 @@ static int *get_random_order(int count)
 	int *order;
 	int n, r, tmp;
 
-	order = kmalloc_array(count, sizeof(*order), GFP_KERNEL);
+	order = kmalloc_array(count, sizeof(*order), GFP_TEMPORARY);
 	if (!order)
 		return order;
 

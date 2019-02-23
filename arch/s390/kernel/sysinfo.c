@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright IBM Corp. 2001, 2009
  *  Author(s): Ulrich Weigand <Ulrich.Weigand@de.ibm.com>,

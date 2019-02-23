@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * This header provides constants for the Qualcomm PMIC's
  * Multi-Purpose Pin binding.

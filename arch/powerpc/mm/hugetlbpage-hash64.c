@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * PPC64 Huge TLB Page Support for hash based MMUs (POWER4 and later)
  *

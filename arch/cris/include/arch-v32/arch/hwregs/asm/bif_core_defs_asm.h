@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __bif_core_defs_asm_h
 #define __bif_core_defs_asm_h
 

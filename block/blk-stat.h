@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef BLK_STAT_H
 #define BLK_STAT_H
 

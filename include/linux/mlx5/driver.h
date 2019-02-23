@@ -162,13 +162,6 @@ enum dbg_rsc_type {
 	MLX5_DBG_RSC_CQ,
 };
 
-enum port_state_policy {
-	MLX5_POLICY_DOWN	= 0,
-	MLX5_POLICY_UP		= 1,
-	MLX5_POLICY_FOLLOW	= 2,
-	MLX5_POLICY_INVALID	= 0xffffffff
-};
-
 struct mlx5_field_desc {
 	struct dentry	       *dent;
 	int			i;
@@ -192,7 +185,6 @@ enum mlx5_dev_event {
 	MLX5_DEV_EVENT_GUID_CHANGE,
 	MLX5_DEV_EVENT_CLIENT_REREG,
 	MLX5_DEV_EVENT_PPS,
-	MLX5_DEV_EVENT_DELAY_DROP_TIMEOUT,
 };
 
 enum mlx5_port_status {
@@ -299,7 +291,7 @@ struct mlx5_cmd {
 	struct semaphore pages_sem;
 	int	mode;
 	struct mlx5_cmd_work_ent *ent_arr[MLX5_MAX_COMMANDS];
-	struct dma_pool *pool;
+	struct pci_pool *pool;
 	struct mlx5_cmd_debug dbg;
 	struct cmd_msg_cache cache[MLX5_NUM_COMMAND_CACHES];
 	int checksum_disabled;
@@ -418,7 +410,6 @@ enum mlx5_res_type {
 	MLX5_RES_SQ	= MLX5_EVENT_QUEUE_TYPE_SQ,
 	MLX5_RES_SRQ	= 3,
 	MLX5_RES_XSRQ	= 4,
-	MLX5_RES_XRQ	= 5,
 };
 
 struct mlx5_core_rsc_common {
@@ -534,9 +525,6 @@ struct mlx5_mkey_table {
 
 struct mlx5_vf_context {
 	int	enabled;
-	u64	port_guid;
-	u64	node_guid;
-	enum port_state_policy	policy;
 };
 
 struct mlx5_core_sriov {
@@ -562,7 +550,6 @@ struct mlx5_fc_stats {
 	unsigned long sampling_interval; /* jiffies */
 };
 
-struct mlx5_mpfs;
 struct mlx5_eswitch;
 struct mlx5_lag;
 struct mlx5_pagefault;
@@ -610,6 +597,7 @@ struct mlx5_port_module_event_stats {
 struct mlx5_priv {
 	char			name[MLX5_MAX_NAME_LEN];
 	struct mlx5_eq_table	eq_table;
+	struct msix_entry	*msix_arr;
 	struct mlx5_irq_info	*irq_info;
 
 	/* pages stuff */
@@ -658,11 +646,7 @@ struct mlx5_priv {
 	struct list_head        ctx_list;
 	spinlock_t              ctx_lock;
 
-	struct list_head	waiting_events_list;
-	bool			is_accum_events;
-
 	struct mlx5_flow_steering *steering;
-	struct mlx5_mpfs        *mpfs;
 	struct mlx5_eswitch     *eswitch;
 	struct mlx5_core_sriov	sriov;
 	struct mlx5_lag		*lag;
@@ -689,7 +673,9 @@ enum mlx5_device_state {
 };
 
 enum mlx5_interface_state {
-	MLX5_INTERFACE_STATE_UP = BIT(0),
+	MLX5_INTERFACE_STATE_DOWN = BIT(0),
+	MLX5_INTERFACE_STATE_UP = BIT(1),
+	MLX5_INTERFACE_STATE_SHUTDOWN = BIT(2),
 };
 
 enum mlx5_pci_status {
@@ -775,7 +761,6 @@ struct mlx5_core_dev {
 		u32 hca_max[MLX5_CAP_NUM][MLX5_UN_SZ_DW(hca_cap_union)];
 		u32 pcam[MLX5_ST_SZ_DW(pcam_reg)];
 		u32 mcam[MLX5_ST_SZ_DW(mcam_reg)];
-		u32 fpga[MLX5_ST_SZ_DW(fpga_cap)];
 	} caps;
 	phys_addr_t		iseg_base;
 	struct mlx5_init_seg __iomem *iseg;
@@ -857,6 +842,13 @@ struct mlx5_pas {
 	u8	log_sz;
 };
 
+enum port_state_policy {
+	MLX5_POLICY_DOWN	= 0,
+	MLX5_POLICY_UP		= 1,
+	MLX5_POLICY_FOLLOW	= 2,
+	MLX5_POLICY_INVALID	= 0xffffffff
+};
+
 enum phy_port_state {
 	MLX5_AAA_111
 };
@@ -892,6 +884,8 @@ static inline void *mlx5_buf_offset(struct mlx5_buf *buf, int offset)
 {
 		return buf->direct.buf + offset;
 }
+
+extern struct workqueue_struct *mlx5_core_wq;
 
 #define STRUCT_FIELD(header, field) \
 	.struct_offset_bytes = offsetof(struct ib_unpacked_ ## header, field),      \
@@ -1097,7 +1091,7 @@ enum {
 };
 
 enum {
-	MR_CACHE_LAST_STD_ENTRY = 20,
+	MAX_UMR_CACHE_ENTRY = 20,
 	MLX5_IMR_MTT_CACHE_ENTRY,
 	MLX5_IMR_KSM_CACHE_ENTRY,
 	MAX_MR_CACHE_ENTRIES
@@ -1190,11 +1184,5 @@ static inline bool mlx5_rl_is_supported(struct mlx5_core_dev *dev)
 enum {
 	MLX5_TRIGGERED_CMD_COMP = (u64)1 << 32,
 };
-
-static inline const struct cpumask *
-mlx5_get_vector_affinity(struct mlx5_core_dev *dev, int vector)
-{
-	return pci_irq_get_affinity(dev->pdev, MLX5_EQ_VEC_COMP_BASE + vector);
-}
 
 #endif /* MLX5_DRIVER_H */

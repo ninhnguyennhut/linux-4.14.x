@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * These structs are used by the system-use-sharing protocol, in which the
  * Rock Ridge extensions are embedded.  It is quite possible that other
@@ -66,7 +65,7 @@ struct RR_PL_s {
 };
 
 struct stamp {
-	__u8 time[7];		/* actually 6 unsigned, 1 signed */
+	char time[7];
 } __attribute__ ((packed));
 
 struct RR_TF_s {

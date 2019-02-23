@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Allocator for I/O pins. All pins are allocated to GPIO at bootup.
  * Unassigned pins and GPIO pins can be allocated to a fixed interface

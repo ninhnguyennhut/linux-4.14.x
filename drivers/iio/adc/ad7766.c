@@ -103,7 +103,8 @@ static int ad7766_preenable(struct iio_dev *indio_dev)
 		return ret;
 	}
 
-	gpiod_set_value(ad7766->pd_gpio, 0);
+	if (ad7766->pd_gpio)
+		gpiod_set_value(ad7766->pd_gpio, 0);
 
 	return 0;
 }
@@ -112,7 +113,8 @@ static int ad7766_postdisable(struct iio_dev *indio_dev)
 {
 	struct ad7766 *ad7766 = iio_priv(indio_dev);
 
-	gpiod_set_value(ad7766->pd_gpio, 1);
+	if (ad7766->pd_gpio)
+		gpiod_set_value(ad7766->pd_gpio, 1);
 
 	/*
 	 * The PD pin is synchronous to the clock, so give it some time to

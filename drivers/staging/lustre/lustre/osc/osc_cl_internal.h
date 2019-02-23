@@ -42,11 +42,11 @@
 #ifndef OSC_CL_INTERNAL_H
 #define OSC_CL_INTERNAL_H
 
-#include <linux/libcfs/libcfs.h>
+#include "../../include/linux/libcfs/libcfs.h"
 
-#include <obd.h>
+#include "../include/obd.h"
 /* osc_build_res_name() */
-#include <cl_object.h>
+#include "../include/cl_object.h"
 #include "osc_internal.h"
 
 /** \defgroup osc osc

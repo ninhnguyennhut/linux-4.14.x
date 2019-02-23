@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* linux/arch/sparc/kernel/time.c
  *
  * Copyright (C) 1995 David S. Miller (davem@davemloft.net)

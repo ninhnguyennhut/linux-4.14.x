@@ -329,7 +329,7 @@ static const struct acpi_device_id cros_ec_lpc_acpi_device_ids[] = {
 };
 MODULE_DEVICE_TABLE(acpi, cros_ec_lpc_acpi_device_ids);
 
-static const struct dmi_system_id cros_ec_lpc_dmi_table[] __initconst = {
+static struct dmi_system_id cros_ec_lpc_dmi_table[] __initdata = {
 	{
 		/*
 		 * Today all Chromebooks/boxes ship with Google_* as version and

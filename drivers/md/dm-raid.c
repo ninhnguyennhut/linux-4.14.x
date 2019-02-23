@@ -2143,6 +2143,13 @@ static int super_load(struct md_rdev *rdev, struct md_rdev *refdev)
 	struct dm_raid_superblock *refsb;
 	uint64_t events_sb, events_refsb;
 
+	rdev->sb_start = 0;
+	rdev->sb_size = bdev_logical_block_size(rdev->meta_bdev);
+	if (rdev->sb_size < sizeof(*sb) || rdev->sb_size > PAGE_SIZE) {
+		DMERR("superblock size of a logical block is no longer valid");
+		return -EINVAL;
+	}
+
 	r = read_disk_sb(rdev, rdev->sb_size, false);
 	if (r)
 		return r;
@@ -2487,17 +2494,6 @@ static int analyse_superblocks(struct dm_target *ti, struct raid_set *rs)
 		if (test_bit(Journal, &rdev->flags))
 			continue;
 
-		if (!rdev->meta_bdev)
-			continue;
-
-		/* Set superblock offset/size for metadata device. */
-		rdev->sb_start = 0;
-		rdev->sb_size = bdev_logical_block_size(rdev->meta_bdev);
-		if (rdev->sb_size < sizeof(struct dm_raid_superblock) || rdev->sb_size > PAGE_SIZE) {
-			DMERR("superblock size of a logical block is no longer valid");
-			return -EINVAL;
-		}
-
 		/*
 		 * Skipping super_load due to CTR_FLAG_SYNC will cause
 		 * the array to undergo initialization again as
@@ -2508,6 +2504,9 @@ static int analyse_superblocks(struct dm_target *ti, struct raid_set *rs)
 		 * that the "sync" directive is disallowed during the reshape.
 		 */
 		if (test_bit(__CTR_FLAG_SYNC, &rs->ctr_flags))
+			continue;
+
+		if (!rdev->meta_bdev)
 			continue;
 
 		r = super_load(rdev, freshest);
@@ -3239,7 +3238,7 @@ static int raid_map(struct dm_target *ti, struct bio *bio)
 	if (unlikely(bio_end_sector(bio) > mddev->array_sectors))
 		return DM_MAPIO_REQUEUE;
 
-	md_handle_request(mddev, bio);
+	mddev->pers->make_request(mddev, bio);
 
 	return DM_MAPIO_SUBMITTED;
 }
@@ -3298,10 +3297,11 @@ static const char *__raid_dev_status(struct raid_set *rs, struct md_rdev *rdev, 
 static sector_t rs_get_progress(struct raid_set *rs,
 				sector_t resync_max_sectors, bool *array_in_sync)
 {
-	sector_t r, curr_resync_completed;
+	sector_t r, recovery_cp, curr_resync_completed;
 	struct mddev *mddev = &rs->md;
 
 	curr_resync_completed = mddev->curr_resync_completed ?: mddev->recovery_cp;
+	recovery_cp = mddev->recovery_cp;
 	*array_in_sync = false;
 
 	if (rs_is_raid0(rs)) {
@@ -3330,11 +3330,9 @@ static sector_t rs_get_progress(struct raid_set *rs,
 		} else if (test_bit(MD_RECOVERY_RUNNING, &mddev->recovery))
 			r = curr_resync_completed;
 		else
-			r = mddev->recovery_cp;
+			r = recovery_cp;
 
-		if ((r == MaxSector) ||
-		    (test_bit(MD_RECOVERY_DONE, &mddev->recovery) &&
-		     (mddev->curr_resync_completed == resync_max_sectors))) {
+		if (r == MaxSector) {
 			/*
 			 * Sync complete.
 			 */
@@ -3894,7 +3892,7 @@ static void raid_resume(struct dm_target *ti)
 
 static struct target_type raid_target = {
 	.name = "raid",
-	.version = {1, 13, 0},
+	.version = {1, 12, 1},
 	.module = THIS_MODULE,
 	.ctr = raid_ctr,
 	.dtr = raid_dtr,

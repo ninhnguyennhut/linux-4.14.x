@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <asm/paravirt.h>
 
 DEF_NATIVE(pv_irq_ops, irq_disable, "cli");

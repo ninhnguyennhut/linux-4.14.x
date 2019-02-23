@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef PERF_UTIL_CLANG_C_H
 #define PERF_UTIL_CLANG_C_H
 

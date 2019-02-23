@@ -637,7 +637,9 @@ static inline void tk_update_ktime_data(struct timekeeper *tk)
 	tk->ktime_sec = seconds;
 
 	/* Update the monotonic raw base */
-	tk->tkr_raw.base = ns_to_ktime(tk->raw_sec * NSEC_PER_SEC);
+	seconds = tk->raw_sec;
+	nsec = (u32)(tk->tkr_raw.xtime_nsec >> tk->tkr_raw.shift);
+	tk->tkr_raw.base = ns_to_ktime(seconds * NSEC_PER_SEC + nsec);
 }
 
 /* must hold timekeeper_lock */
@@ -2064,7 +2066,7 @@ void update_wall_time(void)
 		goto out;
 
 	/* Do some additional sanity checking */
-	timekeeping_check_update(tk, offset);
+	timekeeping_check_update(real_tk, offset);
 
 	/*
 	 * With NO_HZ we may have to accumulate many cycle_intervals
@@ -2316,7 +2318,7 @@ void hardpps(const struct timespec64 *phase_ts, const struct timespec64 *raw_ts)
 	raw_spin_unlock_irqrestore(&timekeeper_lock, flags);
 }
 EXPORT_SYMBOL(hardpps);
-#endif /* CONFIG_NTP_PPS */
+#endif
 
 /**
  * xtime_update() - advances the timekeeping infrastructure

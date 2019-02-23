@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <fcntl.h>
 
 #ifndef LOCK_MAND

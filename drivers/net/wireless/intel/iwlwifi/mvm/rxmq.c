@@ -63,6 +63,7 @@
 #include "iwl-trans.h"
 #include "mvm.h"
 #include "fw-api.h"
+#include "fw-dbg.h"
 
 static inline int iwl_mvm_check_pn(struct iwl_mvm *mvm, struct sk_buff *skb,
 				   int queue, struct ieee80211_sta *sta)
@@ -232,8 +233,8 @@ static void iwl_mvm_get_signal_strength(struct iwl_mvm *mvm,
 
 static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 			     struct ieee80211_rx_status *stats,
-			     struct iwl_rx_mpdu_desc *desc, u32 pkt_flags,
-			     int queue, u8 *crypt_len)
+			     struct iwl_rx_mpdu_desc *desc, int queue,
+			     u8 *crypt_len)
 {
 	u16 status = le16_to_cpu(desc->status);
 
@@ -253,8 +254,6 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 			return -1;
 
 		stats->flag |= RX_FLAG_DECRYPTED;
-		if (pkt_flags & FH_RSCSR_RADA_EN)
-			stats->flag |= RX_FLAG_MIC_STRIPPED;
 		*crypt_len = IEEE80211_CCMP_HDR_LEN;
 		return 0;
 	case IWL_RX_MPDU_STATUS_SEC_TKIP:
@@ -272,10 +271,6 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 		if ((status & IWL_RX_MPDU_STATUS_SEC_MASK) ==
 				IWL_RX_MPDU_STATUS_SEC_WEP)
 			*crypt_len = IEEE80211_WEP_IV_LEN;
-
-		if (pkt_flags & FH_RSCSR_RADA_EN)
-			stats->flag |= RX_FLAG_ICV_STRIPPED;
-
 		return 0;
 	case IWL_RX_MPDU_STATUS_SEC_EXT_ENC:
 		if (!(status & IWL_RX_MPDU_STATUS_MIC_OK))
@@ -283,9 +278,7 @@ static int iwl_mvm_rx_crypto(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 		stats->flag |= RX_FLAG_DECRYPTED;
 		return 0;
 	default:
-		/* Expected in monitor (not having the keys) */
-		if (!mvm->monitor_on)
-			IWL_ERR(mvm, "Unhandled alg: 0x%x\n", status);
+		IWL_ERR(mvm, "Unhandled alg: 0x%x\n", status);
 	}
 
 	return 0;
@@ -680,12 +673,11 @@ static bool iwl_mvm_reorder(struct iwl_mvm *mvm,
 	 * If there was a significant jump in the nssn - adjust.
 	 * If the SN is smaller than the NSSN it might need to first go into
 	 * the reorder buffer, in which case we just release up to it and the
-	 * rest of the function will take care of storing it and releasing up to
-	 * the nssn
+	 * rest of the function will take of storing it and releasing up to the
+	 * nssn
 	 */
 	if (!iwl_mvm_is_sn_less(nssn, buffer->head_sn + buffer->buf_size,
-				buffer->buf_size) ||
-	    !ieee80211_sn_less(sn, buffer->head_sn + buffer->buf_size)) {
+				buffer->buf_size)) {
 		u16 min_sn = ieee80211_sn_less(sn, nssn) ? sn : nssn;
 
 		iwl_mvm_release_frames(mvm, sta, napi, buffer, min_sn);
@@ -816,9 +808,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 	rx_status = IEEE80211_SKB_RXCB(skb);
 
-	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc,
-			      le32_to_cpu(pkt->len_n_flags), queue,
-			      &crypt_len)) {
+	if (iwl_mvm_rx_crypto(mvm, hdr, rx_status, desc, queue, &crypt_len)) {
 		kfree_skb(skb);
 		return;
 	}
@@ -864,7 +854,7 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 
 	rcu_read_lock();
 
-	if (desc->status & cpu_to_le16(IWL_RX_MPDU_STATUS_SRC_STA_FOUND)) {
+	if (le16_to_cpu(desc->status) & IWL_RX_MPDU_STATUS_SRC_STA_FOUND) {
 		u8 id = desc->sta_id_flags & IWL_RX_MPDU_SIF_STA_ID_MASK;
 
 		if (!WARN_ON_ONCE(id >= ARRAY_SIZE(mvm->fw_id_to_mac_id))) {
@@ -918,12 +908,10 @@ void iwl_mvm_rx_mpdu_mq(struct iwl_mvm *mvm, struct napi_struct *napi,
 			rssi = le32_to_cpu(rssi_trig->rssi);
 
 			trig_check =
-				iwl_fw_dbg_trigger_check_stop(&mvm->fwrt,
-							      ieee80211_vif_to_wdev(mvmsta->vif),
+				iwl_fw_dbg_trigger_check_stop(mvm, mvmsta->vif,
 							      trig);
 			if (trig_check && rx_status->signal < rssi)
-				iwl_fw_dbg_collect_trig(&mvm->fwrt, trig,
-							NULL);
+				iwl_mvm_fw_dbg_collect_trig(mvm, trig, NULL);
 		}
 
 		if (ieee80211_is_data(hdr->frame_control))

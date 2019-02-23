@@ -91,7 +91,7 @@ static void set_tun_src(struct net *net, struct net_device *dev,
 }
 
 /* encapsulate an IPv6 packet within an outer IPv6 header with a given SRH */
-int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh, int proto)
+static int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh)
 {
 	struct net *net = dev_net(skb_dst(skb)->dev);
 	struct ipv6hdr *hdr, *inner_hdr;
@@ -116,22 +116,15 @@ int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh, int proto)
 	 * hlim will be decremented in ip6_forward() afterwards and
 	 * decapsulation will overwrite inner hlim with outer hlim
 	 */
-
-	if (skb->protocol == htons(ETH_P_IPV6)) {
-		ip6_flow_hdr(hdr, ip6_tclass(ip6_flowinfo(inner_hdr)),
-			     ip6_flowlabel(inner_hdr));
-		hdr->hop_limit = inner_hdr->hop_limit;
-	} else {
-		ip6_flow_hdr(hdr, 0, 0);
-		hdr->hop_limit = ip6_dst_hoplimit(skb_dst(skb));
-	}
-
+	ip6_flow_hdr(hdr, ip6_tclass(ip6_flowinfo(inner_hdr)),
+		     ip6_flowlabel(inner_hdr));
+	hdr->hop_limit = inner_hdr->hop_limit;
 	hdr->nexthdr = NEXTHDR_ROUTING;
 
 	isrh = (void *)hdr + sizeof(*hdr);
 	memcpy(isrh, osrh, hdrlen);
 
-	isrh->nexthdr = proto;
+	isrh->nexthdr = NEXTHDR_IPV6;
 
 	hdr->daddr = isrh->segments[isrh->first_segment];
 	set_tun_src(net, skb->dev, &hdr->daddr, &hdr->saddr);
@@ -148,10 +141,10 @@ int seg6_do_srh_encap(struct sk_buff *skb, struct ipv6_sr_hdr *osrh, int proto)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(seg6_do_srh_encap);
 
 /* insert an SRH within an IPv6 packet, just after the IPv6 header */
-int seg6_do_srh_inline(struct sk_buff *skb, struct ipv6_sr_hdr *osrh)
+#ifdef CONFIG_IPV6_SEG6_INLINE
+static int seg6_do_srh_inline(struct sk_buff *skb, struct ipv6_sr_hdr *osrh)
 {
 	struct ipv6hdr *hdr, *oldhdr;
 	struct ipv6_sr_hdr *isrh;
@@ -200,13 +193,13 @@ int seg6_do_srh_inline(struct sk_buff *skb, struct ipv6_sr_hdr *osrh)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(seg6_do_srh_inline);
+#endif
 
 static int seg6_do_srh(struct sk_buff *skb)
 {
 	struct dst_entry *dst = skb_dst(skb);
 	struct seg6_iptunnel_encap *tinfo;
-	int proto, err = 0;
+	int err = 0;
 
 	tinfo = seg6_encap_lwtunnel(dst->lwtstate);
 
@@ -216,47 +209,19 @@ static int seg6_do_srh(struct sk_buff *skb)
 	}
 
 	switch (tinfo->mode) {
+#ifdef CONFIG_IPV6_SEG6_INLINE
 	case SEG6_IPTUN_MODE_INLINE:
-		if (skb->protocol != htons(ETH_P_IPV6))
-			return -EINVAL;
-
 		err = seg6_do_srh_inline(skb, tinfo->srh);
-		if (err)
-			return err;
-
 		skb_reset_inner_headers(skb);
 		break;
+#endif
 	case SEG6_IPTUN_MODE_ENCAP:
-		if (skb->protocol == htons(ETH_P_IPV6))
-			proto = IPPROTO_IPV6;
-		else if (skb->protocol == htons(ETH_P_IP))
-			proto = IPPROTO_IPIP;
-		else
-			return -EINVAL;
-
-		err = seg6_do_srh_encap(skb, tinfo->srh, proto);
-		if (err)
-			return err;
-
-		skb->protocol = htons(ETH_P_IPV6);
-		break;
-	case SEG6_IPTUN_MODE_L2ENCAP:
-		if (!skb_mac_header_was_set(skb))
-			return -EINVAL;
-
-		if (pskb_expand_head(skb, skb->mac_len, 0, GFP_ATOMIC) < 0)
-			return -ENOMEM;
-
-		skb_mac_header_rebuild(skb);
-		skb_push(skb, skb->mac_len);
-
-		err = seg6_do_srh_encap(skb, tinfo->srh, NEXTHDR_NONE);
-		if (err)
-			return err;
-
-		skb->protocol = htons(ETH_P_IPV6);
+		err = seg6_do_srh_encap(skb, tinfo->srh);
 		break;
 	}
+
+	if (err)
+		return err;
 
 	ipv6_hdr(skb)->payload_len = htons(skb->len - sizeof(struct ipv6hdr));
 	skb_set_transport_header(skb, sizeof(struct ipv6hdr));
@@ -371,9 +336,6 @@ static int seg6_build_state(struct nlattr *nla,
 	struct seg6_lwt *slwt;
 	int err;
 
-	if (family != AF_INET && family != AF_INET6)
-		return -EINVAL;
-
 	err = nla_parse_nested(tb, SEG6_IPTUNNEL_MAX, nla,
 			       seg6_iptunnel_policy, extack);
 
@@ -395,14 +357,11 @@ static int seg6_build_state(struct nlattr *nla,
 		return -EINVAL;
 
 	switch (tuninfo->mode) {
+#ifdef CONFIG_IPV6_SEG6_INLINE
 	case SEG6_IPTUN_MODE_INLINE:
-		if (family != AF_INET6)
-			return -EINVAL;
-
 		break;
+#endif
 	case SEG6_IPTUN_MODE_ENCAP:
-		break;
-	case SEG6_IPTUN_MODE_L2ENCAP:
 		break;
 	default:
 		return -EINVAL;
@@ -427,11 +386,8 @@ static int seg6_build_state(struct nlattr *nla,
 	memcpy(&slwt->tuninfo, tuninfo, tuninfo_len);
 
 	newts->type = LWTUNNEL_ENCAP_SEG6;
-	newts->flags |= LWTUNNEL_STATE_INPUT_REDIRECT;
-
-	if (tuninfo->mode != SEG6_IPTUN_MODE_L2ENCAP)
-		newts->flags |= LWTUNNEL_STATE_OUTPUT_REDIRECT;
-
+	newts->flags |= LWTUNNEL_STATE_OUTPUT_REDIRECT |
+			LWTUNNEL_STATE_INPUT_REDIRECT;
 	newts->headroom = seg6_lwt_headroom(tuninfo);
 
 	*ts = newts;

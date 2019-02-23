@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 TEST_GEN_PROGS := switch_endian_test
 
 ASFLAGS += -O2 -Wall -g -nostdlib -m64

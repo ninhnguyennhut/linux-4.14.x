@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * FIXME correct answer depends on hmc_mode,
  * as does (on omap1) any nonzero value for config->otg port number

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (C) 2005-2006 by Texas Instruments */
 
 #ifndef _CPPI_DMA_H_

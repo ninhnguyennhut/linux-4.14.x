@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Si5351A/B/C programmable clock generator platform_data.
  */

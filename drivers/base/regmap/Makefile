@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # For include/trace/define_trace.h to include trace.h
 CFLAGS_regmap.o := -I$(src)
 

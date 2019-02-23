@@ -353,7 +353,7 @@ static unsigned int ipv6_synproxy_hook(void *priv,
 	nexthdr = ipv6_hdr(skb)->nexthdr;
 	thoff = ipv6_skip_exthdr(skb, sizeof(struct ipv6hdr), &nexthdr,
 				 &frag_off);
-	if (thoff < 0 || nexthdr != IPPROTO_TCP)
+	if (thoff < 0)
 		return NF_ACCEPT;
 
 	th = skb_header_pointer(skb, thoff, sizeof(_th), &_th);
@@ -438,7 +438,7 @@ static unsigned int ipv6_synproxy_hook(void *priv,
 	return NF_ACCEPT;
 }
 
-static const struct nf_hook_ops ipv6_synproxy_ops[] = {
+static struct nf_hook_ops ipv6_synproxy_ops[] __read_mostly = {
 	{
 		.hook		= ipv6_synproxy_hook,
 		.pf		= NFPROTO_IPV6,

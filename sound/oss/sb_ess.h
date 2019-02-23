@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Created: 9-Jan-1999 Rolf Fokkens
  */

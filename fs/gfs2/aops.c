@@ -234,19 +234,7 @@ out:
 static int gfs2_writepages(struct address_space *mapping,
 			   struct writeback_control *wbc)
 {
-	struct gfs2_sbd *sdp = gfs2_mapping2sbd(mapping);
-	int ret = mpage_writepages(mapping, wbc, gfs2_get_block_noalloc);
-
-	/*
-	 * Even if we didn't write any pages here, we might still be holding
-	 * dirty pages in the ail. We forcibly flush the ail because we don't
-	 * want balance_dirty_pages() to loop indefinitely trying to write out
-	 * pages held in the ail that it can't find.
-	 */
-	if (ret == 0)
-		set_bit(SDF_FORCE_AIL_FLUSH, &sdp->sd_flags);
-
-	return ret;
+	return mpage_writepages(mapping, wbc, gfs2_get_block_noalloc);
 }
 
 /**

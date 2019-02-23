@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/fs/nfs/callback.c
  *
@@ -227,26 +226,26 @@ err_bind:
 	return ret;
 }
 
-static const struct svc_serv_ops nfs40_cb_sv_ops = {
+static struct svc_serv_ops nfs40_cb_sv_ops = {
 	.svo_function		= nfs4_callback_svc,
 	.svo_enqueue_xprt	= svc_xprt_do_enqueue,
 	.svo_setup		= svc_set_num_threads_sync,
 	.svo_module		= THIS_MODULE,
 };
 #if defined(CONFIG_NFS_V4_1)
-static const struct svc_serv_ops nfs41_cb_sv_ops = {
+static struct svc_serv_ops nfs41_cb_sv_ops = {
 	.svo_function		= nfs41_callback_svc,
 	.svo_enqueue_xprt	= svc_xprt_do_enqueue,
 	.svo_setup		= svc_set_num_threads_sync,
 	.svo_module		= THIS_MODULE,
 };
 
-static const struct svc_serv_ops *nfs4_cb_sv_ops[] = {
+static struct svc_serv_ops *nfs4_cb_sv_ops[] = {
 	[0] = &nfs40_cb_sv_ops,
 	[1] = &nfs41_cb_sv_ops,
 };
 #else
-static const struct svc_serv_ops *nfs4_cb_sv_ops[] = {
+static struct svc_serv_ops *nfs4_cb_sv_ops[] = {
 	[0] = &nfs40_cb_sv_ops,
 	[1] = NULL,
 };
@@ -255,8 +254,8 @@ static const struct svc_serv_ops *nfs4_cb_sv_ops[] = {
 static struct svc_serv *nfs_callback_create_svc(int minorversion)
 {
 	struct nfs_callback_data *cb_info = &nfs_callback_info[minorversion];
-	const struct svc_serv_ops *sv_ops;
 	struct svc_serv *serv;
+	struct svc_serv_ops *sv_ops;
 
 	/*
 	 * Check whether we're already up and running.

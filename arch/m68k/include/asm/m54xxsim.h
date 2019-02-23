@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *	m54xxsim.h -- ColdFire 547x/548x System Integration Unit support.
  */

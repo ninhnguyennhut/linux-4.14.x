@@ -20,7 +20,6 @@ Core utilities
    genericirq
    flexible-arrays
    librs
-   genalloc
 
 Interfaces for kernel debugging
 ===============================

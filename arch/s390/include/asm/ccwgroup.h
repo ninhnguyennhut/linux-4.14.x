@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef S390_CCWGROUP_H
 #define S390_CCWGROUP_H
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __iop_sw_spu_defs_h
 #define __iop_sw_spu_defs_h
 

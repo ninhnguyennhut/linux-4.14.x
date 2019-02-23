@@ -705,7 +705,8 @@ void gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
 		rb_erase(n, &sdp->sd_rindex_tree);
 
 		if (gl) {
-			glock_clear_object(gl, rgd);
+			glock_set_object(gl, NULL);
+			gfs2_glock_add_to_lru(gl);
 			gfs2_glock_put(gl);
 		}
 

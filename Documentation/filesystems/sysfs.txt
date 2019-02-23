@@ -366,8 +366,7 @@ struct driver_attribute {
 
 Declaring:
 
-DRIVER_ATTR_RO(_name)
-DRIVER_ATTR_RW(_name)
+DRIVER_ATTR(_name, _mode, _show, _store)
 
 Creation/Removal:
 

@@ -444,7 +444,7 @@ static struct config_group *nvmet_ns_make(struct config_group *group,
 		goto out;
 
 	ret = -EINVAL;
-	if (nsid == 0 || nsid == NVME_NSID_ALL)
+	if (nsid == 0 || nsid == 0xffffffff)
 		goto out;
 
 	ret = -ENOMEM;

@@ -1082,7 +1082,7 @@ static struct attribute * raw3270_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group raw3270_attr_group = {
+static struct attribute_group raw3270_attr_group = {
 	.attrs = raw3270_attrs,
 };
 

@@ -37,7 +37,6 @@
 #include <asm/synch.h>
 #include <asm/ppc-opcode.h>
 #include <asm/cputable.h>
-#include <asm/pte-walk.h>
 
 #include "trace_hv.h"
 
@@ -65,17 +64,11 @@ struct kvm_resize_hpt {
 	u32 order;
 
 	/* These fields protected by kvm->lock */
-
-	/* Possible values and their usage:
-	 *  <0     an error occurred during allocation,
-	 *  -EBUSY allocation is in the progress,
-	 *  0      allocation made successfuly.
-	 */
 	int error;
+	bool prepare_done;
 
-	/* Private to the work thread, until error != -EBUSY,
-	 * then protected by kvm->lock.
-	 */
+	/* Private to the work thread, until prepare_done is true,
+	 * then protected by kvm->resize_hpt_sem */
 	struct kvm_hpt_info hpt;
 };
 
@@ -165,6 +158,8 @@ long kvmppc_alloc_reset_hpt(struct kvm *kvm, int order)
 		 * Reset all the reverse-mapping chains for all memslots
 		 */
 		kvmppc_rmap_reset(kvm);
+		/* Ensure that each vcpu will flush its TLB on next entry. */
+		cpumask_setall(&kvm->arch.need_tlb_flush);
 		err = 0;
 		goto out;
 	}
@@ -180,10 +175,6 @@ long kvmppc_alloc_reset_hpt(struct kvm *kvm, int order)
 	kvmppc_set_hpt(kvm, &info);
 
 out:
-	if (err == 0)
-		/* Ensure that each vcpu will flush its TLB on next entry. */
-		cpumask_setall(&kvm->arch.need_tlb_flush);
-
 	mutex_unlock(&kvm->lock);
 	return err;
 }
@@ -608,8 +599,8 @@ int kvmppc_book3s_hv_page_fault(struct kvm_run *run, struct kvm_vcpu *vcpu,
 			 * hugepage split and collapse.
 			 */
 			local_irq_save(flags);
-			ptep = find_current_mm_pte(current->mm->pgd,
-						   hva, NULL, NULL);
+			ptep = find_linux_pte_or_hugepte(current->mm->pgd,
+							 hva, NULL, NULL);
 			if (ptep) {
 				pte = kvmppc_read_update_linux_pte(ptep, 1);
 				if (__pte_write(pte))
@@ -654,16 +645,6 @@ int kvmppc_book3s_hv_page_fault(struct kvm_run *run, struct kvm_vcpu *vcpu,
 		hnow_v = hpte_new_to_old_v(hnow_v, hnow_r);
 		hnow_r = hpte_new_to_old_r(hnow_r);
 	}
-
-	/*
-	 * If the HPT is being resized, don't update the HPTE,
-	 * instead let the guest retry after the resize operation is complete.
-	 * The synchronization for hpte_setup_done test vs. set is provided
-	 * by the HPTE lock.
-	 */
-	if (!kvm->arch.hpte_setup_done)
-		goto out_unlock;
-
 	if ((hnow_v & ~HPTE_V_HVLOCK) != hpte[0] || hnow_r != hpte[1] ||
 	    rev->guest_rpte != hpte[2])
 		/* HPTE has been changed under us; let the guest retry */
@@ -1432,20 +1413,16 @@ static void resize_hpt_pivot(struct kvm_resize_hpt *resize)
 
 static void resize_hpt_release(struct kvm *kvm, struct kvm_resize_hpt *resize)
 {
-	if (WARN_ON(!mutex_is_locked(&kvm->lock)))
-		return;
+	BUG_ON(kvm->arch.resize_hpt != resize);
 
 	if (!resize)
 		return;
 
-	if (resize->error != -EBUSY) {
-		if (resize->hpt.virt)
-			kvmppc_free_hpt(&resize->hpt);
-		kfree(resize);
-	}
+	if (resize->hpt.virt)
+		kvmppc_free_hpt(&resize->hpt);
 
-	if (kvm->arch.resize_hpt == resize)
-		kvm->arch.resize_hpt = NULL;
+	kvm->arch.resize_hpt = NULL;
+	kfree(resize);
 }
 
 static void resize_hpt_prepare_work(struct work_struct *work)
@@ -1454,41 +1431,17 @@ static void resize_hpt_prepare_work(struct work_struct *work)
 						     struct kvm_resize_hpt,
 						     work);
 	struct kvm *kvm = resize->kvm;
-	int err = 0;
+	int err;
 
-	if (WARN_ON(resize->error != -EBUSY))
-		return;
+	resize_hpt_debug(resize, "resize_hpt_prepare_work(): order = %d\n",
+			 resize->order);
+
+	err = resize_hpt_allocate(resize);
 
 	mutex_lock(&kvm->lock);
 
-	/* Request is still current? */
-	if (kvm->arch.resize_hpt == resize) {
-		/* We may request large allocations here:
-		 * do not sleep with kvm->lock held for a while.
-		 */
-		mutex_unlock(&kvm->lock);
-
-		resize_hpt_debug(resize, "resize_hpt_prepare_work(): order = %d\n",
-				 resize->order);
-
-		err = resize_hpt_allocate(resize);
-
-		/* We have strict assumption about -EBUSY
-		 * when preparing for HPT resize.
-		 */
-		if (WARN_ON(err == -EBUSY))
-			err = -EINPROGRESS;
-
-		mutex_lock(&kvm->lock);
-		/* It is possible that kvm->arch.resize_hpt != resize
-		 * after we grab kvm->lock again.
-		 */
-	}
-
 	resize->error = err;
-
-	if (kvm->arch.resize_hpt != resize)
-		resize_hpt_release(kvm, resize);
+	resize->prepare_done = true;
 
 	mutex_unlock(&kvm->lock);
 }
@@ -1513,12 +1466,14 @@ long kvm_vm_ioctl_resize_hpt_prepare(struct kvm *kvm,
 
 	if (resize) {
 		if (resize->order == shift) {
-			/* Suitable resize in progress? */
-			ret = resize->error;
-			if (ret == -EBUSY)
+			/* Suitable resize in progress */
+			if (resize->prepare_done) {
+				ret = resize->error;
+				if (ret != 0)
+					resize_hpt_release(kvm, resize);
+			} else {
 				ret = 100; /* estimated time in ms */
-			else if (ret)
-				resize_hpt_release(kvm, resize);
+			}
 
 			goto out;
 		}
@@ -1538,8 +1493,6 @@ long kvm_vm_ioctl_resize_hpt_prepare(struct kvm *kvm,
 		ret = -ENOMEM;
 		goto out;
 	}
-
-	resize->error = -EBUSY;
 	resize->order = shift;
 	resize->kvm = kvm;
 	INIT_WORK(&resize->work, resize_hpt_prepare_work);
@@ -1594,12 +1547,16 @@ long kvm_vm_ioctl_resize_hpt_commit(struct kvm *kvm,
 	if (!resize || (resize->order != shift))
 		goto out;
 
+	ret = -EBUSY;
+	if (!resize->prepare_done)
+		goto out;
+
 	ret = resize->error;
-	if (ret)
+	if (ret != 0)
 		goto out;
 
 	ret = resize_hpt_rehash(resize);
-	if (ret)
+	if (ret != 0)
 		goto out;
 
 	resize_hpt_pivot(resize);
@@ -1983,7 +1940,6 @@ int kvm_vm_ioctl_get_htab_fd(struct kvm *kvm, struct kvm_get_htab_fd *ghf)
 	rwflag = (ghf->flags & KVM_GET_HTAB_WRITE) ? O_WRONLY : O_RDONLY;
 	ret = anon_inode_getfd("kvm-htab", &kvm_htab_fops, ctx, rwflag | O_CLOEXEC);
 	if (ret < 0) {
-		kfree(ctx);
 		kvm_put_kvm(kvm);
 		return ret;
 	}

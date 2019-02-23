@@ -102,6 +102,7 @@ tfp410_connector_detect(struct drm_connector *connector, bool force)
 }
 
 static const struct drm_connector_funcs tfp410_con_funcs = {
+	.dpms			= drm_atomic_helper_connector_dpms,
 	.detect			= tfp410_connector_detect,
 	.fill_modes		= drm_helper_probe_single_connector_modes,
 	.destroy		= drm_connector_cleanup,
@@ -236,7 +237,11 @@ static int tfp410_init(struct device *dev)
 		}
 	}
 
-	drm_bridge_add(&dvi->bridge);
+	ret = drm_bridge_add(&dvi->bridge);
+	if (ret) {
+		dev_err(dev, "drm_bridge_add() failed: %d\n", ret);
+		goto fail;
+	}
 
 	return 0;
 fail:

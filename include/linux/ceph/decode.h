@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CEPH_DECODE_H
 #define __CEPH_DECODE_H
 

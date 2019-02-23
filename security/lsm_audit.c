@@ -2,7 +2,7 @@
  * common LSM auditing functions
  *
  * Based on code written for SELinux by :
- *			Stephen Smalley, <sds@tycho.nsa.gov>
+ *			Stephen Smalley, <sds@epoch.ncsc.mil>
  * 			James Morris <jmorris@redhat.com>
  * Author : Etienne Basset, <etienne.basset@ensta.org>
  *

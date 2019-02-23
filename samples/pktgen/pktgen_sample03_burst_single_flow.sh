@@ -1,5 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 #
 # Script for max single flow performance
 #  - If correctly tuned[1], single CPU 10G wirespeed small pkts is possible[2]

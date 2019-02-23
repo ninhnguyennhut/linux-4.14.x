@@ -37,9 +37,9 @@
 
 #define DEBUG_SUBSYSTEM S_LDLM
 
-#include <linux/libcfs/libcfs.h>
-#include <lustre_dlm.h>
-#include <obd_class.h>
+#include "../../include/linux/libcfs/libcfs.h"
+#include "../include/lustre_dlm.h"
+#include "../include/obd_class.h"
 #include <linux/list.h>
 #include "ldlm_internal.h"
 
@@ -926,7 +926,7 @@ static struct attribute *ldlm_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group ldlm_attr_group = {
+static struct attribute_group ldlm_attr_group = {
 	.attrs = ldlm_attrs,
 };
 
@@ -1138,7 +1138,7 @@ int ldlm_init(void)
 void ldlm_exit(void)
 {
 	if (ldlm_refcount)
-		CERROR("ldlm_refcount is %d in %s!\n", ldlm_refcount, __func__);
+		CERROR("ldlm_refcount is %d in ldlm_exit!\n", ldlm_refcount);
 	kmem_cache_destroy(ldlm_resource_slab);
 	/* ldlm_lock_put() use RCU to call ldlm_lock_free, so need call
 	 * synchronize_rcu() to wait a grace period elapsed, so that

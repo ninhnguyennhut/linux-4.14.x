@@ -1,9 +1,8 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for Kernel-based Virtual Machine module, HYP part
 #
 
-ccflags-y += -fno-stack-protector -DDISABLE_BRANCH_PROFILING
+ccflags-y += -fno-stack-protector
 
 KVM=../../../../virt/kvm
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Based on net/mac80211/trace.h */
 
 #undef TRACE_SYSTEM

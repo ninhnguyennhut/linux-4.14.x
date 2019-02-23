@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _BCACHE_BSET_H
 #define _BCACHE_BSET_H
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_CRIS_DMA_MAPPING_H
 #define _ASM_CRIS_DMA_MAPPING_H
 

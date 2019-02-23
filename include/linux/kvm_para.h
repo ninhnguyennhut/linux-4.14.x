@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_KVM_PARA_H
 #define __LINUX_KVM_PARA_H
 

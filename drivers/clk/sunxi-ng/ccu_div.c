@@ -21,18 +21,10 @@ static unsigned long ccu_div_round_rate(struct ccu_mux_internal *mux,
 {
 	struct ccu_div *cd = data;
 
-	if (cd->common.features & CCU_FEATURE_FIXED_POSTDIV)
-		rate *= cd->fixed_post_div;
-
-	rate = divider_round_rate_parent(&cd->common.hw, parent,
+	return divider_round_rate_parent(&cd->common.hw, parent,
 					 rate, parent_rate,
 					 cd->div.table, cd->div.width,
 					 cd->div.flags);
-
-	if (cd->common.features & CCU_FEATURE_FIXED_POSTDIV)
-		rate /= cd->fixed_post_div;
-
-	return rate;
 }
 
 static void ccu_div_disable(struct clk_hw *hw)
@@ -70,13 +62,8 @@ static unsigned long ccu_div_recalc_rate(struct clk_hw *hw,
 	parent_rate = ccu_mux_helper_apply_prediv(&cd->common, &cd->mux, -1,
 						  parent_rate);
 
-	val = divider_recalc_rate(hw, parent_rate, val, cd->div.table,
-				  cd->div.flags);
-
-	if (cd->common.features & CCU_FEATURE_FIXED_POSTDIV)
-		val /= cd->fixed_post_div;
-
-	return val;
+	return divider_recalc_rate(hw, parent_rate, val, cd->div.table,
+				   cd->div.flags);
 }
 
 static int ccu_div_determine_rate(struct clk_hw *hw,
@@ -98,9 +85,6 @@ static int ccu_div_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	parent_rate = ccu_mux_helper_apply_prediv(&cd->common, &cd->mux, -1,
 						  parent_rate);
-
-	if (cd->common.features & CCU_FEATURE_FIXED_POSTDIV)
-		rate *= cd->fixed_post_div;
 
 	val = divider_get_val(rate, parent_rate, cd->div.table, cd->div.width,
 			      cd->div.flags);

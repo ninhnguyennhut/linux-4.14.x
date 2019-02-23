@@ -26,7 +26,6 @@
 #include "dc.h"
 #include "drm.h"
 #include "sor.h"
-#include "trace.h"
 
 #define SOR_REKEY 0x38
 
@@ -233,19 +232,14 @@ static inline struct tegra_sor *to_sor(struct tegra_output *output)
 	return container_of(output, struct tegra_sor, output);
 }
 
-static inline u32 tegra_sor_readl(struct tegra_sor *sor, unsigned int offset)
+static inline u32 tegra_sor_readl(struct tegra_sor *sor, unsigned long offset)
 {
-	u32 value = readl(sor->regs + (offset << 2));
-
-	trace_sor_readl(sor->dev, offset, value);
-
-	return value;
+	return readl(sor->regs + (offset << 2));
 }
 
 static inline void tegra_sor_writel(struct tegra_sor *sor, u32 value,
-				    unsigned int offset)
+				    unsigned long offset)
 {
-	trace_sor_writel(sor->dev, offset, value);
 	writel(value, sor->regs + (offset << 2));
 }
 
@@ -1346,6 +1340,7 @@ tegra_sor_connector_duplicate_state(struct drm_connector *connector)
 }
 
 static const struct drm_connector_funcs tegra_sor_connector_funcs = {
+	.dpms = drm_atomic_helper_connector_dpms,
 	.reset = tegra_sor_connector_reset,
 	.detect = tegra_sor_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
@@ -1909,7 +1904,7 @@ tegra_sor_hdmi_setup_avi_infoframe(struct tegra_sor *sor,
 	value &= ~INFOFRAME_CTRL_ENABLE;
 	tegra_sor_writel(sor, value, SOR_HDMI_AVI_INFOFRAME_CTRL);
 
-	err = drm_hdmi_avi_infoframe_from_display_mode(&frame, mode, false);
+	err = drm_hdmi_avi_infoframe_from_display_mode(&frame, mode);
 	if (err < 0) {
 		dev_err(sor->dev, "failed to setup AVI infoframe: %d\n", err);
 		return err;

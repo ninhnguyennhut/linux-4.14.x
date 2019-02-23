@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* speakup_dtlk.h - header file for speakups DoubleTalk driver. */
 
 #define SYNTH_IO_EXTENT	0x02

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Family-Level Interface Shim (FLIS)
 obj-$(subst m,y,$(CONFIG_PINCTRL_MERRIFIELD)) += platform_mrfld_pinctrl.o
 # SDHCI Devices

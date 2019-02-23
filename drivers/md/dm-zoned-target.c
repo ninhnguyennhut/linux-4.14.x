@@ -238,7 +238,7 @@ static void dmz_submit_write_bio(struct dmz_target *dmz, struct dm_zone *zone,
 	struct dmz_bioctx *bioctx = dm_per_bio_data(bio, sizeof(struct dmz_bioctx));
 
 	/* Setup and submit the BIO */
-	bio_set_dev(bio, dmz->dev->bdev);
+	bio->bi_bdev = dmz->dev->bdev;
 	bio->bi_iter.bi_sector = dmz_start_sect(dmz->metadata, zone) + dmz_blk2sect(chunk_block);
 	atomic_inc(&bioctx->ref);
 	generic_make_request(bio);
@@ -586,7 +586,7 @@ static int dmz_map(struct dm_target *ti, struct bio *bio)
 		      (unsigned long long)dmz_chunk_block(dmz->dev, dmz_bio_block(bio)),
 		      (unsigned int)dmz_bio_blocks(bio));
 
-	bio_set_dev(bio, dev->bdev);
+	bio->bi_bdev = dev->bdev;
 
 	if (!nr_sectors && bio_op(bio) != REQ_OP_WRITE)
 		return DM_MAPIO_REMAPPED;
@@ -660,7 +660,6 @@ static int dmz_get_zoned_device(struct dm_target *ti, char *path)
 	struct dmz_target *dmz = ti->private;
 	struct request_queue *q;
 	struct dmz_dev *dev;
-	sector_t aligned_capacity;
 	int ret;
 
 	/* Get the target device */
@@ -686,17 +685,15 @@ static int dmz_get_zoned_device(struct dm_target *ti, char *path)
 		goto err;
 	}
 
-	q = bdev_get_queue(dev->bdev);
 	dev->capacity = i_size_read(dev->bdev->bd_inode) >> SECTOR_SHIFT;
-	aligned_capacity = dev->capacity & ~(blk_queue_zone_sectors(q) - 1);
-	if (ti->begin ||
-	    ((ti->len != dev->capacity) && (ti->len != aligned_capacity))) {
+	if (ti->begin || (ti->len != dev->capacity)) {
 		ti->error = "Partial mapping not supported";
 		ret = -EINVAL;
 		goto err;
 	}
 
-	dev->zone_nr_sectors = blk_queue_zone_sectors(q);
+	q = bdev_get_queue(dev->bdev);
+	dev->zone_nr_sectors = q->limits.chunk_sectors;
 	dev->zone_nr_sectors_shift = ilog2(dev->zone_nr_sectors);
 
 	dev->zone_nr_blocks = dmz_sect2blk(dev->zone_nr_sectors);
@@ -932,10 +929,8 @@ static int dmz_iterate_devices(struct dm_target *ti,
 			       iterate_devices_callout_fn fn, void *data)
 {
 	struct dmz_target *dmz = ti->private;
-	struct dmz_dev *dev = dmz->dev;
-	sector_t capacity = dev->capacity & ~(dev->zone_nr_sectors - 1);
 
-	return fn(ti, dmz->ddev, 0, capacity, data);
+	return fn(ti, dmz->ddev, 0, dmz->dev->capacity, data);
 }
 
 static struct target_type dmz_type = {

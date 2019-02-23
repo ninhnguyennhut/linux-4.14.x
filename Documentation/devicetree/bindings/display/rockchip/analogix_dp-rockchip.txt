@@ -59,6 +59,7 @@ Example:
 		pinctrl-names = "default";
 		pinctrl-0 = <&edp_hpd>;
 
+		status = "disabled";
 
 		ports {
 			#address-cells = <1>;

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __IO_PGTABLE_H
 #define __IO_PGTABLE_H
 #include <linux/bitops.h>

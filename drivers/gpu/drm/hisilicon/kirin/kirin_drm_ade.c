@@ -178,19 +178,6 @@ static void ade_init(struct ade_hw_ctx *ctx)
 			FRM_END_START_MASK, REG_EFFECTIVE_IN_ADEEN_FRMEND);
 }
 
-static bool ade_crtc_mode_fixup(struct drm_crtc *crtc,
-				const struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
-{
-	struct ade_crtc *acrtc = to_ade_crtc(crtc);
-	struct ade_hw_ctx *ctx = acrtc->ctx;
-
-	adjusted_mode->clock =
-		clk_round_rate(ctx->ade_pix_clk, mode->clock * 1000) / 1000;
-	return true;
-}
-
-
 static void ade_set_pix_clk(struct ade_hw_ctx *ctx,
 			    struct drm_display_mode *mode,
 			    struct drm_display_mode *adj_mode)
@@ -480,8 +467,7 @@ static void ade_dump_regs(void __iomem *base)
 static void ade_dump_regs(void __iomem *base) { }
 #endif
 
-static void ade_crtc_atomic_enable(struct drm_crtc *crtc,
-				   struct drm_crtc_state *old_state)
+static void ade_crtc_enable(struct drm_crtc *crtc)
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
 	struct ade_hw_ctx *ctx = acrtc->ctx;
@@ -503,8 +489,7 @@ static void ade_crtc_atomic_enable(struct drm_crtc *crtc,
 	acrtc->enable = true;
 }
 
-static void ade_crtc_atomic_disable(struct drm_crtc *crtc,
-				    struct drm_crtc_state *old_state)
+static void ade_crtc_disable(struct drm_crtc *crtc)
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
 	struct ade_hw_ctx *ctx = acrtc->ctx;
@@ -534,12 +519,9 @@ static void ade_crtc_atomic_begin(struct drm_crtc *crtc,
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
 	struct ade_hw_ctx *ctx = acrtc->ctx;
-	struct drm_display_mode *mode = &crtc->state->mode;
-	struct drm_display_mode *adj_mode = &crtc->state->adjusted_mode;
 
 	if (!ctx->power_on)
 		(void)ade_power_up(ctx);
-	ade_ldi_set_mode(acrtc, mode, adj_mode);
 }
 
 static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
@@ -571,12 +553,11 @@ static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
 }
 
 static const struct drm_crtc_helper_funcs ade_crtc_helper_funcs = {
-	.mode_fixup	= ade_crtc_mode_fixup,
+	.enable		= ade_crtc_enable,
+	.disable	= ade_crtc_disable,
 	.mode_set_nofb	= ade_crtc_mode_set_nofb,
 	.atomic_begin	= ade_crtc_atomic_begin,
 	.atomic_flush	= ade_crtc_atomic_flush,
-	.atomic_enable	= ade_crtc_atomic_enable,
-	.atomic_disable	= ade_crtc_atomic_disable,
 };
 
 static const struct drm_crtc_funcs ade_crtc_funcs = {
@@ -584,6 +565,7 @@ static const struct drm_crtc_funcs ade_crtc_funcs = {
 	.set_config	= drm_atomic_helper_set_config,
 	.page_flip	= drm_atomic_helper_page_flip,
 	.reset		= drm_atomic_helper_crtc_reset,
+	.set_property = drm_atomic_helper_crtc_set_property,
 	.atomic_duplicate_state	= drm_atomic_helper_crtc_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_crtc_destroy_state,
 	.enable_vblank	= ade_crtc_enable_vblank,
@@ -601,7 +583,8 @@ static int ade_crtc_init(struct drm_device *dev, struct drm_crtc *crtc,
 	 */
 	port = of_get_child_by_name(dev->dev->of_node, "port");
 	if (!port) {
-		DRM_ERROR("no port node found in %pOF\n", dev->dev->of_node);
+		DRM_ERROR("no port node found in %s\n",
+			  dev->dev->of_node->full_name);
 		return -EINVAL;
 	}
 	of_node_put(port);
@@ -906,6 +889,7 @@ static const struct drm_plane_helper_funcs ade_plane_helper_funcs = {
 static struct drm_plane_funcs ade_plane_funcs = {
 	.update_plane	= drm_atomic_helper_update_plane,
 	.disable_plane	= drm_atomic_helper_disable_plane,
+	.set_property = drm_atomic_helper_plane_set_property,
 	.destroy = drm_plane_cleanup,
 	.reset = drm_atomic_helper_plane_reset,
 	.atomic_duplicate_state = drm_atomic_helper_plane_duplicate_state,
@@ -925,7 +909,7 @@ static int ade_plane_init(struct drm_device *dev, struct ade_plane *aplane,
 		return ret;
 
 	ret = drm_universal_plane_init(dev, &aplane->base, 1, &ade_plane_funcs,
-				       fmts, fmts_cnt, NULL, type, NULL);
+				       fmts, fmts_cnt, type, NULL);
 	if (ret) {
 		DRM_ERROR("fail to init plane, ch=%d\n", aplane->ch);
 		return ret;

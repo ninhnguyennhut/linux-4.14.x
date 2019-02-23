@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef LINUX_KEXEC_INTERNAL_H
 #define LINUX_KEXEC_INTERNAL_H
 

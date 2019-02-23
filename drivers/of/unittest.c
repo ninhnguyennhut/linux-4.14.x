@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Self tests for device tree subsystem
  */
@@ -47,54 +46,46 @@ static struct unittest_results {
 static void __init of_unittest_find_node_by_name(void)
 {
 	struct device_node *np;
-	const char *options, *name;
+	const char *options;
 
 	np = of_find_node_by_path("/testcase-data");
-	name = kasprintf(GFP_KERNEL, "%pOF", np);
-	unittest(np && !strcmp("/testcase-data", name),
+	unittest(np && !strcmp("/testcase-data", np->full_name),
 		"find /testcase-data failed\n");
 	of_node_put(np);
-	kfree(name);
 
 	/* Test if trailing '/' works */
 	np = of_find_node_by_path("/testcase-data/");
 	unittest(!np, "trailing '/' on /testcase-data/ should fail\n");
 
 	np = of_find_node_by_path("/testcase-data/phandle-tests/consumer-a");
-	name = kasprintf(GFP_KERNEL, "%pOF", np);
-	unittest(np && !strcmp("/testcase-data/phandle-tests/consumer-a", name),
+	unittest(np && !strcmp("/testcase-data/phandle-tests/consumer-a", np->full_name),
 		"find /testcase-data/phandle-tests/consumer-a failed\n");
 	of_node_put(np);
-	kfree(name);
 
 	np = of_find_node_by_path("testcase-alias");
-	name = kasprintf(GFP_KERNEL, "%pOF", np);
-	unittest(np && !strcmp("/testcase-data", name),
+	unittest(np && !strcmp("/testcase-data", np->full_name),
 		"find testcase-alias failed\n");
 	of_node_put(np);
-	kfree(name);
 
 	/* Test if trailing '/' works on aliases */
 	np = of_find_node_by_path("testcase-alias/");
 	unittest(!np, "trailing '/' on testcase-alias/ should fail\n");
 
 	np = of_find_node_by_path("testcase-alias/phandle-tests/consumer-a");
-	name = kasprintf(GFP_KERNEL, "%pOF", np);
-	unittest(np && !strcmp("/testcase-data/phandle-tests/consumer-a", name),
+	unittest(np && !strcmp("/testcase-data/phandle-tests/consumer-a", np->full_name),
 		"find testcase-alias/phandle-tests/consumer-a failed\n");
 	of_node_put(np);
-	kfree(name);
 
 	np = of_find_node_by_path("/testcase-data/missing-path");
-	unittest(!np, "non-existent path returned node %pOF\n", np);
+	unittest(!np, "non-existent path returned node %s\n", np->full_name);
 	of_node_put(np);
 
 	np = of_find_node_by_path("missing-alias");
-	unittest(!np, "non-existent alias returned node %pOF\n", np);
+	unittest(!np, "non-existent alias returned node %s\n", np->full_name);
 	of_node_put(np);
 
 	np = of_find_node_by_path("testcase-alias/missing-path");
-	unittest(!np, "non-existent alias with relative path returned node %pOF\n", np);
+	unittest(!np, "non-existent alias with relative path returned node %s\n", np->full_name);
 	of_node_put(np);
 
 	np = of_find_node_opts_by_path("/testcase-data:testoption", &options);
@@ -324,8 +315,8 @@ static void __init of_unittest_check_phandles(void)
 
 		hash_for_each_possible(phandle_ht, nh, node, np->phandle) {
 			if (nh->np->phandle == np->phandle) {
-				pr_info("Duplicate phandle! %i used by %pOF and %pOF\n",
-					np->phandle, nh->np, np);
+				pr_info("Duplicate phandle! %i used by %s and %s\n",
+					np->phandle, nh->np->full_name, np->full_name);
 				dup_count++;
 				break;
 			}
@@ -415,8 +406,8 @@ static void __init of_unittest_parse_phandle_with_args(void)
 			passed = false;
 		}
 
-		unittest(passed, "index %i - data error on node %pOF rc=%i\n",
-			 i, args.np, rc);
+		unittest(passed, "index %i - data error on node %s rc=%i\n",
+			 i, args.np->full_name, rc);
 	}
 
 	/* Check for missing list property */
@@ -599,7 +590,7 @@ static void __init of_unittest_changeset(void)
 
 	/* Make sure node names are constructed correctly */
 	unittest((np = of_find_node_by_path("/testcase-data/changeset/n2/n21")),
-		 "'%pOF' not added\n", n21);
+		 "'%s' not added\n", n21->full_name);
 	of_node_put(np);
 
 	unittest(!of_changeset_revert(&chgset), "revert failed\n");
@@ -630,8 +621,8 @@ static void __init of_unittest_parse_interrupts(void)
 		passed &= (args.args_count == 1);
 		passed &= (args.args[0] == (i + 1));
 
-		unittest(passed, "index %i - data error on node %pOF rc=%i\n",
-			 i, args.np, rc);
+		unittest(passed, "index %i - data error on node %s rc=%i\n",
+			 i, args.np->full_name, rc);
 	}
 	of_node_put(np);
 
@@ -676,8 +667,8 @@ static void __init of_unittest_parse_interrupts(void)
 		default:
 			passed = false;
 		}
-		unittest(passed, "index %i - data error on node %pOF rc=%i\n",
-			 i, args.np, rc);
+		unittest(passed, "index %i - data error on node %s rc=%i\n",
+			 i, args.np->full_name, rc);
 	}
 	of_node_put(np);
 }
@@ -746,8 +737,8 @@ static void __init of_unittest_parse_interrupts_extended(void)
 			passed = false;
 		}
 
-		unittest(passed, "index %i - data error on node %pOF rc=%i\n",
-			 i, args.np, rc);
+		unittest(passed, "index %i - data error on node %s rc=%i\n",
+			 i, args.np->full_name, rc);
 	}
 	of_node_put(np);
 }
@@ -926,11 +917,8 @@ static int attach_node_and_children(struct device_node *np)
 {
 	struct device_node *next, *dup, *child;
 	unsigned long flags;
-	const char *full_name;
 
-	full_name = kasprintf(GFP_KERNEL, "%pOF", np);
-	dup = of_find_node_by_path(full_name);
-	kfree(full_name);
+	dup = of_find_node_by_path(np->full_name);
 	if (dup) {
 		update_node_properties(np, dup);
 		return 0;
@@ -1035,7 +1023,7 @@ static int unittest_probe(struct platform_device *pdev)
 
 	}
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 
 	of_platform_populate(np, NULL, NULL, &pdev->dev);
 
@@ -1047,7 +1035,7 @@ static int unittest_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 	return 0;
 }
 
@@ -1661,7 +1649,7 @@ static int unittest_i2c_bus_probe(struct platform_device *pdev)
 
 	}
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 
 	std = devm_kzalloc(dev, sizeof(*std), GFP_KERNEL);
 	if (!std) {
@@ -1699,7 +1687,7 @@ static int unittest_i2c_bus_remove(struct platform_device *pdev)
 	struct device_node *np = dev->of_node;
 	struct unittest_i2c_bus_data *std = platform_get_drvdata(pdev);
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 	i2c_del_adapter(&std->adap);
 
 	return 0;
@@ -1730,7 +1718,7 @@ static int unittest_i2c_dev_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 
 	return 0;
 };
@@ -1740,7 +1728,7 @@ static int unittest_i2c_dev_remove(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct device_node *np = client->dev.of_node;
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 	return 0;
 }
 
@@ -1775,7 +1763,7 @@ static int unittest_i2c_mux_probe(struct i2c_client *client,
 	struct i2c_mux_core *muxc;
 	u32 reg, max_reg;
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 
 	if (!np) {
 		dev_err(dev, "No OF node\n");
@@ -1820,7 +1808,7 @@ static int unittest_i2c_mux_remove(struct i2c_client *client)
 	struct device_node *np = client->dev.of_node;
 	struct i2c_mux_core *muxc = i2c_get_clientdata(client);
 
-	dev_dbg(dev, "%s for node @%pOF\n", __func__, np);
+	dev_dbg(dev, "%s for node @%s\n", __func__, np->full_name);
 	i2c_mux_del_adapters(muxc);
 	return 0;
 }
@@ -1995,8 +1983,6 @@ out:
 static inline void __init of_unittest_overlay(void) { }
 #endif
 
-#ifdef CONFIG_OF_OVERLAY
-
 /*
  * __dtb_ot_begin[] and __dtb_ot_end[] are created by cmd_dt_S_dtb
  * in scripts/Makefile.lib
@@ -2024,14 +2010,14 @@ struct overlay_info {
 OVERLAY_INFO_EXTERN(overlay_base);
 OVERLAY_INFO_EXTERN(overlay);
 OVERLAY_INFO_EXTERN(overlay_bad_phandle);
-OVERLAY_INFO_EXTERN(overlay_bad_symbol);
+
+#ifdef CONFIG_OF_OVERLAY
 
 /* order of entries is hard-coded into users of overlays[] */
 static struct overlay_info overlays[] = {
 	OVERLAY_INFO(overlay_base, -9999),
 	OVERLAY_INFO(overlay, 0),
 	OVERLAY_INFO(overlay_bad_phandle, -EINVAL),
-	OVERLAY_INFO(overlay_bad_symbol, -EINVAL),
 	{}
 };
 
@@ -2303,10 +2289,6 @@ static __init void of_unittest_overlay_high_level(void)
 
 	unittest(overlay_data_add(2),
 		 "Adding overlay 'overlay_bad_phandle' failed\n");
-
-	unittest(overlay_data_add(3),
-		 "Adding overlay 'overlay_bad_symbol' failed\n");
-
 	return;
 
 err_unlock:

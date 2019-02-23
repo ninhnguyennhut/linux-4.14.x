@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * event.c - exporting ACPI events via procfs
  *

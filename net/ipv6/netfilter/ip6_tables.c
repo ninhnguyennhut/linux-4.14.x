@@ -39,6 +39,12 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Netfilter Core Team <coreteam@netfilter.org>");
 MODULE_DESCRIPTION("IPv6 packet filter");
 
+#ifdef CONFIG_NETFILTER_DEBUG
+#define IP_NF_ASSERT(x)	WARN_ON(!(x))
+#else
+#define IP_NF_ASSERT(x)
+#endif
+
 void *ip6t_alloc_initial_table(const struct xt_table *info)
 {
 	return xt_alloc_initial_table(ip6t, IP6T);
@@ -170,7 +176,7 @@ static const char *const comments[] = {
 	[NF_IP6_TRACE_COMMENT_POLICY]	= "policy",
 };
 
-static const struct nf_loginfo trace_loginfo = {
+static struct nf_loginfo trace_loginfo = {
 	.type = NF_LOG_TYPE_LOG,
 	.u = {
 		.log = {
@@ -278,7 +284,7 @@ ip6t_do_table(struct sk_buff *skb,
 	acpar.hotdrop = false;
 	acpar.state   = state;
 
-	WARN_ON(!(table->valid_hooks & (1 << hook)));
+	IP_NF_ASSERT(table->valid_hooks & (1 << hook));
 
 	local_bh_disable();
 	addend = xt_write_recseq_begin();
@@ -309,7 +315,7 @@ ip6t_do_table(struct sk_buff *skb,
 		const struct xt_entry_match *ematch;
 		struct xt_counters *counter;
 
-		WARN_ON(!e);
+		IP_NF_ASSERT(e);
 		acpar.thoff = 0;
 		if (!ip6_packet_match(skb, indev, outdev, &e->ipv6,
 		    &acpar.thoff, &acpar.fragoff, &acpar.hotdrop)) {
@@ -329,7 +335,7 @@ ip6t_do_table(struct sk_buff *skb,
 		ADD_COUNTER(*counter, skb->len, 1);
 
 		t = ip6t_get_target_c(e);
-		WARN_ON(!t->u.kernel.target);
+		IP_NF_ASSERT(t->u.kernel.target);
 
 #if IS_ENABLED(CONFIG_NETFILTER_XT_TARGET_TRACE)
 		/* The packet is traced: log it */
@@ -795,7 +801,6 @@ get_counters(const struct xt_table_info *t,
 
 			ADD_COUNTER(counters[i], bcnt, pcnt);
 			++i;
-			cond_resched();
 		}
 	}
 }

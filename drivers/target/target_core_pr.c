@@ -58,10 +58,8 @@ void core_pr_dump_initiator_port(
 	char *buf,
 	u32 size)
 {
-	if (!pr_reg->isid_present_at_reg) {
+	if (!pr_reg->isid_present_at_reg)
 		buf[0] = '\0';
-		return;
-	}
 
 	snprintf(buf, size, ",i,0x%s", pr_reg->pr_reg_isid);
 }
@@ -1976,7 +1974,6 @@ static int __core_scsi3_write_aptpl_to_file(
 	char path[512];
 	u32 pr_aptpl_buf_len;
 	int ret;
-	loff_t pos = 0;
 
 	memset(path, 0, 512);
 
@@ -1996,7 +1993,7 @@ static int __core_scsi3_write_aptpl_to_file(
 
 	pr_aptpl_buf_len = (strlen(buf) + 1); /* Add extra for NULL */
 
-	ret = kernel_write(file, buf, pr_aptpl_buf_len, &pos);
+	ret = kernel_write(file, buf, pr_aptpl_buf_len, 0);
 
 	if (ret < 0)
 		pr_debug("Error writing APTPL metadata file: %s\n", path);
@@ -4013,7 +4010,6 @@ core_scsi3_pri_read_full_status(struct se_cmd *cmd)
 		 * Set the ADDITIONAL DESCRIPTOR LENGTH
 		 */
 		put_unaligned_be32(desc_len, &buf[off]);
-		off += 4;
 		/*
 		 * Size of full desctipor header minus TransportID
 		 * containing $FABRIC_MOD specific) initiator device/port

@@ -147,12 +147,13 @@ static int __init armctrl_of_init(struct device_node *node,
 
 	base = of_iomap(node, 0);
 	if (!base)
-		panic("%pOF: unable to map IC registers\n", node);
+		panic("%s: unable to map IC registers\n",
+			node->full_name);
 
 	intc.domain = irq_domain_add_linear(node, MAKE_HWIRQ(NR_BANKS, 0),
 			&armctrl_ops, NULL);
 	if (!intc.domain)
-		panic("%pOF: unable to create IRQ domain\n", node);
+		panic("%s: unable to create IRQ domain\n", node->full_name);
 
 	for (b = 0; b < NR_BANKS; b++) {
 		intc.pending[b] = base + reg_pending[b];
@@ -172,8 +173,8 @@ static int __init armctrl_of_init(struct device_node *node,
 		int parent_irq = irq_of_parse_and_map(node, 0);
 
 		if (!parent_irq) {
-			panic("%pOF: unable to get parent interrupt.\n",
-			      node);
+			panic("%s: unable to get parent interrupt.\n",
+			      node->full_name);
 		}
 		irq_set_chained_handler(parent_irq, bcm2836_chained_handle_irq);
 	} else {

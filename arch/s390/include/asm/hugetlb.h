@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  IBM System z Huge TLB Page Support for Kernel.
  *

@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 # description: Test creation and deletion of trace instances
 
 if [ ! -d instances ] ; then

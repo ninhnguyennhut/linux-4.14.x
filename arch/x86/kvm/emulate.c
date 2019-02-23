@@ -28,7 +28,6 @@
 
 #include "x86.h"
 #include "tss.h"
-#include "mmu.h"
 
 /*
  * Operand types
@@ -425,10 +424,8 @@ static int fastop(struct x86_emulate_ctxt *ctxt, void (*fop)(struct fastop *));
 	#op " %al \n\t" \
 	FOP_RET
 
-asm(".pushsection .fixup, \"ax\"\n"
-    ".global kvm_fastop_exception \n"
-    "kvm_fastop_exception: xor %esi, %esi; ret\n"
-    ".popsection");
+asm(".global kvm_fastop_exception \n"
+    "kvm_fastop_exception: xor %esi, %esi; ret");
 
 FOP_START(setcc)
 FOP_SETCC(seto)
@@ -691,18 +688,16 @@ static __always_inline int __linearize(struct x86_emulate_ctxt *ctxt,
 	ulong la;
 	u32 lim;
 	u16 sel;
-	u8  va_bits;
 
 	la = seg_base(ctxt, addr.seg) + addr.ea;
 	*max_size = 0;
 	switch (mode) {
 	case X86EMUL_MODE_PROT64:
 		*linear = la;
-		va_bits = ctxt_virt_addr_bits(ctxt);
-		if (get_canonical(la, va_bits) != la)
+		if (is_noncanonical_address(la))
 			goto bad;
 
-		*max_size = min_t(u64, ~0u, (1ull << va_bits) - la);
+		*max_size = min_t(u64, ~0u, (1ull << 48) - la);
 		if (size > *max_size)
 			goto bad;
 		break;
@@ -1753,8 +1748,8 @@ static int __load_segment_descriptor(struct x86_emulate_ctxt *ctxt,
 				sizeof(base3), &ctxt->exception);
 		if (ret != X86EMUL_CONTINUE)
 			return ret;
-		if (emul_is_noncanonical_address(get_desc_base(&seg_desc) |
-				((u64)base3 << 32), ctxt))
+		if (is_noncanonical_address(get_desc_base(&seg_desc) |
+					     ((u64)base3 << 32)))
 			return emulate_gp(ctxt, 0);
 	}
 load:
@@ -2338,7 +2333,7 @@ static int emulator_has_longmode(struct x86_emulate_ctxt *ctxt)
 
 	eax = 0x80000001;
 	ecx = 0;
-	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, false);
+	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	return edx & bit(X86_FEATURE_LM);
 }
 
@@ -2404,21 +2399,9 @@ static int rsm_load_seg_64(struct x86_emulate_ctxt *ctxt, u64 smbase, int n)
 }
 
 static int rsm_enter_protected_mode(struct x86_emulate_ctxt *ctxt,
-				    u64 cr0, u64 cr3, u64 cr4)
+				     u64 cr0, u64 cr4)
 {
 	int bad;
-	u64 pcid;
-
-	/* In order to later set CR4.PCIDE, CR3[11:0] must be zero.  */
-	pcid = 0;
-	if (cr4 & X86_CR4_PCIDE) {
-		pcid = cr3 & 0xfff;
-		cr3 &= ~0xfff;
-	}
-
-	bad = ctxt->ops->set_cr(ctxt, 3, cr3);
-	if (bad)
-		return X86EMUL_UNHANDLEABLE;
 
 	/*
 	 * First enable PAE, long mode needs it before CR0.PG = 1 is set.
@@ -2437,12 +2420,6 @@ static int rsm_enter_protected_mode(struct x86_emulate_ctxt *ctxt,
 		bad = ctxt->ops->set_cr(ctxt, 4, cr4);
 		if (bad)
 			return X86EMUL_UNHANDLEABLE;
-		if (pcid) {
-			bad = ctxt->ops->set_cr(ctxt, 3, cr3 | pcid);
-			if (bad)
-				return X86EMUL_UNHANDLEABLE;
-		}
-
 	}
 
 	return X86EMUL_CONTINUE;
@@ -2453,11 +2430,11 @@ static int rsm_load_state_32(struct x86_emulate_ctxt *ctxt, u64 smbase)
 	struct desc_struct desc;
 	struct desc_ptr dt;
 	u16 selector;
-	u32 val, cr0, cr3, cr4;
+	u32 val, cr0, cr4;
 	int i;
 
 	cr0 =                      GET_SMSTATE(u32, smbase, 0x7ffc);
-	cr3 =                      GET_SMSTATE(u32, smbase, 0x7ff8);
+	ctxt->ops->set_cr(ctxt, 3, GET_SMSTATE(u32, smbase, 0x7ff8));
 	ctxt->eflags =             GET_SMSTATE(u32, smbase, 0x7ff4) | X86_EFLAGS_FIXED;
 	ctxt->_eip =               GET_SMSTATE(u32, smbase, 0x7ff0);
 
@@ -2499,14 +2476,14 @@ static int rsm_load_state_32(struct x86_emulate_ctxt *ctxt, u64 smbase)
 
 	ctxt->ops->set_smbase(ctxt, GET_SMSTATE(u32, smbase, 0x7ef8));
 
-	return rsm_enter_protected_mode(ctxt, cr0, cr3, cr4);
+	return rsm_enter_protected_mode(ctxt, cr0, cr4);
 }
 
 static int rsm_load_state_64(struct x86_emulate_ctxt *ctxt, u64 smbase)
 {
 	struct desc_struct desc;
 	struct desc_ptr dt;
-	u64 val, cr0, cr3, cr4;
+	u64 val, cr0, cr4;
 	u32 base3;
 	u16 selector;
 	int i, r;
@@ -2523,7 +2500,7 @@ static int rsm_load_state_64(struct x86_emulate_ctxt *ctxt, u64 smbase)
 	ctxt->ops->set_dr(ctxt, 7, (val & DR7_VOLATILE) | DR7_FIXED_1);
 
 	cr0 =                       GET_SMSTATE(u64, smbase, 0x7f58);
-	cr3 =                       GET_SMSTATE(u64, smbase, 0x7f50);
+	ctxt->ops->set_cr(ctxt, 3,  GET_SMSTATE(u64, smbase, 0x7f50));
 	cr4 =                       GET_SMSTATE(u64, smbase, 0x7f48);
 	ctxt->ops->set_smbase(ctxt, GET_SMSTATE(u32, smbase, 0x7f00));
 	val =                       GET_SMSTATE(u64, smbase, 0x7ed0);
@@ -2551,7 +2528,7 @@ static int rsm_load_state_64(struct x86_emulate_ctxt *ctxt, u64 smbase)
 	dt.address =                GET_SMSTATE(u64, smbase, 0x7e68);
 	ctxt->ops->set_gdt(ctxt, &dt);
 
-	r = rsm_enter_protected_mode(ctxt, cr0, cr3, cr4);
+	r = rsm_enter_protected_mode(ctxt, cr0, cr4);
 	if (r != X86EMUL_CONTINUE)
 		return r;
 
@@ -2659,7 +2636,7 @@ static bool vendor_intel(struct x86_emulate_ctxt *ctxt)
 	u32 eax, ebx, ecx, edx;
 
 	eax = ecx = 0;
-	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, false);
+	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	return ebx == X86EMUL_CPUID_VENDOR_GenuineIntel_ebx
 		&& ecx == X86EMUL_CPUID_VENDOR_GenuineIntel_ecx
 		&& edx == X86EMUL_CPUID_VENDOR_GenuineIntel_edx;
@@ -2679,7 +2656,7 @@ static bool em_syscall_is_enabled(struct x86_emulate_ctxt *ctxt)
 
 	eax = 0x00000000;
 	ecx = 0x00000000;
-	ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, false);
+	ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	/*
 	 * Intel ("GenuineIntel")
 	 * remark: Intel CPUs only support "syscall" in 64bit
@@ -2863,8 +2840,8 @@ static int em_sysexit(struct x86_emulate_ctxt *ctxt)
 		ss_sel = cs_sel + 8;
 		cs.d = 0;
 		cs.l = 1;
-		if (emul_is_noncanonical_address(rcx, ctxt) ||
-		    emul_is_noncanonical_address(rdx, ctxt))
+		if (is_noncanonical_address(rcx) ||
+		    is_noncanonical_address(rdx))
 			return emulate_gp(ctxt, 0);
 		break;
 	}
@@ -3574,7 +3551,7 @@ static int em_movbe(struct x86_emulate_ctxt *ctxt)
 	/*
 	 * Check MOVBE is set in the guest-visible CPUID leaf.
 	 */
-	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, false);
+	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	if (!(ecx & FFL(MOVBE)))
 		return emulate_ud(ctxt);
 
@@ -3779,7 +3756,7 @@ static int em_lgdt_lidt(struct x86_emulate_ctxt *ctxt, bool lgdt)
 	if (rc != X86EMUL_CONTINUE)
 		return rc;
 	if (ctxt->mode == X86EMUL_MODE_PROT64 &&
-	    emul_is_noncanonical_address(desc_ptr.address, ctxt))
+	    is_noncanonical_address(desc_ptr.address))
 		return emulate_gp(ctxt, 0);
 	if (lgdt)
 		ctxt->ops->set_gdt(ctxt, &desc_ptr);
@@ -3888,7 +3865,7 @@ static int em_cpuid(struct x86_emulate_ctxt *ctxt)
 
 	eax = reg_read(ctxt, VCPU_REGS_RAX);
 	ecx = reg_read(ctxt, VCPU_REGS_RCX);
-	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, true);
+	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	*reg_write(ctxt, VCPU_REGS_RAX) = eax;
 	*reg_write(ctxt, VCPU_REGS_RBX) = ebx;
 	*reg_write(ctxt, VCPU_REGS_RCX) = ecx;
@@ -3947,7 +3924,7 @@ static int check_fxsr(struct x86_emulate_ctxt *ctxt)
 {
 	u32 eax = 1, ebx, ecx = 0, edx;
 
-	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx, false);
+	ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx, &edx);
 	if (!(edx & FFL(FXSR)))
 		return emulate_ud(ctxt);
 
@@ -4120,19 +4097,8 @@ static int check_cr_write(struct x86_emulate_ctxt *ctxt)
 		u64 rsvd = 0;
 
 		ctxt->ops->get_msr(ctxt, MSR_EFER, &efer);
-		if (efer & EFER_LMA) {
-			u64 maxphyaddr;
-			u32 eax, ebx, ecx, edx;
-
-			eax = 0x80000008;
-			ecx = 0;
-			if (ctxt->ops->get_cpuid(ctxt, &eax, &ebx, &ecx,
-						 &edx, false))
-				maxphyaddr = eax & 0xff;
-			else
-				maxphyaddr = 36;
-			rsvd = rsvd_bits(maxphyaddr, 62);
-		}
+		if (efer & EFER_LMA)
+			rsvd = CR3_L_MODE_RESERVED_BITS & ~CR3_PCID_INVD;
 
 		if (new_val & rsvd)
 			return emulate_gp(ctxt, 0);
@@ -5318,6 +5284,7 @@ static void fetch_possible_mmx_operand(struct x86_emulate_ctxt *ctxt,
 
 static int fastop(struct x86_emulate_ctxt *ctxt, void (*fop)(struct fastop *))
 {
+	register void *__sp asm(_ASM_SP);
 	ulong flags = (ctxt->eflags & EFLAGS_MASK) | X86_EFLAGS_IF;
 
 	if (!(ctxt->d & ByteOp))
@@ -5325,7 +5292,7 @@ static int fastop(struct x86_emulate_ctxt *ctxt, void (*fop)(struct fastop *))
 
 	asm("push %[flags]; popf; call *%[fastop]; pushf; pop %[flags]\n"
 	    : "+a"(ctxt->dst.val), "+d"(ctxt->src.val), [flags]"+D"(flags),
-	      [fastop]"+S"(fop), ASM_CALL_CONSTRAINT
+	      [fastop]"+S"(fop), "+r"(__sp)
 	    : "c"(ctxt->src2.val));
 
 	ctxt->eflags = (ctxt->eflags & ~EFLAGS_MASK) | (flags & EFLAGS_MASK);

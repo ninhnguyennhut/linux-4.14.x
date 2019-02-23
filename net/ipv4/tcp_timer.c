@@ -239,6 +239,7 @@ static int tcp_write_timeout(struct sock *sk)
 /* Called with BH disabled */
 void tcp_delack_timer_handler(struct sock *sk)
 {
+	struct tcp_sock *tp = tcp_sk(sk);
 	struct inet_connection_sock *icsk = inet_csk(sk);
 
 	sk_mem_reclaim_partial(sk);
@@ -253,6 +254,17 @@ void tcp_delack_timer_handler(struct sock *sk)
 	}
 	icsk->icsk_ack.pending &= ~ICSK_ACK_TIMER;
 
+	if (!skb_queue_empty(&tp->ucopy.prequeue)) {
+		struct sk_buff *skb;
+
+		__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPSCHEDULERFAILED);
+
+		while ((skb = __skb_dequeue(&tp->ucopy.prequeue)) != NULL)
+			sk_backlog_rcv(sk, skb);
+
+		tp->ucopy.memory = 0;
+	}
+
 	if (inet_csk_ack_scheduled(sk)) {
 		if (!icsk->icsk_ack.pingpong) {
 			/* Delayed ACK missed: inflate ATO. */
@@ -264,7 +276,6 @@ void tcp_delack_timer_handler(struct sock *sk)
 			icsk->icsk_ack.pingpong = 0;
 			icsk->icsk_ack.ato      = TCP_ATO_MIN;
 		}
-		tcp_mstamp_refresh(tcp_sk(sk));
 		tcp_send_ack(sk);
 		__NET_INC_STATS(sock_net(sk), LINUX_MIB_DELAYEDACKS);
 	}
@@ -628,7 +639,6 @@ static void tcp_keepalive_timer (unsigned long data)
 		goto out;
 	}
 
-	tcp_mstamp_refresh(tp);
 	if (sk->sk_state == TCP_FIN_WAIT2 && sock_flag(sk, SOCK_DEAD)) {
 		if (tp->linger2 >= 0) {
 			const int tmo = tcp_fin_time(sk) - TCP_TIMEWAIT_LEN;

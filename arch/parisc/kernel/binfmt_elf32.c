@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Support for 32-bit Linux/Parisc ELF binaries on 64 bit kernels
  *

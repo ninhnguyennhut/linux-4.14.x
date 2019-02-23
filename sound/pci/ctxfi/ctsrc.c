@@ -702,8 +702,10 @@ error1:
 
 static int srcimp_rsc_uninit(struct srcimp *srcimp)
 {
-	kfree(srcimp->imappers);
-	srcimp->imappers = NULL;
+	if (NULL != srcimp->imappers) {
+		kfree(srcimp->imappers);
+		srcimp->imappers = NULL;
+	}
 	srcimp->ops = NULL;
 	srcimp->mgr = NULL;
 	rsc_uninit(&srcimp->rsc);

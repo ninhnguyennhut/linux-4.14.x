@@ -16,7 +16,17 @@ The key service can be configured on by enabling:
 
 This document has the following sections:
 
-.. contents:: :local:
+	- Key overview
+	- Key service overview
+	- Key access permissions
+	- SELinux support
+	- New procfs files
+	- Userspace system call interface
+	- Kernel services
+	- Notes on accessing payload contents
+	- Defining a key type
+	- Request-key callback service
+	- Garbage collection
 
 
 Key Overview
@@ -433,7 +443,7 @@ The main syscalls are:
      /sbin/request-key will be invoked in an attempt to obtain a key. The
      callout_info string will be passed as an argument to the program.
 
-     See also Documentation/security/keys/request-key.rst.
+     See also Documentation/security/keys-request-key.txt.
 
 
 The keyctl syscall functions are:
@@ -963,7 +973,7 @@ payload contents" for more information.
     If successful, the key will have been attached to the default keyring for
     implicitly obtained request-key keys, as set by KEYCTL_SET_REQKEY_KEYRING.
 
-    See also Documentation/security/keys/request-key.rst.
+    See also Documentation/security/keys-request-key.txt.
 
 
  *  To search for a key, passing auxiliary data to the upcaller, call::

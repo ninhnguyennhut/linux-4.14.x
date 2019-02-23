@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*  linux/arch/sparc/kernel/process.c
  *
  *  Copyright (C) 1995, 2008 David S. Miller (davem@davemloft.net)

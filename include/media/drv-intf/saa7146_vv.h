@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SAA7146_VV__
 #define __SAA7146_VV__
 

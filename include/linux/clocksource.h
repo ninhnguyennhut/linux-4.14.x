@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*  linux/include/linux/clocksource.h
  *
  *  This file contains the structure definitions for clocksources.

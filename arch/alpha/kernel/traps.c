@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * arch/alpha/kernel/traps.c
  *
@@ -194,10 +193,8 @@ die_if_kernel(char * str, struct pt_regs *regs, long err, unsigned long *r9_15)
 static long dummy_emul(void) { return 0; }
 long (*alpha_fp_emul_imprecise)(struct pt_regs *regs, unsigned long writemask)
   = (void *)dummy_emul;
-EXPORT_SYMBOL_GPL(alpha_fp_emul_imprecise);
 long (*alpha_fp_emul) (unsigned long pc)
   = (void *)dummy_emul;
-EXPORT_SYMBOL_GPL(alpha_fp_emul);
 #else
 long alpha_fp_emul_imprecise(struct pt_regs *regs, unsigned long writemask);
 long alpha_fp_emul (unsigned long pc);
@@ -281,7 +278,7 @@ do_entIF(unsigned long type, struct pt_regs *regs)
 	      case 1: /* bugcheck */
 		info.si_signo = SIGTRAP;
 		info.si_errno = 0;
-		info.si_code = TRAP_FIXME;
+		info.si_code = __SI_FAULT;
 		info.si_addr = (void __user *) regs->pc;
 		info.si_trapno = 0;
 		send_sig_info(SIGTRAP, &info, current);
@@ -321,7 +318,7 @@ do_entIF(unsigned long type, struct pt_regs *regs)
 			break;
 		case GEN_ROPRAND:
 			signo = SIGFPE;
-			code = FPE_FIXME;
+			code = __SI_FAULT;
 			break;
 
 		case GEN_DECOVF:
@@ -343,7 +340,7 @@ do_entIF(unsigned long type, struct pt_regs *regs)
 		case GEN_SUBRNG7:
 		default:
 			signo = SIGTRAP;
-			code = TRAP_FIXME;
+			code = __SI_FAULT;
 			break;
 		}
 

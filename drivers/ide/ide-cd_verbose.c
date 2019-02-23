@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Verbose error logging for ATAPI CD/DVD devices.
  *

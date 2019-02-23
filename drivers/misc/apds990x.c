@@ -1051,7 +1051,7 @@ static struct attribute *sysfs_attrs_ctrl[] = {
 	NULL
 };
 
-static const struct attribute_group apds990x_attribute_group[] = {
+static struct attribute_group apds990x_attribute_group[] = {
 	{.attrs = sysfs_attrs_ctrl },
 };
 

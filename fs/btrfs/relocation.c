@@ -32,7 +32,6 @@
 #include "free-space-cache.h"
 #include "inode-map.h"
 #include "qgroup.h"
-#include "print-tree.h"
 
 /*
  * backref_node, mapping_node and tree_block start with this
@@ -800,17 +799,9 @@ again:
 		if (ptr < end) {
 			/* update key for inline back ref */
 			struct btrfs_extent_inline_ref *iref;
-			int type;
 			iref = (struct btrfs_extent_inline_ref *)ptr;
-			type = btrfs_get_extent_inline_ref_type(eb, iref,
-							BTRFS_REF_TYPE_BLOCK);
-			if (type == BTRFS_REF_TYPE_INVALID) {
-				err = -EINVAL;
-				goto out;
-			}
-			key.type = type;
+			key.type = btrfs_extent_inline_ref_type(eb, iref);
 			key.offset = btrfs_extent_inline_ref_offset(eb, iref);
-
 			WARN_ON(key.type != BTRFS_TREE_BLOCK_REF_KEY &&
 				key.type != BTRFS_SHARED_BLOCK_REF_KEY);
 		}
@@ -1317,6 +1308,8 @@ static int __must_check __add_reloc_root(struct btrfs_root *root)
 		btrfs_panic(fs_info, -EEXIST,
 			    "Duplicate root found for start=%llu while inserting into relocation tree",
 			    node->bytenr);
+		kfree(node);
+		return -EEXIST;
 	}
 
 	list_add_tail(&root->root_list, &rc->reloc_roots);
@@ -2400,11 +2393,11 @@ void free_reloc_roots(struct list_head *list)
 	while (!list_empty(list)) {
 		reloc_root = list_entry(list->next, struct btrfs_root,
 					root_list);
-		__del_reloc_root(reloc_root);
 		free_extent_buffer(reloc_root->node);
 		free_extent_buffer(reloc_root->commit_root);
 		reloc_root->node = NULL;
 		reloc_root->commit_root = NULL;
+		__del_reloc_root(reloc_root);
 	}
 }
 
@@ -3484,16 +3477,7 @@ again:
 			goto again;
 		}
 	}
-	if (ret) {
-		ASSERT(ret == 1);
-		btrfs_print_leaf(path->nodes[0]);
-		btrfs_err(fs_info,
-	     "tree block extent item (%llu) is not found in extent tree",
-		     bytenr);
-		WARN_ON(1);
-		ret = -EINVAL;
-		goto out;
-	}
+	BUG_ON(ret);
 
 	ret = add_tree_block(rc, &key, path, blocks);
 out:
@@ -3771,8 +3755,7 @@ int add_data_references(struct reloc_control *rc,
 
 	while (ptr < end) {
 		iref = (struct btrfs_extent_inline_ref *)ptr;
-		key.type = btrfs_get_extent_inline_ref_type(eb, iref,
-							BTRFS_REF_TYPE_DATA);
+		key.type = btrfs_extent_inline_ref_type(eb, iref);
 		if (key.type == BTRFS_SHARED_DATA_REF_KEY) {
 			key.offset = btrfs_extent_inline_ref_offset(eb, iref);
 			ret = __add_tree_block(rc, key.offset, blocksize,
@@ -3782,10 +3765,7 @@ int add_data_references(struct reloc_control *rc,
 			ret = find_data_references(rc, extent_key,
 						   eb, dref, blocks);
 		} else {
-			ret = -EINVAL;
-			btrfs_err(rc->extent_root->fs_info,
-		     "extent %llu slot %d has an invalid inline ref type",
-			     eb->start, path->slots[0]);
+			BUG();
 		}
 		if (ret) {
 			err = ret;

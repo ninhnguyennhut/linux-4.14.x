@@ -81,4 +81,5 @@ pmm: pin-controller@1462000 {
 &vga {
 	pinctrl-names = "default";
 	pinctrl-0 = <&vga_pins>;
+	status = "okay";
 };

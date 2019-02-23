@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Changed from asm-m68k version, Lineo Inc. 	May 2001	*/
 
 #ifndef _ASM_BFIN_PCI_H

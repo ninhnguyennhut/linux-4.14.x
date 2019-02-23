@@ -31,7 +31,6 @@
  * zeroing of .bss would clobber it.
  */
 .data
-	.align	2
 ENTRY(__boot_cpu_mode)
 	.long	0
 .text

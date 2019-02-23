@@ -636,7 +636,7 @@ err_reset_phy:
 	return ret;
 }
 
-static int imx6_pcie_host_init(struct pcie_port *pp)
+static void imx6_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pci);
@@ -649,8 +649,6 @@ static int imx6_pcie_host_init(struct pcie_port *pp)
 
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
-
-	return 0;
 }
 
 static int imx6_pcie_link_up(struct dw_pcie *pci)
@@ -780,15 +778,14 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 		}
 		break;
 	case IMX7D:
-		imx6_pcie->pciephy_reset = devm_reset_control_get_exclusive(dev,
-									    "pciephy");
+		imx6_pcie->pciephy_reset = devm_reset_control_get(dev,
+								  "pciephy");
 		if (IS_ERR(imx6_pcie->pciephy_reset)) {
 			dev_err(dev, "Failed to get PCIEPHY reset control\n");
 			return PTR_ERR(imx6_pcie->pciephy_reset);
 		}
 
-		imx6_pcie->apps_reset = devm_reset_control_get_exclusive(dev,
-									 "apps");
+		imx6_pcie->apps_reset = devm_reset_control_get(dev, "apps");
 		if (IS_ERR(imx6_pcie->apps_reset)) {
 			dev_err(dev, "Failed to get PCIE APPS reset control\n");
 			return PTR_ERR(imx6_pcie->apps_reset);

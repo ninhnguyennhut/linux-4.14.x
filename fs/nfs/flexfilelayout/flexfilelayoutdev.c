@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Device operations for the pnfs nfs4 file layout driver.
  *

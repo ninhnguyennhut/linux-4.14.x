@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _KERNEL_EVENTS_INTERNAL_H
 #define _KERNEL_EVENTS_INTERNAL_H
 
@@ -39,9 +38,9 @@ struct ring_buffer {
 	struct user_struct		*mmap_user;
 
 	/* AUX area */
-	long				aux_head;
+	local_t				aux_head;
 	local_t				aux_nest;
-	long				aux_wakeup;	/* last aux_watermark boundary crossed by aux_head */
+	local_t				aux_wakeup;
 	unsigned long			aux_pgoff;
 	int				aux_nr_pages;
 	int				aux_overwrite;
@@ -209,7 +208,7 @@ static inline int get_recursion_context(int *recursion)
 {
 	int rctx;
 
-	if (unlikely(in_nmi()))
+	if (in_nmi())
 		rctx = 3;
 	else if (in_irq())
 		rctx = 2;

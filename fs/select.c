@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This file contains the procedures for the handling of select and poll
  *
@@ -1165,7 +1164,11 @@ int compat_get_fd_set(unsigned long nr, compat_ulong_t __user *ufdset,
 	if (ufdset) {
 		return compat_get_bitmap(fdset, ufdset, nr);
 	} else {
-		zero_fd_set(nr, fdset);
+		/* Tricky, must clear full unsigned long in the
+		 * kernel fdset at the end, ALIGN makes sure that
+		 * actually happens.
+		 */
+		memset(fdset, 0, ALIGN(nr, BITS_PER_LONG));
 		return 0;
 	}
 }

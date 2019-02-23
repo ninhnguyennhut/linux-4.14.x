@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Makefile for the Linux logos
 
 obj-$(CONFIG_LOGO)			+= logo.o

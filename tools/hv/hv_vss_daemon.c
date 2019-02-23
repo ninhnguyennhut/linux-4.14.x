@@ -21,7 +21,6 @@
 #include <sys/types.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <mntent.h>
@@ -31,7 +30,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <linux/fs.h>
-#include <linux/major.h>
 #include <linux/hyperv.h>
 #include <syslog.h>
 #include <getopt.h>
@@ -72,7 +70,6 @@ static int vss_operate(int operation)
 	char match[] = "/dev/";
 	FILE *mounts;
 	struct mntent *ent;
-	struct stat sb;
 	char errdir[1024] = {0};
 	unsigned int cmd;
 	int error = 0, root_seen = 0, save_errno = 0;
@@ -94,10 +91,6 @@ static int vss_operate(int operation)
 
 	while ((ent = getmntent(mounts))) {
 		if (strncmp(ent->mnt_fsname, match, strlen(match)))
-			continue;
-		if (stat(ent->mnt_fsname, &sb) == -1)
-			continue;
-		if (S_ISBLK(sb.st_mode) && major(sb.st_rdev) == LOOP_MAJOR)
 			continue;
 		if (hasmntopt(ent, MNTOPT_RO) != NULL)
 			continue;

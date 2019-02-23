@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # arch/blackfin/mach-bf533/boards/Makefile
 #

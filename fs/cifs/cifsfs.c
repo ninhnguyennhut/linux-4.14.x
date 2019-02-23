@@ -461,8 +461,6 @@ cifs_show_options(struct seq_file *s, struct dentry *root)
 		seq_puts(s, ",nocase");
 	if (tcon->retry)
 		seq_puts(s, ",hard");
-	else
-		seq_puts(s, ",soft");
 	if (tcon->use_persistent)
 		seq_puts(s, ",persistenthandles");
 	else if (tcon->use_resilient)
@@ -1449,7 +1447,7 @@ exit_cifs(void)
 	exit_cifs_idmap();
 #endif
 #ifdef CONFIG_CIFS_UPCALL
-	exit_cifs_spnego();
+	unregister_key_type(&cifs_spnego_key_type);
 #endif
 	cifs_destroy_request_bufs();
 	cifs_destroy_mids();

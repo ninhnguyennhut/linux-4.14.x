@@ -53,24 +53,17 @@ static bool qdf2400_erratum_44_present(struct acpi_table_header *h)
  */
 static bool xgene_8250_erratum_present(struct acpi_table_spcr *tb)
 {
-	bool xgene_8250 = false;
-
 	if (tb->interface_type != ACPI_DBG2_16550_COMPATIBLE)
 		return false;
 
-	if (memcmp(tb->header.oem_id, "APMC0D", ACPI_OEM_ID_SIZE) &&
-	    memcmp(tb->header.oem_id, "HPE   ", ACPI_OEM_ID_SIZE))
+	if (memcmp(tb->header.oem_id, "APMC0D", ACPI_OEM_ID_SIZE))
 		return false;
 
 	if (!memcmp(tb->header.oem_table_id, "XGENESPC",
 	    ACPI_OEM_TABLE_ID_SIZE) && tb->header.oem_revision == 0)
-		xgene_8250 = true;
+		return true;
 
-	if (!memcmp(tb->header.oem_table_id, "ProLiant",
-	    ACPI_OEM_TABLE_ID_SIZE) && tb->header.oem_revision == 1)
-		xgene_8250 = true;
-
-	return xgene_8250;
+	return false;
 }
 
 /**
@@ -112,17 +105,16 @@ int __init parse_spcr(bool earlycon)
 	}
 
 	if (table->serial_port.space_id == ACPI_ADR_SPACE_SYSTEM_MEMORY) {
-		switch (ACPI_ACCESS_BIT_WIDTH((
-			table->serial_port.access_width))) {
+		switch (table->serial_port.access_width) {
 		default:
 			pr_err("Unexpected SPCR Access Width.  Defaulting to byte size\n");
-		case 8:
+		case ACPI_ACCESS_SIZE_BYTE:
 			iotype = "mmio";
 			break;
-		case 16:
+		case ACPI_ACCESS_SIZE_WORD:
 			iotype = "mmio16";
 			break;
-		case 32:
+		case ACPI_ACCESS_SIZE_DWORD:
 			iotype = "mmio32";
 			break;
 		}
@@ -189,19 +181,11 @@ int __init parse_spcr(bool earlycon)
 			uart = "qdf2400_e44";
 	}
 
-	if (xgene_8250_erratum_present(table)) {
+	if (xgene_8250_erratum_present(table))
 		iotype = "mmio32";
 
-		/* for xgene v1 and v2 we don't know the clock rate of the
-		 * UART so don't attempt to change to the baud rate state
-		 * in the table because driver cannot calculate the dividers
-		 */
-		snprintf(opts, sizeof(opts), "%s,%s,0x%llx", uart, iotype,
-			 table->serial_port.address);
-	} else {
-		snprintf(opts, sizeof(opts), "%s,%s,0x%llx,%d", uart, iotype,
-			 table->serial_port.address, baud_rate);
-	}
+	snprintf(opts, sizeof(opts), "%s,%s,0x%llx,%d", uart, iotype,
+		 table->serial_port.address, baud_rate);
 
 	pr_info("console: %s\n", opts);
 

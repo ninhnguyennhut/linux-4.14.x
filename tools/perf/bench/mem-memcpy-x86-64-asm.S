@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 /* Various wrappers to make the kernel .S file build in user-space: */
 

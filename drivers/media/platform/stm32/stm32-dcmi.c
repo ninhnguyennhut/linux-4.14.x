@@ -33,7 +33,6 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-image-sizes.h>
 #include <media/v4l2-ioctl.h>
-#include <media/v4l2-rect.h>
 #include <media/videobuf2-dma-contig.h>
 
 #define DRV_NAME "stm32-dcmi"
@@ -108,11 +107,6 @@ struct dcmi_format {
 	u8	bpp;
 };
 
-struct dcmi_framesize {
-	u32	width;
-	u32	height;
-};
-
 struct dcmi_buf {
 	struct vb2_v4l2_buffer	vb;
 	bool			prepared;
@@ -137,16 +131,10 @@ struct stm32_dcmi {
 	struct v4l2_async_notifier	notifier;
 	struct dcmi_graph_entity	entity;
 	struct v4l2_format		fmt;
-	struct v4l2_rect		crop;
-	bool				do_crop;
 
-	const struct dcmi_format	**sd_formats;
-	unsigned int			num_of_sd_formats;
-	const struct dcmi_format	*sd_format;
-	struct dcmi_framesize		*sd_framesizes;
-	unsigned int			num_of_sd_framesizes;
-	struct dcmi_framesize		sd_framesize;
-	struct v4l2_rect		sd_bounds;
+	const struct dcmi_format	**user_formats;
+	unsigned int			num_user_formats;
+	const struct dcmi_format	*current_fmt;
 
 	/* Protect this data structure */
 	struct mutex			lock;
@@ -307,10 +295,6 @@ static int dcmi_start_dma(struct stm32_dcmi *dcmi,
 
 	/* Push current DMA transaction in the pending queue */
 	dcmi->dma_cookie = dmaengine_submit(desc);
-	if (dma_submit_error(dcmi->dma_cookie)) {
-		dev_err(dcmi->dev, "%s: DMA submission failed\n", __func__);
-		return -ENXIO;
-	}
 
 	dma_async_issue_pending(dcmi->dma_chan);
 
@@ -335,28 +319,6 @@ static int dcmi_start_capture(struct stm32_dcmi *dcmi)
 	reg_set(dcmi->regs, DCMI_CR, CR_CAPTURE);
 
 	return 0;
-}
-
-static void dcmi_set_crop(struct stm32_dcmi *dcmi)
-{
-	u32 size, start;
-
-	/* Crop resolution */
-	size = ((dcmi->crop.height - 1) << 16) |
-		((dcmi->crop.width << 1) - 1);
-	reg_write(dcmi->regs, DCMI_CWSIZE, size);
-
-	/* Crop start point */
-	start = ((dcmi->crop.top) << 16) |
-		 ((dcmi->crop.left << 1));
-	reg_write(dcmi->regs, DCMI_CWSTRT, start);
-
-	dev_dbg(dcmi->dev, "Cropping to %ux%u@%u:%u\n",
-		dcmi->crop.width, dcmi->crop.height,
-		dcmi->crop.left, dcmi->crop.top);
-
-	/* Enable crop */
-	reg_set(dcmi->regs, DCMI_CR, CR_CROP);
 }
 
 static irqreturn_t dcmi_irq_thread(int irq, void *arg)
@@ -524,7 +486,7 @@ static int dcmi_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct stm32_dcmi *dcmi = vb2_get_drv_priv(vq);
 	struct dcmi_buf *buf, *node;
-	u32 val = 0;
+	u32 val;
 	int ret;
 
 	ret = clk_enable(dcmi->mclk);
@@ -544,16 +506,22 @@ static int dcmi_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	spin_lock_irq(&dcmi->irqlock);
 
+	val = reg_read(dcmi->regs, DCMI_CR);
+
+	val &= ~(CR_PCKPOL | CR_HSPOL | CR_VSPOL |
+		 CR_EDM_0 | CR_EDM_1 | CR_FCRC_0 |
+		 CR_FCRC_1 | CR_JPEG | CR_ESS);
+
 	/* Set bus width */
 	switch (dcmi->bus.bus_width) {
 	case 14:
-		val |= CR_EDM_0 | CR_EDM_1;
+		val &= CR_EDM_0 + CR_EDM_1;
 		break;
 	case 12:
-		val |= CR_EDM_1;
+		val &= CR_EDM_1;
 		break;
 	case 10:
-		val |= CR_EDM_0;
+		val &= CR_EDM_0;
 		break;
 	default:
 		/* Set bus width to 8 bits by default */
@@ -573,10 +541,6 @@ static int dcmi_start_streaming(struct vb2_queue *vq, unsigned int count)
 		val |= CR_PCKPOL;
 
 	reg_write(dcmi->regs, DCMI_CR, val);
-
-	/* Set crop */
-	if (dcmi->do_crop)
-		dcmi_set_crop(dcmi);
 
 	/* Enable dcmi */
 	reg_set(dcmi->regs, DCMI_CR, CR_ENABLE);
@@ -698,7 +662,7 @@ static void dcmi_stop_streaming(struct vb2_queue *vq)
 		dcmi->errors_count, dcmi->buffers_count);
 }
 
-static const struct vb2_ops dcmi_video_qops = {
+static struct vb2_ops dcmi_video_qops = {
 	.queue_setup		= dcmi_queue_setup,
 	.buf_init		= dcmi_buf_init,
 	.buf_prepare		= dcmi_buf_prepare,
@@ -722,12 +686,12 @@ static int dcmi_g_fmt_vid_cap(struct file *file, void *priv,
 static const struct dcmi_format *find_format_by_fourcc(struct stm32_dcmi *dcmi,
 						       unsigned int fourcc)
 {
-	unsigned int num_formats = dcmi->num_of_sd_formats;
+	unsigned int num_formats = dcmi->num_user_formats;
 	const struct dcmi_format *fmt;
 	unsigned int i;
 
 	for (i = 0; i < num_formats; i++) {
-		fmt = dcmi->sd_formats[i];
+		fmt = dcmi->user_formats[i];
 		if (fmt->fourcc == fourcc)
 			return fmt;
 	}
@@ -735,108 +699,41 @@ static const struct dcmi_format *find_format_by_fourcc(struct stm32_dcmi *dcmi,
 	return NULL;
 }
 
-static void __find_outer_frame_size(struct stm32_dcmi *dcmi,
-				    struct v4l2_pix_format *pix,
-				    struct dcmi_framesize *framesize)
-{
-	struct dcmi_framesize *match = NULL;
-	unsigned int i;
-	unsigned int min_err = UINT_MAX;
-
-	for (i = 0; i < dcmi->num_of_sd_framesizes; i++) {
-		struct dcmi_framesize *fsize = &dcmi->sd_framesizes[i];
-		int w_err = (fsize->width - pix->width);
-		int h_err = (fsize->height - pix->height);
-		int err = w_err + h_err;
-
-		if ((w_err >= 0) && (h_err >= 0) && (err < min_err)) {
-			min_err = err;
-			match = fsize;
-		}
-	}
-	if (!match)
-		match = &dcmi->sd_framesizes[0];
-
-	*framesize = *match;
-}
-
 static int dcmi_try_fmt(struct stm32_dcmi *dcmi, struct v4l2_format *f,
-			const struct dcmi_format **sd_format,
-			struct dcmi_framesize *sd_framesize)
+			const struct dcmi_format **current_fmt)
 {
-	const struct dcmi_format *sd_fmt;
-	struct dcmi_framesize sd_fsize;
-	struct v4l2_pix_format *pix = &f->fmt.pix;
+	const struct dcmi_format *dcmi_fmt;
+	struct v4l2_pix_format *pixfmt = &f->fmt.pix;
 	struct v4l2_subdev_pad_config pad_cfg;
 	struct v4l2_subdev_format format = {
 		.which = V4L2_SUBDEV_FORMAT_TRY,
 	};
 	int ret;
 
-	sd_fmt = find_format_by_fourcc(dcmi, pix->pixelformat);
-	if (!sd_fmt) {
-		sd_fmt = dcmi->sd_formats[dcmi->num_of_sd_formats - 1];
-		pix->pixelformat = sd_fmt->fourcc;
+	dcmi_fmt = find_format_by_fourcc(dcmi, pixfmt->pixelformat);
+	if (!dcmi_fmt) {
+		dcmi_fmt = dcmi->user_formats[dcmi->num_user_formats - 1];
+		pixfmt->pixelformat = dcmi_fmt->fourcc;
 	}
 
 	/* Limit to hardware capabilities */
-	pix->width = clamp(pix->width, MIN_WIDTH, MAX_WIDTH);
-	pix->height = clamp(pix->height, MIN_HEIGHT, MAX_HEIGHT);
+	pixfmt->width = clamp(pixfmt->width, MIN_WIDTH, MAX_WIDTH);
+	pixfmt->height = clamp(pixfmt->height, MIN_HEIGHT, MAX_HEIGHT);
 
-	if (dcmi->do_crop && dcmi->num_of_sd_framesizes) {
-		struct dcmi_framesize outer_sd_fsize;
-		/*
-		 * If crop is requested and sensor have discrete frame sizes,
-		 * select the frame size that is just larger than request
-		 */
-		__find_outer_frame_size(dcmi, pix, &outer_sd_fsize);
-		pix->width = outer_sd_fsize.width;
-		pix->height = outer_sd_fsize.height;
-	}
-
-	v4l2_fill_mbus_format(&format.format, pix, sd_fmt->mbus_code);
+	v4l2_fill_mbus_format(&format.format, pixfmt, dcmi_fmt->mbus_code);
 	ret = v4l2_subdev_call(dcmi->entity.subdev, pad, set_fmt,
 			       &pad_cfg, &format);
 	if (ret < 0)
 		return ret;
 
-	/* Update pix regarding to what sensor can do */
-	v4l2_fill_pix_format(pix, &format.format);
+	v4l2_fill_pix_format(pixfmt, &format.format);
 
-	/* Save resolution that sensor can actually do */
-	sd_fsize.width = pix->width;
-	sd_fsize.height = pix->height;
+	pixfmt->field = V4L2_FIELD_NONE;
+	pixfmt->bytesperline = pixfmt->width * dcmi_fmt->bpp;
+	pixfmt->sizeimage = pixfmt->bytesperline * pixfmt->height;
 
-	if (dcmi->do_crop) {
-		struct v4l2_rect c = dcmi->crop;
-		struct v4l2_rect max_rect;
-
-		/*
-		 * Adjust crop by making the intersection between
-		 * format resolution request and crop request
-		 */
-		max_rect.top = 0;
-		max_rect.left = 0;
-		max_rect.width = pix->width;
-		max_rect.height = pix->height;
-		v4l2_rect_map_inside(&c, &max_rect);
-		c.top  = clamp_t(s32, c.top, 0, pix->height - c.height);
-		c.left = clamp_t(s32, c.left, 0, pix->width - c.width);
-		dcmi->crop = c;
-
-		/* Adjust format resolution request to crop */
-		pix->width = dcmi->crop.width;
-		pix->height = dcmi->crop.height;
-	}
-
-	pix->field = V4L2_FIELD_NONE;
-	pix->bytesperline = pix->width * sd_fmt->bpp;
-	pix->sizeimage = pix->bytesperline * pix->height;
-
-	if (sd_format)
-		*sd_format = sd_fmt;
-	if (sd_framesize)
-		*sd_framesize = sd_fsize;
+	if (current_fmt)
+		*current_fmt = dcmi_fmt;
 
 	return 0;
 }
@@ -846,42 +743,22 @@ static int dcmi_set_fmt(struct stm32_dcmi *dcmi, struct v4l2_format *f)
 	struct v4l2_subdev_format format = {
 		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 	};
-	const struct dcmi_format *sd_format;
-	struct dcmi_framesize sd_framesize;
-	struct v4l2_mbus_framefmt *mf = &format.format;
-	struct v4l2_pix_format *pix = &f->fmt.pix;
+	const struct dcmi_format *current_fmt;
 	int ret;
 
-	/*
-	 * Try format, fmt.width/height could have been changed
-	 * to match sensor capability or crop request
-	 * sd_format & sd_framesize will contain what subdev
-	 * can do for this request.
-	 */
-	ret = dcmi_try_fmt(dcmi, f, &sd_format, &sd_framesize);
+	ret = dcmi_try_fmt(dcmi, f, &current_fmt);
 	if (ret)
 		return ret;
 
-	/* pix to mbus format */
-	v4l2_fill_mbus_format(mf, pix,
-			      sd_format->mbus_code);
-	mf->width = sd_framesize.width;
-	mf->height = sd_framesize.height;
-
+	v4l2_fill_mbus_format(&format.format, &f->fmt.pix,
+			      current_fmt->mbus_code);
 	ret = v4l2_subdev_call(dcmi->entity.subdev, pad,
 			       set_fmt, NULL, &format);
 	if (ret < 0)
 		return ret;
 
-	dev_dbg(dcmi->dev, "Sensor format set to 0x%x %ux%u\n",
-		mf->code, mf->width, mf->height);
-	dev_dbg(dcmi->dev, "Buffer format set to %4.4s %ux%u\n",
-		(char *)&pix->pixelformat,
-		pix->width, pix->height);
-
 	dcmi->fmt = *f;
-	dcmi->sd_format = sd_format;
-	dcmi->sd_framesize = sd_framesize;
+	dcmi->current_fmt = current_fmt;
 
 	return 0;
 }
@@ -902,7 +779,7 @@ static int dcmi_try_fmt_vid_cap(struct file *file, void *priv,
 {
 	struct stm32_dcmi *dcmi = video_drvdata(file);
 
-	return dcmi_try_fmt(dcmi, f, NULL, NULL);
+	return dcmi_try_fmt(dcmi, f, NULL);
 }
 
 static int dcmi_enum_fmt_vid_cap(struct file *file, void  *priv,
@@ -910,197 +787,10 @@ static int dcmi_enum_fmt_vid_cap(struct file *file, void  *priv,
 {
 	struct stm32_dcmi *dcmi = video_drvdata(file);
 
-	if (f->index >= dcmi->num_of_sd_formats)
+	if (f->index >= dcmi->num_user_formats)
 		return -EINVAL;
 
-	f->pixelformat = dcmi->sd_formats[f->index]->fourcc;
-	return 0;
-}
-
-static int dcmi_get_sensor_format(struct stm32_dcmi *dcmi,
-				  struct v4l2_pix_format *pix)
-{
-	struct v4l2_subdev_format fmt = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-	};
-	int ret;
-
-	ret = v4l2_subdev_call(dcmi->entity.subdev, pad, get_fmt, NULL, &fmt);
-	if (ret)
-		return ret;
-
-	v4l2_fill_pix_format(pix, &fmt.format);
-
-	return 0;
-}
-
-static int dcmi_set_sensor_format(struct stm32_dcmi *dcmi,
-				  struct v4l2_pix_format *pix)
-{
-	const struct dcmi_format *sd_fmt;
-	struct v4l2_subdev_format format = {
-		.which = V4L2_SUBDEV_FORMAT_TRY,
-	};
-	struct v4l2_subdev_pad_config pad_cfg;
-	int ret;
-
-	sd_fmt = find_format_by_fourcc(dcmi, pix->pixelformat);
-	if (!sd_fmt) {
-		sd_fmt = dcmi->sd_formats[dcmi->num_of_sd_formats - 1];
-		pix->pixelformat = sd_fmt->fourcc;
-	}
-
-	v4l2_fill_mbus_format(&format.format, pix, sd_fmt->mbus_code);
-	ret = v4l2_subdev_call(dcmi->entity.subdev, pad, set_fmt,
-			       &pad_cfg, &format);
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static int dcmi_get_sensor_bounds(struct stm32_dcmi *dcmi,
-				  struct v4l2_rect *r)
-{
-	struct v4l2_subdev_selection bounds = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.target = V4L2_SEL_TGT_CROP_BOUNDS,
-	};
-	unsigned int max_width, max_height, max_pixsize;
-	struct v4l2_pix_format pix;
-	unsigned int i;
-	int ret;
-
-	/*
-	 * Get sensor bounds first
-	 */
-	ret = v4l2_subdev_call(dcmi->entity.subdev, pad, get_selection,
-			       NULL, &bounds);
-	if (!ret)
-		*r = bounds.r;
-	if (ret != -ENOIOCTLCMD)
-		return ret;
-
-	/*
-	 * If selection is not implemented,
-	 * fallback by enumerating sensor frame sizes
-	 * and take the largest one
-	 */
-	max_width = 0;
-	max_height = 0;
-	max_pixsize = 0;
-	for (i = 0; i < dcmi->num_of_sd_framesizes; i++) {
-		struct dcmi_framesize *fsize = &dcmi->sd_framesizes[i];
-		unsigned int pixsize = fsize->width * fsize->height;
-
-		if (pixsize > max_pixsize) {
-			max_pixsize = pixsize;
-			max_width = fsize->width;
-			max_height = fsize->height;
-		}
-	}
-	if (max_pixsize > 0) {
-		r->top = 0;
-		r->left = 0;
-		r->width = max_width;
-		r->height = max_height;
-		return 0;
-	}
-
-	/*
-	 * If frame sizes enumeration is not implemented,
-	 * fallback by getting current sensor frame size
-	 */
-	ret = dcmi_get_sensor_format(dcmi, &pix);
-	if (ret)
-		return ret;
-
-	r->top = 0;
-	r->left = 0;
-	r->width = pix.width;
-	r->height = pix.height;
-
-	return 0;
-}
-
-static int dcmi_g_selection(struct file *file, void *fh,
-			    struct v4l2_selection *s)
-{
-	struct stm32_dcmi *dcmi = video_drvdata(file);
-
-	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
-	switch (s->target) {
-	case V4L2_SEL_TGT_CROP_DEFAULT:
-	case V4L2_SEL_TGT_CROP_BOUNDS:
-		s->r = dcmi->sd_bounds;
-		return 0;
-	case V4L2_SEL_TGT_CROP:
-		if (dcmi->do_crop) {
-			s->r = dcmi->crop;
-		} else {
-			s->r.top = 0;
-			s->r.left = 0;
-			s->r.width = dcmi->fmt.fmt.pix.width;
-			s->r.height = dcmi->fmt.fmt.pix.height;
-		}
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int dcmi_s_selection(struct file *file, void *priv,
-			    struct v4l2_selection *s)
-{
-	struct stm32_dcmi *dcmi = video_drvdata(file);
-	struct v4l2_rect r = s->r;
-	struct v4l2_rect max_rect;
-	struct v4l2_pix_format pix;
-
-	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE ||
-	    s->target != V4L2_SEL_TGT_CROP)
-		return -EINVAL;
-
-	/* Reset sensor resolution to max resolution */
-	pix.pixelformat = dcmi->fmt.fmt.pix.pixelformat;
-	pix.width = dcmi->sd_bounds.width;
-	pix.height = dcmi->sd_bounds.height;
-	dcmi_set_sensor_format(dcmi, &pix);
-
-	/*
-	 * Make the intersection between
-	 * sensor resolution
-	 * and crop request
-	 */
-	max_rect.top = 0;
-	max_rect.left = 0;
-	max_rect.width = pix.width;
-	max_rect.height = pix.height;
-	v4l2_rect_map_inside(&r, &max_rect);
-	r.top  = clamp_t(s32, r.top, 0, pix.height - r.height);
-	r.left = clamp_t(s32, r.left, 0, pix.width - r.width);
-
-	if (!((r.top == dcmi->sd_bounds.top) &&
-	      (r.left == dcmi->sd_bounds.left) &&
-	      (r.width == dcmi->sd_bounds.width) &&
-	      (r.height == dcmi->sd_bounds.height))) {
-		/* Crop if request is different than sensor resolution */
-		dcmi->do_crop = true;
-		dcmi->crop = r;
-		dev_dbg(dcmi->dev, "s_selection: crop %ux%u@(%u,%u) from %ux%u\n",
-			r.width, r.height, r.left, r.top,
-			pix.width, pix.height);
-	} else {
-		/* Disable crop */
-		dcmi->do_crop = false;
-		dev_dbg(dcmi->dev, "s_selection: crop is disabled\n");
-	}
-
-	s->r = r;
+	f->pixelformat = dcmi->user_formats[f->index]->fourcc;
 	return 0;
 }
 
@@ -1142,18 +832,18 @@ static int dcmi_enum_framesizes(struct file *file, void *fh,
 				struct v4l2_frmsizeenum *fsize)
 {
 	struct stm32_dcmi *dcmi = video_drvdata(file);
-	const struct dcmi_format *sd_fmt;
+	const struct dcmi_format *dcmi_fmt;
 	struct v4l2_subdev_frame_size_enum fse = {
 		.index = fsize->index,
 		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
 	};
 	int ret;
 
-	sd_fmt = find_format_by_fourcc(dcmi, fsize->pixel_format);
-	if (!sd_fmt)
+	dcmi_fmt = find_format_by_fourcc(dcmi, fsize->pixel_format);
+	if (!dcmi_fmt)
 		return -EINVAL;
 
-	fse.code = sd_fmt->mbus_code;
+	fse.code = dcmi_fmt->mbus_code;
 
 	ret = v4l2_subdev_call(dcmi->entity.subdev, pad, enum_frame_size,
 			       NULL, &fse);
@@ -1171,7 +861,7 @@ static int dcmi_enum_frameintervals(struct file *file, void *fh,
 				    struct v4l2_frmivalenum *fival)
 {
 	struct stm32_dcmi *dcmi = video_drvdata(file);
-	const struct dcmi_format *sd_fmt;
+	const struct dcmi_format *dcmi_fmt;
 	struct v4l2_subdev_frame_interval_enum fie = {
 		.index = fival->index,
 		.width = fival->width,
@@ -1180,11 +870,11 @@ static int dcmi_enum_frameintervals(struct file *file, void *fh,
 	};
 	int ret;
 
-	sd_fmt = find_format_by_fourcc(dcmi, fival->pixel_format);
-	if (!sd_fmt)
+	dcmi_fmt = find_format_by_fourcc(dcmi, fival->pixel_format);
+	if (!dcmi_fmt)
 		return -EINVAL;
 
-	fie.code = sd_fmt->mbus_code;
+	fie.code = dcmi_fmt->mbus_code;
 
 	ret = v4l2_subdev_call(dcmi->entity.subdev, pad,
 			       enum_frame_interval, NULL, &fie);
@@ -1262,8 +952,6 @@ static const struct v4l2_ioctl_ops dcmi_ioctl_ops = {
 	.vidioc_g_fmt_vid_cap		= dcmi_g_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap		= dcmi_s_fmt_vid_cap,
 	.vidioc_enum_fmt_vid_cap	= dcmi_enum_fmt_vid_cap,
-	.vidioc_g_selection		= dcmi_g_selection,
-	.vidioc_s_selection		= dcmi_s_selection,
 
 	.vidioc_enum_input		= dcmi_enum_input,
 	.vidioc_g_input			= dcmi_g_input,
@@ -1308,15 +996,15 @@ static int dcmi_set_default_fmt(struct stm32_dcmi *dcmi)
 			.width		= CIF_WIDTH,
 			.height		= CIF_HEIGHT,
 			.field		= V4L2_FIELD_NONE,
-			.pixelformat	= dcmi->sd_formats[0]->fourcc,
+			.pixelformat	= dcmi->user_formats[0]->fourcc,
 		},
 	};
 	int ret;
 
-	ret = dcmi_try_fmt(dcmi, &f, NULL, NULL);
+	ret = dcmi_try_fmt(dcmi, &f, NULL);
 	if (ret)
 		return ret;
-	dcmi->sd_format = dcmi->sd_formats[0];
+	dcmi->current_fmt = dcmi->user_formats[0];
 	dcmi->fmt = f;
 	return 0;
 }
@@ -1339,7 +1027,7 @@ static const struct dcmi_format dcmi_formats[] = {
 
 static int dcmi_formats_init(struct stm32_dcmi *dcmi)
 {
-	const struct dcmi_format *sd_fmts[ARRAY_SIZE(dcmi_formats)];
+	const struct dcmi_format *dcmi_fmts[ARRAY_SIZE(dcmi_formats)];
 	unsigned int num_fmts = 0, i, j;
 	struct v4l2_subdev *subdev = dcmi->entity.subdev;
 	struct v4l2_subdev_mbus_code_enum mbus_code = {
@@ -1354,13 +1042,13 @@ static int dcmi_formats_init(struct stm32_dcmi *dcmi)
 
 			/* Code supported, have we got this fourcc yet? */
 			for (j = 0; j < num_fmts; j++)
-				if (sd_fmts[j]->fourcc ==
+				if (dcmi_fmts[j]->fourcc ==
 						dcmi_formats[i].fourcc)
 					/* Already available */
 					break;
 			if (j == num_fmts)
 				/* New */
-				sd_fmts[num_fmts++] = dcmi_formats + i;
+				dcmi_fmts[num_fmts++] = dcmi_formats + i;
 		}
 		mbus_code.index++;
 	}
@@ -1368,63 +1056,18 @@ static int dcmi_formats_init(struct stm32_dcmi *dcmi)
 	if (!num_fmts)
 		return -ENXIO;
 
-	dcmi->num_of_sd_formats = num_fmts;
-	dcmi->sd_formats = devm_kcalloc(dcmi->dev,
-					num_fmts, sizeof(struct dcmi_format *),
-					GFP_KERNEL);
-	if (!dcmi->sd_formats) {
-		dev_err(dcmi->dev, "Could not allocate memory\n");
+	dcmi->num_user_formats = num_fmts;
+	dcmi->user_formats = devm_kcalloc(dcmi->dev,
+					 num_fmts, sizeof(struct dcmi_format *),
+					 GFP_KERNEL);
+	if (!dcmi->user_formats) {
+		dev_err(dcmi->dev, "could not allocate memory\n");
 		return -ENOMEM;
 	}
 
-	memcpy(dcmi->sd_formats, sd_fmts,
+	memcpy(dcmi->user_formats, dcmi_fmts,
 	       num_fmts * sizeof(struct dcmi_format *));
-	dcmi->sd_format = dcmi->sd_formats[0];
-
-	return 0;
-}
-
-static int dcmi_framesizes_init(struct stm32_dcmi *dcmi)
-{
-	unsigned int num_fsize = 0;
-	struct v4l2_subdev *subdev = dcmi->entity.subdev;
-	struct v4l2_subdev_frame_size_enum fse = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.code = dcmi->sd_format->mbus_code,
-	};
-	unsigned int ret;
-	unsigned int i;
-
-	/* Allocate discrete framesizes array */
-	while (!v4l2_subdev_call(subdev, pad, enum_frame_size,
-				 NULL, &fse))
-		fse.index++;
-
-	num_fsize = fse.index;
-	if (!num_fsize)
-		return 0;
-
-	dcmi->num_of_sd_framesizes = num_fsize;
-	dcmi->sd_framesizes = devm_kcalloc(dcmi->dev, num_fsize,
-					   sizeof(struct dcmi_framesize),
-					   GFP_KERNEL);
-	if (!dcmi->sd_framesizes) {
-		dev_err(dcmi->dev, "Could not allocate memory\n");
-		return -ENOMEM;
-	}
-
-	/* Fill array with sensor supported framesizes */
-	dev_dbg(dcmi->dev, "Sensor supports %u frame sizes:\n", num_fsize);
-	for (i = 0; i < dcmi->num_of_sd_framesizes; i++) {
-		fse.index = i;
-		ret = v4l2_subdev_call(subdev, pad, enum_frame_size,
-				       NULL, &fse);
-		if (ret)
-			return ret;
-		dcmi->sd_framesizes[fse.index].width = fse.max_width;
-		dcmi->sd_framesizes[fse.index].height = fse.max_height;
-		dev_dbg(dcmi->dev, "%ux%u\n", fse.max_width, fse.max_height);
-	}
+	dcmi->current_fmt = dcmi->user_formats[0];
 
 	return 0;
 }
@@ -1438,18 +1081,6 @@ static int dcmi_graph_notify_complete(struct v4l2_async_notifier *notifier)
 	ret = dcmi_formats_init(dcmi);
 	if (ret) {
 		dev_err(dcmi->dev, "No supported mediabus format found\n");
-		return ret;
-	}
-
-	ret = dcmi_framesizes_init(dcmi);
-	if (ret) {
-		dev_err(dcmi->dev, "Could not initialize framesizes\n");
-		return ret;
-	}
-
-	ret = dcmi_get_sensor_bounds(dcmi, &dcmi->sd_bounds);
-	if (ret) {
-		dev_err(dcmi->dev, "Could not get sensor bounds\n");
 		return ret;
 	}
 
@@ -1578,7 +1209,7 @@ static int dcmi_probe(struct platform_device *pdev)
 	if (!dcmi)
 		return -ENOMEM;
 
-	dcmi->rstc = devm_reset_control_get_exclusive(&pdev->dev, NULL);
+	dcmi->rstc = devm_reset_control_get(&pdev->dev, NULL);
 	if (IS_ERR(dcmi->rstc)) {
 		dev_err(&pdev->dev, "Could not get reset control\n");
 		return -ENODEV;

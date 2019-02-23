@@ -874,6 +874,7 @@ static void decode_rxts(struct dp83640_private *dp83640,
 			shhwtstamps = skb_hwtstamps(skb);
 			memset(shhwtstamps, 0, sizeof(*shhwtstamps));
 			shhwtstamps->hwtstamp = ns_to_ktime(rxts->ns);
+			netif_rx_ni(skb);
 			list_add(&rxts->list, &dp83640->rxpool);
 			break;
 		}
@@ -884,9 +885,6 @@ static void decode_rxts(struct dp83640_private *dp83640,
 		list_add_tail(&rxts->list, &dp83640->rxts);
 out:
 	spin_unlock_irqrestore(&dp83640->rx_lock, flags);
-
-	if (shhwtstamps)
-		netif_rx_ni(skb);
 }
 
 static void decode_txts(struct dp83640_private *dp83640,
@@ -1427,6 +1425,7 @@ static bool dp83640_rxtstamp(struct phy_device *phydev,
 			shhwtstamps = skb_hwtstamps(skb);
 			memset(shhwtstamps, 0, sizeof(*shhwtstamps));
 			shhwtstamps->hwtstamp = ns_to_ktime(rxts->ns);
+			netif_rx_ni(skb);
 			list_del_init(&rxts->list);
 			list_add(&rxts->list, &dp83640->rxpool);
 			break;
@@ -1439,8 +1438,6 @@ static bool dp83640_rxtstamp(struct phy_device *phydev,
 		skb_info->tmo = jiffies + SKB_TIMESTAMP_TIMEOUT;
 		skb_queue_tail(&dp83640->rx_queue, skb);
 		schedule_delayed_work(&dp83640->ts_work, SKB_TIMESTAMP_TIMEOUT);
-	} else {
-		netif_rx_ni(skb);
 	}
 
 	return true;

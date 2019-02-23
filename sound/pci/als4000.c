@@ -592,7 +592,7 @@ static irqreturn_t snd_als4000_interrupt(int irq, void *dev_id)
 
 /*****************************************************************/
 
-static const struct snd_pcm_hardware snd_als4000_playback =
+static struct snd_pcm_hardware snd_als4000_playback =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),
@@ -611,7 +611,7 @@ static const struct snd_pcm_hardware snd_als4000_playback =
 	.fifo_size =		0
 };
 
-static const struct snd_pcm_hardware snd_als4000_capture =
+static struct snd_pcm_hardware snd_als4000_capture =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),

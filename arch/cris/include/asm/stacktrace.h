@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CRIS_STACKTRACE_H
 #define __CRIS_STACKTRACE_H
 

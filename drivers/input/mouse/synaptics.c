@@ -535,16 +535,15 @@ static void synaptics_apply_quirks(struct psmouse *psmouse,
 	}
 }
 
-static bool synaptics_has_agm(struct synaptics_data *priv)
-{
-	return (SYN_CAP_ADV_GESTURE(priv->info.ext_cap_0c) ||
-		SYN_CAP_IMAGE_SENSOR(priv->info.ext_cap_0c));
-}
-
 static int synaptics_set_advanced_gesture_mode(struct psmouse *psmouse)
 {
 	static u8 param = 0xc8;
+	struct synaptics_data *priv = psmouse->private;
 	int error;
+
+	if (!(SYN_CAP_ADV_GESTURE(priv->info.ext_cap_0c) ||
+	      SYN_CAP_IMAGE_SENSOR(priv->info.ext_cap_0c)))
+		return 0;
 
 	error = psmouse_sliced_command(psmouse, SYN_QUE_MODEL);
 	if (error)
@@ -553,6 +552,9 @@ static int synaptics_set_advanced_gesture_mode(struct psmouse *psmouse)
 	error = ps2_command(&psmouse->ps2dev, &param, PSMOUSE_CMD_SETRATE);
 	if (error)
 		return error;
+
+	/* Advanced gesture mode also sends multi finger data */
+	priv->info.capabilities |= BIT(1);
 
 	return 0;
 }
@@ -576,7 +578,7 @@ static int synaptics_set_mode(struct psmouse *psmouse)
 	if (error)
 		return error;
 
-	if (priv->absolute_mode && synaptics_has_agm(priv)) {
+	if (priv->absolute_mode) {
 		error = synaptics_set_advanced_gesture_mode(psmouse);
 		if (error) {
 			psmouse_err(psmouse,
@@ -764,7 +766,9 @@ static int synaptics_parse_hw_state(const u8 buf[],
 			 ((buf[0] & 0x04) >> 1) |
 			 ((buf[3] & 0x04) >> 2));
 
-		if (synaptics_has_agm(priv) && hw->w == 2) {
+		if ((SYN_CAP_ADV_GESTURE(priv->info.ext_cap_0c) ||
+			SYN_CAP_IMAGE_SENSOR(priv->info.ext_cap_0c)) &&
+		    hw->w == 2) {
 			synaptics_parse_agm(buf, priv, hw);
 			return 1;
 		}
@@ -1029,15 +1033,6 @@ static void synaptics_image_sensor_process(struct psmouse *psmouse,
 	synaptics_report_mt_data(psmouse, sgm, num_fingers);
 }
 
-static bool synaptics_has_multifinger(struct synaptics_data *priv)
-{
-	if (SYN_CAP_MULTIFINGER(priv->info.capabilities))
-		return true;
-
-	/* Advanced gesture mode also sends multi finger data */
-	return synaptics_has_agm(priv);
-}
-
 /*
  *  called for each full received packet from the touchpad
  */
@@ -1084,7 +1079,7 @@ static void synaptics_process_packet(struct psmouse *psmouse)
 		if (SYN_CAP_EXTENDED(info->capabilities)) {
 			switch (hw.w) {
 			case 0 ... 1:
-				if (synaptics_has_multifinger(priv))
+				if (SYN_CAP_MULTIFINGER(info->capabilities))
 					num_fingers = hw.w + 2;
 				break;
 			case 2:
@@ -1128,7 +1123,7 @@ static void synaptics_process_packet(struct psmouse *psmouse)
 		input_report_abs(dev, ABS_TOOL_WIDTH, finger_width);
 
 	input_report_key(dev, BTN_TOOL_FINGER, num_fingers == 1);
-	if (synaptics_has_multifinger(priv)) {
+	if (SYN_CAP_MULTIFINGER(info->capabilities)) {
 		input_report_key(dev, BTN_TOOL_DOUBLETAP, num_fingers == 2);
 		input_report_key(dev, BTN_TOOL_TRIPLETAP, num_fingers == 3);
 	}
@@ -1288,7 +1283,7 @@ static void set_input_params(struct psmouse *psmouse,
 	__set_bit(BTN_TOUCH, dev->keybit);
 	__set_bit(BTN_TOOL_FINGER, dev->keybit);
 
-	if (synaptics_has_multifinger(priv)) {
+	if (SYN_CAP_MULTIFINGER(info->capabilities)) {
 		__set_bit(BTN_TOOL_DOUBLETAP, dev->keybit);
 		__set_bit(BTN_TOOL_TRIPLETAP, dev->keybit);
 	}
@@ -1709,7 +1704,8 @@ static int synaptics_create_intertouch(struct psmouse *psmouse,
 		.sensor_pdata = {
 			.sensor_type = rmi_sensor_touchpad,
 			.axis_align.flip_y = true,
-			.kernel_tracking = false,
+			/* to prevent cursors jumps: */
+			.kernel_tracking = true,
 			.topbuttonpad = topbuttonpad,
 		},
 		.f30_data = {

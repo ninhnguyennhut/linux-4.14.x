@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Stream co-processor driver for the ETRAX FS
  *

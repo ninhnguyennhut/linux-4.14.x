@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * cdrom.c IOCTLs handling for ide-cd driver.
  *

@@ -421,7 +421,8 @@ static int i2c_sirfsoc_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int i2c_sirfsoc_suspend(struct device *dev)
 {
-	struct i2c_adapter *adapter = dev_get_drvdata(dev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct i2c_adapter *adapter = platform_get_drvdata(pdev);
 	struct sirfsoc_i2c *siic = adapter->algo_data;
 
 	clk_enable(siic->clk);
@@ -433,7 +434,8 @@ static int i2c_sirfsoc_suspend(struct device *dev)
 
 static int i2c_sirfsoc_resume(struct device *dev)
 {
-	struct i2c_adapter *adapter = dev_get_drvdata(dev);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct i2c_adapter *adapter = platform_get_drvdata(pdev);
 	struct sirfsoc_i2c *siic = adapter->algo_data;
 
 	clk_enable(siic->clk);

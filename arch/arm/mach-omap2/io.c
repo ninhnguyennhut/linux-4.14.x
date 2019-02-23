@@ -428,6 +428,7 @@ static void __init __maybe_unused omap_hwmod_init_postsetup(void)
 static void __init __maybe_unused omap_common_late_init(void)
 {
 	omap2_common_pm_late_init();
+	omap_soc_device_init();
 }
 
 #ifdef CONFIG_SOC_OMAP2420

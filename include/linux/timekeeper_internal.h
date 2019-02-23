@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * You SHOULD NOT be including this unless you're vsyscall
  * handling code or timekeeping internal code!

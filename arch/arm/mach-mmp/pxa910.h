@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_MACH_PXA910_H
 #define __ASM_MACH_PXA910_H
 

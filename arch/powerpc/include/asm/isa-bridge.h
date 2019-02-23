@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ISA_BRIDGE_H
 #define __ISA_BRIDGE_H
 

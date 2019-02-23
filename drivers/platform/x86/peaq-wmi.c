@@ -8,7 +8,6 @@
  */
 
 #include <linux/acpi.h>
-#include <linux/dmi.h>
 #include <linux/input-polldev.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -40,7 +39,7 @@ static void peaq_wmi_poll(struct input_polled_dev *dev)
 	struct acpi_buffer input = { sizeof(dummy), &dummy };
 	struct acpi_buffer output = { sizeof(obj), &obj };
 
-	status = wmi_evaluate_method(PEAQ_DOLBY_BUTTON_GUID, 0,
+	status = wmi_evaluate_method(PEAQ_DOLBY_BUTTON_GUID, 1,
 				     PEAQ_DOLBY_BUTTON_METHOD_ID,
 				     &input, &output);
 	if (ACPI_FAILURE(status))
@@ -52,7 +51,7 @@ static void peaq_wmi_poll(struct input_polled_dev *dev)
 		return;
 	}
 
-	if (peaq_ignore_events_counter && peaq_ignore_events_counter--)
+	if (peaq_ignore_events_counter && --peaq_ignore_events_counter >= 0)
 		return;
 
 	if (obj.integer.value) {
@@ -65,23 +64,8 @@ static void peaq_wmi_poll(struct input_polled_dev *dev)
 	}
 }
 
-/* Some other devices (Shuttle XS35) use the same WMI GUID for other purposes */
-static const struct dmi_system_id peaq_dmi_table[] = {
-	{
-		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "PEAQ"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "PEAQ PMM C1010 MD99187"),
-		},
-	},
-	{}
-};
-
 static int __init peaq_wmi_init(void)
 {
-	/* WMI GUID is not unique, also check for a DMI match */
-	if (!dmi_check_system(peaq_dmi_table))
-		return -ENODEV;
-
 	if (!wmi_has_guid(PEAQ_DOLBY_BUTTON_GUID))
 		return -ENODEV;
 
@@ -102,9 +86,6 @@ static int __init peaq_wmi_init(void)
 
 static void __exit peaq_wmi_exit(void)
 {
-	if (!dmi_check_system(peaq_dmi_table))
-		return;
-
 	if (!wmi_has_guid(PEAQ_DOLBY_BUTTON_GUID))
 		return;
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * We need constants.h for:
  *  VMA_VM_MM

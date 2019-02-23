@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This contains encryption functions for per-file encryption.
  *
@@ -116,7 +115,7 @@ int fscrypt_zeroout_range(const struct inode *inode, pgoff_t lblk,
 			err = -ENOMEM;
 			goto errout;
 		}
-		bio_set_dev(bio, inode->i_sb->s_bdev);
+		bio->bi_bdev = inode->i_sb->s_bdev;
 		bio->bi_iter.bi_sector =
 			pblk << (inode->i_sb->s_blocksize_bits - 9);
 		bio_set_op_attrs(bio, REQ_OP_WRITE, 0);

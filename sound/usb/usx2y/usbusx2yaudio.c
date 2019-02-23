@@ -419,8 +419,10 @@ static int usX2Y_urbs_allocate(struct snd_usX2Y_substream *subs)
 
 	if (is_playback && NULL == subs->tmpbuf) {	/* allocate a temporary buffer for playback */
 		subs->tmpbuf = kcalloc(nr_of_packs(), subs->maxpacksize, GFP_KERNEL);
-		if (!subs->tmpbuf)
+		if (NULL == subs->tmpbuf) {
+			snd_printk(KERN_ERR "cannot malloc tmpbuf\n");
 			return -ENOMEM;
+		}
 	}
 	/* allocate and initialize data urbs */
 	for (i = 0; i < NRURBS; i++) {
@@ -905,7 +907,7 @@ static int snd_usX2Y_pcm_close(struct snd_pcm_substream *substream)
 }
 
 
-static const struct snd_pcm_ops snd_usX2Y_pcm_ops =
+static struct snd_pcm_ops snd_usX2Y_pcm_ops = 
 {
 	.open =		snd_usX2Y_pcm_open,
 	.close =	snd_usX2Y_pcm_close,
@@ -947,9 +949,10 @@ static int usX2Y_audio_stream_new(struct snd_card *card, int playback_endpoint, 
 	for (i = playback_endpoint ? SNDRV_PCM_STREAM_PLAYBACK : SNDRV_PCM_STREAM_CAPTURE;
 	     i <= SNDRV_PCM_STREAM_CAPTURE; ++i) {
 		usX2Y_substream[i] = kzalloc(sizeof(struct snd_usX2Y_substream), GFP_KERNEL);
-		if (!usX2Y_substream[i])
+		if (NULL == usX2Y_substream[i]) {
+			snd_printk(KERN_ERR "cannot malloc\n");
 			return -ENOMEM;
-
+		}
 		usX2Y_substream[i]->usX2Y = usX2Y(card);
 	}
 

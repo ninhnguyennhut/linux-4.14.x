@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Itanium 2-optimized version of memcpy and copy_user function
  *

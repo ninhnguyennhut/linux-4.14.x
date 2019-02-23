@@ -619,6 +619,7 @@ struct mem_ctl_info {
 	 */
 	struct device *pdev;
 	const char *mod_name;
+	const char *mod_ver;
 	const char *ctl_name;
 	const char *dev_name;
 	void *pvt_info;

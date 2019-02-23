@@ -146,7 +146,6 @@ static void fq_tin_enqueue(struct fq *fq,
 			   fq_flow_get_default_t get_default_func)
 {
 	struct fq_flow *flow;
-	bool oom;
 
 	lockdep_assert_held(&fq->lock);
 
@@ -168,8 +167,8 @@ static void fq_tin_enqueue(struct fq *fq,
 	}
 
 	__skb_queue_tail(&flow->queue, skb);
-	oom = (fq->memory_usage > fq->memory_limit);
-	while (fq->backlog > fq->limit || oom) {
+
+	if (fq->backlog > fq->limit || fq->memory_usage > fq->memory_limit) {
 		flow = list_first_entry_or_null(&fq->backlogs,
 						struct fq_flow,
 						backlogchain);
@@ -184,10 +183,8 @@ static void fq_tin_enqueue(struct fq *fq,
 
 		flow->tin->overlimit++;
 		fq->overlimit++;
-		if (oom) {
+		if (fq->memory_usage > fq->memory_limit)
 			fq->overmemory++;
-			oom = (fq->memory_usage > fq->memory_limit);
-		}
 	}
 }
 

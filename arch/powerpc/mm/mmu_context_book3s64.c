@@ -25,6 +25,8 @@
 #include <asm/mmu_context.h>
 #include <asm/pgalloc.h>
 
+#include "icswx.h"
+
 static DEFINE_SPINLOCK(mmu_context_lock);
 static DEFINE_IDA(mmu_context_ida);
 
@@ -93,11 +95,11 @@ static int hash__init_new_context(struct mm_struct *mm)
 		return index;
 
 	/*
-	 * In the case of exec, use the default limit,
-	 * otherwise inherit it from the mm we are duplicating.
+	 * We do switch_slb() early in fork, even before we setup the
+	 * mm->context.addr_limit. Default to max task size so that we copy the
+	 * default values to paca which will help us to handle slb miss early.
 	 */
-	if (!mm->context.addr_limit)
-		mm->context.addr_limit = DEFAULT_MAP_WINDOW_USER64;
+	mm->context.addr_limit = DEFAULT_MAP_WINDOW_USER64;
 
 	/*
 	 * The old code would re-promote on fork, we don't do that when using
@@ -163,6 +165,16 @@ int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 		return index;
 
 	mm->context.id = index;
+#ifdef CONFIG_PPC_ICSWX
+	mm->context.cop_lockp = kmalloc(sizeof(spinlock_t), GFP_KERNEL);
+	if (!mm->context.cop_lockp) {
+		__destroy_context(index);
+		subpage_prot_free(mm);
+		mm->context.id = MMU_NO_CONTEXT;
+		return -ENOMEM;
+	}
+	spin_lock_init(mm->context.cop_lockp);
+#endif /* CONFIG_PPC_ICSWX */
 
 #ifdef CONFIG_PPC_64K_PAGES
 	mm->context.pte_frag = NULL;
@@ -170,8 +182,6 @@ int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
 #ifdef CONFIG_SPAPR_TCE_IOMMU
 	mm_iommu_init(mm);
 #endif
-	atomic_set(&mm->context.active_cpus, 0);
-
 	return 0;
 }
 
@@ -216,6 +226,12 @@ void destroy_context(struct mm_struct *mm)
 #ifdef CONFIG_SPAPR_TCE_IOMMU
 	WARN_ON_ONCE(!list_empty(&mm->context.iommu_group_mem_list));
 #endif
+#ifdef CONFIG_PPC_ICSWX
+	drop_cop(mm->context.acop, mm);
+	kfree(mm->context.cop_lockp);
+	mm->context.cop_lockp = NULL;
+#endif /* CONFIG_PPC_ICSWX */
+
 	if (radix_enabled()) {
 		/*
 		 * Radix doesn't have a valid bit in the process table

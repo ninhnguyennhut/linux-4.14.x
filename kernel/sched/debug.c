@@ -181,15 +181,10 @@ static const struct file_operations sched_feat_fops = {
 	.release	= single_release,
 };
 
-__read_mostly bool sched_debug_enabled;
-
 static __init int sched_init_debug(void)
 {
 	debugfs_create_file("sched_features", 0644, NULL, NULL,
 			&sched_feat_fops);
-
-	debugfs_create_bool("sched_debug", 0644, NULL,
-			&sched_debug_enabled);
 
 	return 0;
 }
@@ -332,71 +327,29 @@ static struct ctl_table *sd_alloc_ctl_cpu_table(int cpu)
 	return table;
 }
 
-static cpumask_var_t sd_sysctl_cpus;
 static struct ctl_table_header *sd_sysctl_header;
-
 void register_sched_domain_sysctl(void)
 {
-	static struct ctl_table *cpu_entries;
-	static struct ctl_table **cpu_idx;
+	int i, cpu_num = num_possible_cpus();
+	struct ctl_table *entry = sd_alloc_ctl_entry(cpu_num + 1);
 	char buf[32];
-	int i;
 
-	if (!cpu_entries) {
-		cpu_entries = sd_alloc_ctl_entry(num_possible_cpus() + 1);
-		if (!cpu_entries)
-			return;
+	WARN_ON(sd_ctl_dir[0].child);
+	sd_ctl_dir[0].child = entry;
 
-		WARN_ON(sd_ctl_dir[0].child);
-		sd_ctl_dir[0].child = cpu_entries;
-	}
+	if (entry == NULL)
+		return;
 
-	if (!cpu_idx) {
-		struct ctl_table *e = cpu_entries;
-
-		cpu_idx = kcalloc(nr_cpu_ids, sizeof(struct ctl_table*), GFP_KERNEL);
-		if (!cpu_idx)
-			return;
-
-		/* deal with sparse possible map */
-		for_each_possible_cpu(i) {
-			cpu_idx[i] = e;
-			e++;
-		}
-	}
-
-	if (!cpumask_available(sd_sysctl_cpus)) {
-		if (!alloc_cpumask_var(&sd_sysctl_cpus, GFP_KERNEL))
-			return;
-
-		/* init to possible to not have holes in @cpu_entries */
-		cpumask_copy(sd_sysctl_cpus, cpu_possible_mask);
-	}
-
-	for_each_cpu(i, sd_sysctl_cpus) {
-		struct ctl_table *e = cpu_idx[i];
-
-		if (e->child)
-			sd_free_ctl_entry(&e->child);
-
-		if (!e->procname) {
-			snprintf(buf, 32, "cpu%d", i);
-			e->procname = kstrdup(buf, GFP_KERNEL);
-		}
-		e->mode = 0555;
-		e->child = sd_alloc_ctl_cpu_table(i);
-
-		__cpumask_clear_cpu(i, sd_sysctl_cpus);
+	for_each_possible_cpu(i) {
+		snprintf(buf, 32, "cpu%d", i);
+		entry->procname = kstrdup(buf, GFP_KERNEL);
+		entry->mode = 0555;
+		entry->child = sd_alloc_ctl_cpu_table(i);
+		entry++;
 	}
 
 	WARN_ON(sd_sysctl_header);
 	sd_sysctl_header = register_sysctl_table(sd_ctl_root);
-}
-
-void dirty_sched_domain_sysctl(int cpu)
-{
-	if (cpumask_available(sd_sysctl_cpus))
-		__cpumask_set_cpu(cpu, sd_sysctl_cpus);
 }
 
 /* may be called multiple times per register */
@@ -404,6 +357,8 @@ void unregister_sched_domain_sysctl(void)
 {
 	unregister_sysctl_table(sd_sysctl_header);
 	sd_sysctl_header = NULL;
+	if (sd_ctl_dir[0].child)
+		sd_free_ctl_entry(&sd_ctl_dir[0].child);
 }
 #endif /* CONFIG_SYSCTL */
 #endif /* CONFIG_SMP */
@@ -470,9 +425,9 @@ static void
 print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
 {
 	if (rq->curr == p)
-		SEQ_printf(m, ">R");
+		SEQ_printf(m, "R");
 	else
-		SEQ_printf(m, " %c", task_state_to_char(p));
+		SEQ_printf(m, " ");
 
 	SEQ_printf(m, "%15s %5d %9Ld.%06ld %9Ld %5d ",
 		p->comm, task_pid_nr(p),
@@ -501,9 +456,9 @@ static void print_rq(struct seq_file *m, struct rq *rq, int rq_cpu)
 
 	SEQ_printf(m,
 	"\nrunnable tasks:\n"
-	" S           task   PID         tree-key  switches  prio"
+	"            task   PID         tree-key  switches  prio"
 	"     wait-time             sum-exec        sum-sleep\n"
-	"-------------------------------------------------------"
+	"------------------------------------------------------"
 	"----------------------------------------------------\n");
 
 	rcu_read_lock();
@@ -533,7 +488,7 @@ void print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq)
 			SPLIT_NS(cfs_rq->exec_clock));
 
 	raw_spin_lock_irqsave(&rq->lock, flags);
-	if (rb_first_cached(&cfs_rq->tasks_timeline))
+	if (cfs_rq->rb_leftmost)
 		MIN_vruntime = (__pick_first_entity(cfs_rq))->vruntime;
 	last = __pick_last_entity(cfs_rq);
 	if (last)
@@ -917,12 +872,11 @@ static void sched_show_numa(struct task_struct *p, struct seq_file *m)
 #endif
 }
 
-void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
-						  struct seq_file *m)
+void proc_sched_show_task(struct task_struct *p, struct seq_file *m)
 {
 	unsigned long nr_switches;
 
-	SEQ_printf(m, "%s (%d, #threads: %d)\n", p->comm, task_pid_nr_ns(p, ns),
+	SEQ_printf(m, "%s (%d, #threads: %d)\n", p->comm, task_pid_nr(p),
 						get_nr_threads(p));
 	SEQ_printf(m,
 		"---------------------------------------------------------"

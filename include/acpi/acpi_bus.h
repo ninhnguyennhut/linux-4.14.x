@@ -105,7 +105,6 @@ enum acpi_bus_device_type {
 	ACPI_BUS_TYPE_THERMAL,
 	ACPI_BUS_TYPE_POWER_BUTTON,
 	ACPI_BUS_TYPE_SLEEP_BUTTON,
-	ACPI_BUS_TYPE_ECDT_EC,
 	ACPI_BUS_DEVICE_TYPE_COUNT
 };
 
@@ -317,6 +316,7 @@ struct acpi_device_perf {
 struct acpi_device_wakeup_flags {
 	u8 valid:1;		/* Can successfully enable wakeup? */
 	u8 notifier_present:1;  /* Wake-up notify handler has been installed */
+	u8 enabled:1;		/* Enabled for wakeup */
 };
 
 struct acpi_device_wakeup_context {
@@ -333,7 +333,6 @@ struct acpi_device_wakeup {
 	struct acpi_device_wakeup_context context;
 	struct wakeup_source *ws;
 	int prepare_count;
-	int enable_count;
 };
 
 struct acpi_device_physical_node {
@@ -396,45 +395,35 @@ struct acpi_data_node {
 	struct completion kobj_done;
 };
 
-extern const struct fwnode_operations acpi_device_fwnode_ops;
-extern const struct fwnode_operations acpi_data_fwnode_ops;
-extern const struct fwnode_operations acpi_static_fwnode_ops;
-
-bool is_acpi_device_node(const struct fwnode_handle *fwnode);
-bool is_acpi_data_node(const struct fwnode_handle *fwnode);
-
-static inline bool is_acpi_node(const struct fwnode_handle *fwnode)
+static inline bool is_acpi_node(struct fwnode_handle *fwnode)
 {
-	return (is_acpi_device_node(fwnode) || is_acpi_data_node(fwnode));
+	return !IS_ERR_OR_NULL(fwnode) && (fwnode->type == FWNODE_ACPI
+		|| fwnode->type == FWNODE_ACPI_DATA);
 }
 
-#define to_acpi_device_node(__fwnode)					\
-	({								\
-		typeof(__fwnode) __to_acpi_device_node_fwnode = __fwnode; \
-									\
-		is_acpi_device_node(__to_acpi_device_node_fwnode) ?	\
-			container_of(__to_acpi_device_node_fwnode,	\
-				     struct acpi_device, fwnode) :	\
-			NULL;						\
-	})
-
-#define to_acpi_data_node(__fwnode)					\
-	({								\
-		typeof(__fwnode) __to_acpi_data_node_fwnode = __fwnode;	\
-									\
-		is_acpi_data_node(__to_acpi_data_node_fwnode) ?		\
-			container_of(__to_acpi_data_node_fwnode,	\
-				     struct acpi_data_node, fwnode) :	\
-			NULL;						\
-	})
-
-static inline bool is_acpi_static_node(const struct fwnode_handle *fwnode)
+static inline bool is_acpi_device_node(struct fwnode_handle *fwnode)
 {
-	return !IS_ERR_OR_NULL(fwnode) &&
-		fwnode->ops == &acpi_static_fwnode_ops;
+	return !IS_ERR_OR_NULL(fwnode) && fwnode->type == FWNODE_ACPI;
 }
 
-static inline bool acpi_data_node_match(const struct fwnode_handle *fwnode,
+static inline struct acpi_device *to_acpi_device_node(struct fwnode_handle *fwnode)
+{
+	return is_acpi_device_node(fwnode) ?
+		container_of(fwnode, struct acpi_device, fwnode) : NULL;
+}
+
+static inline bool is_acpi_data_node(struct fwnode_handle *fwnode)
+{
+	return fwnode && fwnode->type == FWNODE_ACPI_DATA;
+}
+
+static inline struct acpi_data_node *to_acpi_data_node(struct fwnode_handle *fwnode)
+{
+	return is_acpi_data_node(fwnode) ?
+		container_of(fwnode, struct acpi_data_node, fwnode) : NULL;
+}
+
+static inline bool acpi_data_node_match(struct fwnode_handle *fwnode,
 					const char *name)
 {
 	return is_acpi_data_node(fwnode) ?
@@ -589,8 +578,6 @@ struct acpi_pci_root {
 
 bool acpi_dma_supported(struct acpi_device *adev);
 enum dev_dma_attr acpi_get_dma_attr(struct acpi_device *adev);
-int acpi_dma_get_range(struct device *dev, u64 *dma_addr, u64 *offset,
-		       u64 *size);
 int acpi_dma_configure(struct device *dev, enum dev_dma_attr attr);
 void acpi_dma_deconfigure(struct device *dev);
 
@@ -619,7 +606,6 @@ acpi_status acpi_remove_pm_notifier(struct acpi_device *adev);
 bool acpi_pm_device_can_wakeup(struct device *dev);
 int acpi_pm_device_sleep_state(struct device *, int *, int);
 int acpi_pm_set_device_wakeup(struct device *dev, bool enable);
-int acpi_pm_set_bridge_wakeup(struct device *dev, bool enable);
 #else
 static inline void acpi_pm_wakeup_event(struct device *dev)
 {
@@ -647,10 +633,6 @@ static inline int acpi_pm_device_sleep_state(struct device *d, int *p, int m)
 		m : ACPI_STATE_D0;
 }
 static inline int acpi_pm_set_device_wakeup(struct device *dev, bool enable)
-{
-	return -ENODEV;
-}
-static inline int acpi_pm_set_bridge_wakeup(struct device *dev, bool enable)
 {
 	return -ENODEV;
 }

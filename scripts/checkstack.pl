@@ -1,5 +1,4 @@
 #!/usr/bin/env perl
-# SPDX-License-Identifier: GPL-2.0
 
 #	Check the stack usage of functions
 #

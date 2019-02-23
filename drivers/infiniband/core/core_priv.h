@@ -38,7 +38,6 @@
 #include <linux/cgroup_rdma.h>
 
 #include <rdma/ib_verbs.h>
-#include <rdma/opa_addr.h>
 #include <rdma/ib_mad.h>
 #include "mad_priv.h"
 
@@ -102,14 +101,6 @@ void ib_enum_all_roce_netdevs(roce_netdev_filter filter,
 			      void *filter_cookie,
 			      roce_netdev_callback cb,
 			      void *cookie);
-
-typedef int (*nldev_callback)(struct ib_device *device,
-			      struct sk_buff *skb,
-			      struct netlink_callback *cb,
-			      unsigned int idx);
-
-int ib_enum_all_devs(nldev_callback nldev_cb, struct sk_buff *skb,
-		     struct netlink_callback *cb);
 
 enum ib_cache_gid_default_mode {
 	IB_CACHE_GID_DEFAULT_MODE_SET,
@@ -188,8 +179,8 @@ void ib_mad_cleanup(void);
 int ib_sa_init(void);
 void ib_sa_cleanup(void);
 
-int rdma_nl_init(void);
-void rdma_nl_exit(void);
+int ibnl_init(void);
+void ibnl_cleanup(void);
 
 /**
  * Check if there are any listeners to the netlink group
@@ -199,14 +190,11 @@ void rdma_nl_exit(void);
 int ibnl_chk_listeners(unsigned int group);
 
 int ib_nl_handle_resolve_resp(struct sk_buff *skb,
-			      struct nlmsghdr *nlh,
-			      struct netlink_ext_ack *extack);
+			      struct netlink_callback *cb);
 int ib_nl_handle_set_timeout(struct sk_buff *skb,
-			     struct nlmsghdr *nlh,
-			     struct netlink_ext_ack *extack);
+			     struct netlink_callback *cb);
 int ib_nl_handle_ip_res_resp(struct sk_buff *skb,
-			     struct nlmsghdr *nlh,
-			     struct netlink_ext_ack *extack);
+			     struct netlink_callback *cb);
 
 int ib_get_cached_subnet_prefix(struct ib_device *device,
 				u8                port_num,
@@ -313,9 +301,4 @@ static inline int ib_mad_enforce_security(struct ib_mad_agent_private *map,
 	return 0;
 }
 #endif
-
-struct ib_device *__ib_device_get_by_index(u32 ifindex);
-/* RDMA device netlink */
-void nldev_init(void);
-void nldev_exit(void);
 #endif /* _CORE_PRIV_H */

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * /dev/lcd driver for Apple Network Servers.
  */

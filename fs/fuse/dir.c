@@ -923,27 +923,31 @@ static int fuse_do_getattr(struct inode *inode, struct kstat *stat,
 	return err;
 }
 
-static int fuse_update_get_attr(struct inode *inode, struct file *file,
-				struct kstat *stat)
+int fuse_update_attributes(struct inode *inode, struct kstat *stat,
+			   struct file *file, bool *refreshed)
 {
 	struct fuse_inode *fi = get_fuse_inode(inode);
-	int err = 0;
+	int err;
+	bool r;
 
 	if (time_before64(fi->i_time, get_jiffies_64())) {
+		r = true;
 		forget_all_cached_acls(inode);
 		err = fuse_do_getattr(inode, stat, file);
-	} else if (stat) {
-		generic_fillattr(inode, stat);
-		stat->mode = fi->orig_i_mode;
-		stat->ino = fi->orig_ino;
+	} else {
+		r = false;
+		err = 0;
+		if (stat) {
+			generic_fillattr(inode, stat);
+			stat->mode = fi->orig_i_mode;
+			stat->ino = fi->orig_ino;
+		}
 	}
 
-	return err;
-}
+	if (refreshed != NULL)
+		*refreshed = r;
 
-int fuse_update_attributes(struct inode *inode, struct file *file)
-{
-	return fuse_update_get_attr(inode, file, NULL);
+	return err;
 }
 
 int fuse_reverse_inval_entry(struct super_block *sb, u64 parent_nodeid,
@@ -1308,8 +1312,7 @@ static int parse_dirplusfile(char *buf, size_t nbytes, struct file *file,
 			*/
 			over = !dir_emit(ctx, dirent->name, dirent->namelen,
 				       dirent->ino, dirent->type);
-			if (!over)
-				ctx->pos = dirent->off;
+			ctx->pos = dirent->off;
 		}
 
 		buf += reclen;
@@ -1783,7 +1786,7 @@ static int fuse_getattr(const struct path *path, struct kstat *stat,
 	if (!fuse_allow_current_process(fc))
 		return -EACCES;
 
-	return fuse_update_get_attr(inode, NULL, stat);
+	return fuse_update_attributes(inode, stat, NULL, NULL);
 }
 
 static const struct inode_operations fuse_dir_inode_operations = {

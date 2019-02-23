@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _EDAC_MCE_AMD_H
 #define _EDAC_MCE_AMD_H
 

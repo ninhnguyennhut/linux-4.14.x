@@ -1199,23 +1199,30 @@ int ib_cache_setup_one(struct ib_device *device)
 	device->cache.ports =
 		kzalloc(sizeof(*device->cache.ports) *
 			(rdma_end_port(device) - rdma_start_port(device) + 1), GFP_KERNEL);
-	if (!device->cache.ports)
-		return -ENOMEM;
+	if (!device->cache.ports) {
+		err = -ENOMEM;
+		goto out;
+	}
 
 	err = gid_table_setup_one(device);
-	if (err) {
-		kfree(device->cache.ports);
-		device->cache.ports = NULL;
-		return err;
-	}
+	if (err)
+		goto out;
 
 	for (p = 0; p <= rdma_end_port(device) - rdma_start_port(device); ++p)
 		ib_cache_update(device, p + rdma_start_port(device), true);
 
 	INIT_IB_EVENT_HANDLER(&device->cache.event_handler,
 			      device, ib_cache_event);
-	ib_register_event_handler(&device->cache.event_handler);
+	err = ib_register_event_handler(&device->cache.event_handler);
+	if (err)
+		goto err;
+
 	return 0;
+
+err:
+	gid_table_cleanup_one(device);
+out:
+	return err;
 }
 
 void ib_cache_release_one(struct ib_device *device)

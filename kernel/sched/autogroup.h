@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifdef CONFIG_SCHED_AUTOGROUP
 
 #include <linux/kref.h>

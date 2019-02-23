@@ -568,13 +568,7 @@ static void rockchip_spi_config(struct rockchip_spi *rs)
 
 	writel_relaxed(cr0, rs->regs + ROCKCHIP_SPI_CTRLR0);
 
-	if (rs->n_bytes == 1)
-		writel_relaxed(rs->len - 1, rs->regs + ROCKCHIP_SPI_CTRLR1);
-	else if (rs->n_bytes == 2)
-		writel_relaxed((rs->len / 2) - 1, rs->regs + ROCKCHIP_SPI_CTRLR1);
-	else
-		writel_relaxed((rs->len * 2) - 1, rs->regs + ROCKCHIP_SPI_CTRLR1);
-
+	writel_relaxed(rs->len - 1, rs->regs + ROCKCHIP_SPI_CTRLR1);
 	writel_relaxed(rs->fifo_len / 2 - 1, rs->regs + ROCKCHIP_SPI_TXFTLR);
 	writel_relaxed(rs->fifo_len / 2 - 1, rs->regs + ROCKCHIP_SPI_RXFTLR);
 
@@ -672,7 +666,7 @@ static bool rockchip_spi_can_dma(struct spi_master *master,
 
 static int rockchip_spi_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	struct rockchip_spi *rs;
 	struct spi_master *master;
 	struct resource *mem;
@@ -709,13 +703,13 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 	}
 
 	ret = clk_prepare_enable(rs->apb_pclk);
-	if (ret < 0) {
+	if (ret) {
 		dev_err(&pdev->dev, "Failed to enable apb_pclk\n");
 		goto err_put_master;
 	}
 
 	ret = clk_prepare_enable(rs->spiclk);
-	if (ret < 0) {
+	if (ret) {
 		dev_err(&pdev->dev, "Failed to enable spi_clk\n");
 		goto err_disable_apbclk;
 	}
@@ -792,7 +786,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 	}
 
 	ret = devm_spi_register_master(&pdev->dev, master);
-	if (ret < 0) {
+	if (ret) {
 		dev_err(&pdev->dev, "Failed to register master\n");
 		goto err_free_dma_rx;
 	}
@@ -822,14 +816,10 @@ static int rockchip_spi_remove(struct platform_device *pdev)
 	struct spi_master *master = spi_master_get(platform_get_drvdata(pdev));
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
 
-	pm_runtime_get_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 
 	clk_disable_unprepare(rs->spiclk);
 	clk_disable_unprepare(rs->apb_pclk);
-
-	pm_runtime_put_noidle(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
-	pm_runtime_set_suspended(&pdev->dev);
 
 	if (rs->dma_tx.ch)
 		dma_release_channel(rs->dma_tx.ch);
@@ -844,34 +834,43 @@ static int rockchip_spi_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int rockchip_spi_suspend(struct device *dev)
 {
-	int ret;
+	int ret = 0;
 	struct spi_master *master = dev_get_drvdata(dev);
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
 
 	ret = spi_master_suspend(rs->master);
-	if (ret < 0)
+	if (ret)
 		return ret;
 
-	ret = pm_runtime_force_suspend(dev);
-	if (ret < 0)
-		return ret;
+	if (!pm_runtime_suspended(dev)) {
+		clk_disable_unprepare(rs->spiclk);
+		clk_disable_unprepare(rs->apb_pclk);
+	}
 
 	pinctrl_pm_select_sleep_state(dev);
 
-	return 0;
+	return ret;
 }
 
 static int rockchip_spi_resume(struct device *dev)
 {
-	int ret;
+	int ret = 0;
 	struct spi_master *master = dev_get_drvdata(dev);
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
 
 	pinctrl_pm_select_default_state(dev);
 
-	ret = pm_runtime_force_resume(dev);
-	if (ret < 0)
-		return ret;
+	if (!pm_runtime_suspended(dev)) {
+		ret = clk_prepare_enable(rs->apb_pclk);
+		if (ret < 0)
+			return ret;
+
+		ret = clk_prepare_enable(rs->spiclk);
+		if (ret < 0) {
+			clk_disable_unprepare(rs->apb_pclk);
+			return ret;
+		}
+	}
 
 	ret = spi_master_resume(rs->master);
 	if (ret < 0) {
@@ -879,7 +878,7 @@ static int rockchip_spi_resume(struct device *dev)
 		clk_disable_unprepare(rs->apb_pclk);
 	}
 
-	return 0;
+	return ret;
 }
 #endif /* CONFIG_PM_SLEEP */
 
@@ -902,14 +901,14 @@ static int rockchip_spi_runtime_resume(struct device *dev)
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
 
 	ret = clk_prepare_enable(rs->apb_pclk);
-	if (ret < 0)
+	if (ret)
 		return ret;
 
 	ret = clk_prepare_enable(rs->spiclk);
-	if (ret < 0)
+	if (ret)
 		clk_disable_unprepare(rs->apb_pclk);
 
-	return 0;
+	return ret;
 }
 #endif /* CONFIG_PM */
 
@@ -920,7 +919,6 @@ static const struct dev_pm_ops rockchip_spi_pm = {
 };
 
 static const struct of_device_id rockchip_spi_dt_match[] = {
-	{ .compatible = "rockchip,rv1108-spi", },
 	{ .compatible = "rockchip,rk3036-spi", },
 	{ .compatible = "rockchip,rk3066-spi", },
 	{ .compatible = "rockchip,rk3188-spi", },

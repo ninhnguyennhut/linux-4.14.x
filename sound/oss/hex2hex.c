@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * hex2hex reads stdin in Intel HEX format and produces an
  * (unsigned char) array which contains the bytes and writes it

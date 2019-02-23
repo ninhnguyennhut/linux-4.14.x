@@ -18,9 +18,8 @@
  */
 
 #define DEBUG_SUBSYSTEM S_LNET
-
 #include <linux/completion.h>
-#include <linux/lnet/lib-lnet.h>
+#include "../../include/linux/lnet/lib-lnet.h"
 
 #define LNET_NRB_TINY_MIN	512	/* min value for each CPT */
 #define LNET_NRB_TINY		(LNET_NRB_TINY_MIN * 4)

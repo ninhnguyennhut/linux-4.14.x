@@ -76,7 +76,7 @@ static void jfs_handle_error(struct super_block *sb)
 {
 	struct jfs_sb_info *sbi = JFS_SBI(sb);
 
-	if (sb_rdonly(sb))
+	if (sb->s_flags & MS_RDONLY)
 		return;
 
 	updateSuper(sb, FM_DIRTY);
@@ -468,7 +468,7 @@ static int jfs_remount(struct super_block *sb, int *flags, char *data)
 		return -EINVAL;
 
 	if (newLVSize) {
-		if (sb_rdonly(sb)) {
+		if (sb->s_flags & MS_RDONLY) {
 			pr_err("JFS: resize requires volume to be mounted read-write\n");
 			return -EROFS;
 		}
@@ -477,7 +477,7 @@ static int jfs_remount(struct super_block *sb, int *flags, char *data)
 			return rc;
 	}
 
-	if (sb_rdonly(sb) && !(*flags & MS_RDONLY)) {
+	if ((sb->s_flags & MS_RDONLY) && !(*flags & MS_RDONLY)) {
 		/*
 		 * Invalidate any previously read metadata.  fsck may have
 		 * changed the on-disk data since we mounted r/o
@@ -493,7 +493,7 @@ static int jfs_remount(struct super_block *sb, int *flags, char *data)
 		dquot_resume(sb, -1);
 		return ret;
 	}
-	if (!sb_rdonly(sb) && (*flags & MS_RDONLY)) {
+	if ((!(sb->s_flags & MS_RDONLY)) && (*flags & MS_RDONLY)) {
 		rc = dquot_suspend(sb, -1);
 		if (rc < 0)
 			return rc;
@@ -502,7 +502,7 @@ static int jfs_remount(struct super_block *sb, int *flags, char *data)
 		return rc;
 	}
 	if ((JFS_SBI(sb)->flag & JFS_NOINTEGRITY) != (flag & JFS_NOINTEGRITY))
-		if (!sb_rdonly(sb)) {
+		if (!(sb->s_flags & MS_RDONLY)) {
 			rc = jfs_umount_rw(sb);
 			if (rc)
 				return rc;
@@ -592,7 +592,7 @@ static int jfs_fill_super(struct super_block *sb, void *data, int silent)
 			jfs_err("jfs_mount failed w/return code = %d", rc);
 		goto out_mount_failed;
 	}
-	if (sb_rdonly(sb))
+	if (sb->s_flags & MS_RDONLY)
 		sbi->log = NULL;
 	else {
 		rc = jfs_mount_rw(sb, 0);
@@ -619,10 +619,16 @@ static int jfs_fill_super(struct super_block *sb, void *data, int silent)
 	if (!sb->s_root)
 		goto out_no_root;
 
-	/* logical blocks are represented by 40 bits in pxd_t, etc.
-	 * and page cache is indexed by long
+	/* logical blocks are represented by 40 bits in pxd_t, etc. */
+	sb->s_maxbytes = ((u64) sb->s_blocksize) << 40;
+#if BITS_PER_LONG == 32
+	/*
+	 * Page cache is indexed by long.
+	 * I would use MAX_LFS_FILESIZE, but it's only half as big
 	 */
-	sb->s_maxbytes = min(((loff_t)sb->s_blocksize) << 40, MAX_LFS_FILESIZE);
+	sb->s_maxbytes = min(((u64) PAGE_SIZE << 32) - 1,
+			     (u64)sb->s_maxbytes);
+#endif
 	sb->s_time_gran = 1;
 	return 0;
 
@@ -652,7 +658,7 @@ static int jfs_freeze(struct super_block *sb)
 	struct jfs_log *log = sbi->log;
 	int rc = 0;
 
-	if (!sb_rdonly(sb)) {
+	if (!(sb->s_flags & MS_RDONLY)) {
 		txQuiesce(sb);
 		rc = lmLogShutdown(log);
 		if (rc) {
@@ -682,7 +688,7 @@ static int jfs_unfreeze(struct super_block *sb)
 	struct jfs_log *log = sbi->log;
 	int rc = 0;
 
-	if (!sb_rdonly(sb)) {
+	if (!(sb->s_flags & MS_RDONLY)) {
 		rc = updateSuper(sb, FM_MOUNT);
 		if (rc) {
 			jfs_error(sb, "updateSuper failed\n");

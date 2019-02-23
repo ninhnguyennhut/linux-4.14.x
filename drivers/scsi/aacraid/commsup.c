@@ -770,8 +770,7 @@ int aac_hba_send(u8 command, struct fib *fibptr, fib_callback callback,
 		/* bit1 of request_id must be 0 */
 		hbacmd->request_id =
 			cpu_to_le32((((u32)(fibptr - dev->fibs)) << 2) + 1);
-		fibptr->flags |= FIB_CONTEXT_FLAG_SCSI_CMD;
-	} else if (command != HBA_IU_TYPE_SCSI_TM_REQ)
+	} else
 		return -EINVAL;
 
 
@@ -2383,19 +2382,19 @@ fib_free_out:
 	goto out;
 }
 
-int aac_send_safw_hostttime(struct aac_dev *dev, struct timespec64 *now)
+int aac_send_safw_hostttime(struct aac_dev *dev, struct timeval *now)
 {
 	struct tm cur_tm;
 	char wellness_str[] = "<HW>TD\010\0\0\0\0\0\0\0\0\0DW\0\0ZZ";
 	u32 datasize = sizeof(wellness_str);
-	time64_t local_time;
+	unsigned long local_time;
 	int ret = -ENODEV;
 
 	if (!dev->sa_firmware)
 		goto out;
 
-	local_time = (now->tv_sec - (sys_tz.tz_minuteswest * 60));
-	time64_to_tm(local_time, 0, &cur_tm);
+	local_time = (u32)(now->tv_sec - (sys_tz.tz_minuteswest * 60));
+	time_to_tm(local_time, 0, &cur_tm);
 	cur_tm.tm_mon += 1;
 	cur_tm.tm_year += 1900;
 	wellness_str[8] = bin2bcd(cur_tm.tm_hour);
@@ -2412,7 +2411,7 @@ out:
 	return ret;
 }
 
-int aac_send_hosttime(struct aac_dev *dev, struct timespec64 *now)
+int aac_send_hosttime(struct aac_dev *dev, struct timeval *now)
 {
 	int ret = -ENOMEM;
 	struct fib *fibptr;
@@ -2424,7 +2423,7 @@ int aac_send_hosttime(struct aac_dev *dev, struct timespec64 *now)
 
 	aac_fib_init(fibptr);
 	info = (__le32 *)fib_data(fibptr);
-	*info = cpu_to_le32(now->tv_sec); /* overflow in y2106 */
+	*info = cpu_to_le32(now->tv_sec);
 	ret = aac_fib_send(SendHostTime, fibptr, sizeof(*info), FsaNormal,
 					1, 1, NULL, NULL);
 
@@ -2496,7 +2495,7 @@ int aac_command_thread(void *data)
 		}
 		if (!time_before(next_check_jiffies,next_jiffies)
 		 && ((difference = next_jiffies - jiffies) <= 0)) {
-			struct timespec64 now;
+			struct timeval now;
 			int ret;
 
 			/* Don't even try to talk to adapter if its sick */
@@ -2506,15 +2505,15 @@ int aac_command_thread(void *data)
 			next_check_jiffies = jiffies
 					   + ((long)(unsigned)check_interval)
 					   * HZ;
-			ktime_get_real_ts64(&now);
+			do_gettimeofday(&now);
 
 			/* Synchronize our watches */
-			if (((NSEC_PER_SEC - (NSEC_PER_SEC / HZ)) > now.tv_nsec)
-			 && (now.tv_nsec > (NSEC_PER_SEC / HZ)))
-				difference = (((NSEC_PER_SEC - now.tv_nsec) * HZ)
-				  + NSEC_PER_SEC / 2) / NSEC_PER_SEC;
+			if (((1000000 - (1000000 / HZ)) > now.tv_usec)
+			 && (now.tv_usec > (1000000 / HZ)))
+				difference = (((1000000 - now.tv_usec) * HZ)
+				  + 500000) / 1000000;
 			else {
-				if (now.tv_nsec > NSEC_PER_SEC / 2)
+				if (now.tv_usec > 500000)
 					++now.tv_sec;
 
 				if (dev->sa_firmware)

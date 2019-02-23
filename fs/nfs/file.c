@@ -208,19 +208,21 @@ EXPORT_SYMBOL_GPL(nfs_file_mmap);
  * fall back to doing a synchronous write.
  */
 static int
-nfs_file_fsync_commit(struct file *file, int datasync)
+nfs_file_fsync_commit(struct file *file, loff_t start, loff_t end, int datasync)
 {
 	struct nfs_open_context *ctx = nfs_file_open_context(file);
 	struct inode *inode = file_inode(file);
-	int do_resend, status;
+	int have_error, do_resend, status;
 	int ret = 0;
 
 	dprintk("NFS: fsync file(%pD2) datasync %d\n", file, datasync);
 
 	nfs_inc_stats(inode, NFSIOS_VFSFSYNC);
 	do_resend = test_and_clear_bit(NFS_CONTEXT_RESEND_WRITES, &ctx->flags);
+	have_error = test_and_clear_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags);
 	status = nfs_commit_inode(inode, FLUSH_SYNC);
-	if (test_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags)) {
+	have_error |= test_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags);
+	if (have_error) {
 		ret = xchg(&ctx->error, 0);
 		if (ret)
 			goto out;
@@ -245,16 +247,10 @@ nfs_file_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	trace_nfs_fsync_enter(inode);
 
 	do {
-		struct nfs_open_context *ctx = nfs_file_open_context(file);
 		ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
-		if (test_and_clear_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags)) {
-			int ret2 = xchg(&ctx->error, 0);
-			if (ret2)
-				ret = ret2;
-		}
 		if (ret != 0)
 			break;
-		ret = nfs_file_fsync_commit(file, datasync);
+		ret = nfs_file_fsync_commit(file, start, end, datasync);
 		if (!ret)
 			ret = pnfs_sync_inode(inode, !!datasync);
 		/*
@@ -635,11 +631,11 @@ ssize_t nfs_file_write(struct kiocb *iocb, struct iov_iter *from)
 	if (result <= 0)
 		goto out;
 
-	written = result;
-	iocb->ki_pos += written;
-	result = generic_write_sync(iocb, written);
+	result = generic_write_sync(iocb, result);
 	if (result < 0)
 		goto out;
+	written = result;
+	iocb->ki_pos += written;
 
 	/* Return error values */
 	if (nfs_need_check_write(file, inode)) {
@@ -748,18 +744,15 @@ do_setlk(struct file *filp, int cmd, struct file_lock *fl, int is_local)
 		goto out;
 
 	/*
-	 * Invalidate cache to prevent missing any changes.  If
-	 * the file is mapped, clear the page cache as well so
-	 * those mappings will be loaded.
+	 * Revalidate the cache if the server has time stamps granular
+	 * enough to detect subsecond changes.  Otherwise, clear the
+	 * cache to prevent missing any changes.
 	 *
 	 * This makes locking act as a cache coherency point.
 	 */
 	nfs_sync_mapping(filp->f_mapping);
-	if (!NFS_PROTO(inode)->have_delegation(inode, FMODE_READ)) {
+	if (!NFS_PROTO(inode)->have_delegation(inode, FMODE_READ))
 		nfs_zap_caches(inode);
-		if (mapping_mapped(filp->f_mapping))
-			nfs_revalidate_mapping(inode, filp->f_mapping);
-	}
 out:
 	return status;
 }
@@ -829,9 +822,23 @@ int nfs_flock(struct file *filp, int cmd, struct file_lock *fl)
 	if (NFS_SERVER(inode)->flags & NFS_MOUNT_LOCAL_FLOCK)
 		is_local = 1;
 
-	/* We're simulating flock() locks using posix locks on the server */
-	if (fl->fl_type == F_UNLCK)
+	/*
+	 * VFS doesn't require the open mode to match a flock() lock's type.
+	 * NFS, however, may simulate flock() locking with posix locking which
+	 * requires the open mode to match the lock type.
+	 */
+	switch (fl->fl_type) {
+	case F_UNLCK:
 		return do_unlk(filp, cmd, fl, is_local);
+	case F_RDLCK:
+		if (!(filp->f_mode & FMODE_READ))
+			return -EBADF;
+		break;
+	case F_WRLCK:
+		if (!(filp->f_mode & FMODE_WRITE))
+			return -EBADF;
+	}
+
 	return do_setlk(filp, cmd, fl, is_local);
 }
 EXPORT_SYMBOL_GPL(nfs_flock);

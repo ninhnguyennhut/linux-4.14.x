@@ -85,4 +85,5 @@ Example:
 				<366 1>,<367 1>/* cq30-31 */
 				<376 4>,/* fatal ecc */
 				<381 4>;/* fatal axi */
+		status = "disabled";
 	};

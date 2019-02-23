@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <dirent.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -165,6 +164,9 @@ static struct inline_node *inline_node__create(struct map *map, u64 ip)
 
 	dso = map->dso;
 	if (dso == NULL)
+		return NULL;
+
+	if (dso->kernel != DSO_TYPE_USER)
 		return NULL;
 
 	node = dso__parse_addr_inlines(dso,
@@ -932,8 +934,12 @@ static int hist_browser__show_callchain_list(struct hist_browser *browser,
 				       browser->show_dso);
 
 	if (symbol_conf.show_branchflag_count) {
-		callchain_list_counts__printf_value(chain, NULL,
-						    buf, sizeof(buf));
+		if (need_percent)
+			callchain_list_counts__printf_value(node, chain, NULL,
+							    buf, sizeof(buf));
+		else
+			callchain_list_counts__printf_value(NULL, chain, NULL,
+							    buf, sizeof(buf));
 
 		if (asprintf(&alloc_str2, "%s%s", str, buf) < 0)
 			str = "Not enough memory!";

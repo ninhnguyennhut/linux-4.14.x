@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef PXA2XX_LIB_H
 #define PXA2XX_LIB_H
 

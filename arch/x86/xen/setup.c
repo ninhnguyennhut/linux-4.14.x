@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Machine specific setup for xen
  *
@@ -340,6 +339,8 @@ static void __init xen_do_set_identity_and_remap_chunk(
 	unsigned int i, chunk;
 
 	WARN_ON(size == 0);
+
+	BUG_ON(xen_feature(XENFEAT_auto_translated_physmap));
 
 	mfn_save = virt_to_mfn(buf);
 
@@ -1023,7 +1024,8 @@ void __init xen_pvmmu_arch_setup(void)
 void __init xen_arch_setup(void)
 {
 	xen_panic_handler_init();
-	xen_pvmmu_arch_setup();
+	if (!xen_feature(XENFEAT_auto_translated_physmap))
+		xen_pvmmu_arch_setup();
 
 #ifdef CONFIG_ACPI
 	if (!(xen_start_info->flags & SIF_INITDOMAIN)) {

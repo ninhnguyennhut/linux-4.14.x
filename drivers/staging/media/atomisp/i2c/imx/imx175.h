@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __IMX175_H__
 #define __IMX175_H__
 #include "common.h"

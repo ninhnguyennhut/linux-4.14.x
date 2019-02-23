@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * head.S: The initial boot code for the Sparc port of Linux.
  *

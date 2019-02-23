@@ -92,6 +92,7 @@ struct bcm2835_pinctrl {
 	struct gpio_chip gpio_chip;
 	struct pinctrl_gpio_range gpio_range;
 
+	int irq_group[BCM2835_NUM_IRQS];
 	spinlock_t irq_lock[BCM2835_NUM_BANKS];
 };
 
@@ -352,7 +353,7 @@ static int bcm2835_gpio_direction_output(struct gpio_chip *chip,
 	return pinctrl_gpio_direction_output(chip->base + offset);
 }
 
-static const struct gpio_chip bcm2835_gpio_chip = {
+static struct gpio_chip bcm2835_gpio_chip = {
 	.label = MODULE_NAME,
 	.owner = THIS_MODULE,
 	.request = gpiochip_generic_request,
@@ -373,12 +374,16 @@ static void bcm2835_gpio_irq_handle_bank(struct bcm2835_pinctrl *pc,
 	unsigned long events;
 	unsigned offset;
 	unsigned gpio;
+	unsigned int type;
 
 	events = bcm2835_gpio_rd(pc, GPEDS0 + bank * 4);
 	events &= mask;
 	events &= pc->enabled_irq_map[bank];
 	for_each_set_bit(offset, &events, 32) {
 		gpio = (32 * bank) + offset;
+		/* FIXME: no clue why the code looks up the type here */
+		type = pc->irq_type[gpio];
+
 		generic_handle_irq(irq_linear_revmap(pc->gpio_chip.irqdomain,
 						     gpio));
 	}
@@ -395,7 +400,7 @@ static void bcm2835_gpio_irq_handler(struct irq_desc *desc)
 
 	for (i = 0; i < ARRAY_SIZE(pc->irq); i++) {
 		if (pc->irq[i] == irq) {
-			group = i;
+			group = pc->irq_group[i];
 			break;
 		}
 	}
@@ -687,7 +692,8 @@ static int bcm2835_pctl_dt_node_to_map_func(struct bcm2835_pinctrl *pc,
 	struct pinctrl_map *map = *maps;
 
 	if (fnum >= ARRAY_SIZE(bcm2835_functions)) {
-		dev_err(pc->dev, "%pOF: invalid brcm,function %d\n", np, fnum);
+		dev_err(pc->dev, "%s: invalid brcm,function %d\n",
+			of_node_full_name(np), fnum);
 		return -EINVAL;
 	}
 
@@ -707,7 +713,8 @@ static int bcm2835_pctl_dt_node_to_map_pull(struct bcm2835_pinctrl *pc,
 	unsigned long *configs;
 
 	if (pull > 2) {
-		dev_err(pc->dev, "%pOF: invalid brcm,pull %d\n", np, pull);
+		dev_err(pc->dev, "%s: invalid brcm,pull %d\n",
+			of_node_full_name(np), pull);
 		return -EINVAL;
 	}
 
@@ -738,7 +745,8 @@ static int bcm2835_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 
 	pins = of_find_property(np, "brcm,pins", NULL);
 	if (!pins) {
-		dev_err(pc->dev, "%pOF: missing brcm,pins property\n", np);
+		dev_err(pc->dev, "%s: missing brcm,pins property\n",
+				of_node_full_name(np));
 		return -EINVAL;
 	}
 
@@ -747,8 +755,8 @@ static int bcm2835_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 
 	if (!funcs && !pulls) {
 		dev_err(pc->dev,
-			"%pOF: neither brcm,function nor brcm,pull specified\n",
-			np);
+			"%s: neither brcm,function nor brcm,pull specified\n",
+			of_node_full_name(np));
 		return -EINVAL;
 	}
 
@@ -758,15 +766,15 @@ static int bcm2835_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 
 	if (num_funcs > 1 && num_funcs != num_pins) {
 		dev_err(pc->dev,
-			"%pOF: brcm,function must have 1 or %d entries\n",
-			np, num_pins);
+			"%s: brcm,function must have 1 or %d entries\n",
+			of_node_full_name(np), num_pins);
 		return -EINVAL;
 	}
 
 	if (num_pulls > 1 && num_pulls != num_pins) {
 		dev_err(pc->dev,
-			"%pOF: brcm,pull must have 1 or %d entries\n",
-			np, num_pins);
+			"%s: brcm,pull must have 1 or %d entries\n",
+			of_node_full_name(np), num_pins);
 		return -EINVAL;
 	}
 
@@ -785,8 +793,8 @@ static int bcm2835_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 		if (err)
 			goto out;
 		if (pin >= ARRAY_SIZE(bcm2835_gpio_pins)) {
-			dev_err(pc->dev, "%pOF: invalid brcm,pins value %d\n",
-				np, pin);
+			dev_err(pc->dev, "%s: invalid brcm,pins value %d\n",
+				of_node_full_name(np), pin);
 			err = -EINVAL;
 			goto out;
 		}
@@ -1039,6 +1047,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 
 	for (i = 0; i < BCM2835_NUM_IRQS; i++) {
 		pc->irq[i] = irq_of_parse_and_map(np, i);
+		pc->irq_group[i] = i;
 
 		if (pc->irq[i] == 0)
 			continue;

@@ -119,7 +119,7 @@ static void ci_ll_release(struct dvb_ringbuffer *cirbuf, struct dvb_ringbuffer *
 }
 
 static int ci_ll_reset(struct dvb_ringbuffer *cibuf, struct file *file,
-		       int slots, struct ca_slot_info *slot)
+		       int slots, ca_slot_info_t *slot)
 {
 	int i;
 	int len = 0;
@@ -264,7 +264,7 @@ static int dvb_ca_ioctl(struct file *file, unsigned int cmd, void *parg)
 		break;
 	case CA_GET_CAP:
 	{
-		struct ca_caps cap;
+		ca_caps_t cap;
 
 		cap.slot_num = 2;
 		cap.slot_type = (FW_CI_LL_SUPPORT(av7110->arm_app) ?
@@ -277,7 +277,7 @@ static int dvb_ca_ioctl(struct file *file, unsigned int cmd, void *parg)
 
 	case CA_GET_SLOT_INFO:
 	{
-		struct ca_slot_info *info=(struct ca_slot_info *)parg;
+		ca_slot_info_t *info=(ca_slot_info_t *)parg;
 
 		if (info->num < 0 || info->num > 1) {
 			mutex_unlock(&av7110->ioctl_mutex);
@@ -286,7 +286,7 @@ static int dvb_ca_ioctl(struct file *file, unsigned int cmd, void *parg)
 		av7110->ci_slot[info->num].num = info->num;
 		av7110->ci_slot[info->num].type = FW_CI_LL_SUPPORT(av7110->arm_app) ?
 							CA_CI_LINK : CA_CI;
-		memcpy(info, &av7110->ci_slot[info->num], sizeof(struct ca_slot_info));
+		memcpy(info, &av7110->ci_slot[info->num], sizeof(ca_slot_info_t));
 		break;
 	}
 
@@ -298,7 +298,7 @@ static int dvb_ca_ioctl(struct file *file, unsigned int cmd, void *parg)
 
 	case CA_GET_DESCR_INFO:
 	{
-		struct ca_descr_info info;
+		ca_descr_info_t info;
 
 		info.num = 16;
 		info.type = CA_ECD;
@@ -308,7 +308,7 @@ static int dvb_ca_ioctl(struct file *file, unsigned int cmd, void *parg)
 
 	case CA_SET_DESCR:
 	{
-		struct ca_descr *descr = (struct ca_descr*) parg;
+		ca_descr_t *descr = (ca_descr_t*) parg;
 
 		if (descr->index >= 16 || descr->parity > 1) {
 			mutex_unlock(&av7110->ioctl_mutex);

@@ -179,8 +179,7 @@ nouveau_gart_manager_new(struct ttm_mem_type_manager *man,
 }
 
 static void
-nouveau_gart_manager_debug(struct ttm_mem_type_manager *man,
-			   struct drm_printer *printer)
+nouveau_gart_manager_debug(struct ttm_mem_type_manager *man, const char *prefix)
 {
 }
 
@@ -253,8 +252,7 @@ nv04_gart_manager_new(struct ttm_mem_type_manager *man,
 }
 
 static void
-nv04_gart_manager_debug(struct ttm_mem_type_manager *man,
-			struct drm_printer *printer)
+nv04_gart_manager_debug(struct ttm_mem_type_manager *man, const char *prefix)
 {
 }
 

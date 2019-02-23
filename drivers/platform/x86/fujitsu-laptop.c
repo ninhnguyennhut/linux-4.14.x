@@ -254,12 +254,10 @@ static int bl_update_status(struct backlight_device *b)
 {
 	struct acpi_device *device = bl_get_data(b);
 
-	if (fext) {
-		if (b->props.power == FB_BLANK_POWERDOWN)
-			call_fext_func(fext, FUNC_BACKLIGHT, 0x1, 0x4, 0x3);
-		else
-			call_fext_func(fext, FUNC_BACKLIGHT, 0x1, 0x4, 0x0);
-	}
+	if (b->props.power == FB_BLANK_POWERDOWN)
+		call_fext_func(fext, FUNC_BACKLIGHT, 0x1, 0x4, 0x3);
+	else
+		call_fext_func(fext, FUNC_BACKLIGHT, 0x1, 0x4, 0x0);
 
 	return set_lcd_level(device, b->props.brightness);
 }

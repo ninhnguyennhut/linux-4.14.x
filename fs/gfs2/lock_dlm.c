@@ -23,6 +23,8 @@
 #include "sys.h"
 #include "trace_gfs2.h"
 
+extern struct workqueue_struct *gfs2_control_wq;
+
 /**
  * gfs2_update_stats - Update time based stats
  * @mv: Pointer to mean/variance structure to update
@@ -1057,7 +1059,6 @@ static void free_recover_size(struct lm_lockstruct *ls)
 	ls->ls_recover_submit = NULL;
 	ls->ls_recover_result = NULL;
 	ls->ls_recover_size = 0;
-	ls->ls_lvb_bits = NULL;
 }
 
 /* dlm calls before it does lock recovery */
@@ -1174,7 +1175,7 @@ static void gdlm_recovery_result(struct gfs2_sbd *sdp, unsigned int jid,
 	spin_unlock(&ls->ls_recover_spin);
 }
 
-static const struct dlm_lockspace_ops gdlm_lockspace_ops = {
+const struct dlm_lockspace_ops gdlm_lockspace_ops = {
 	.recover_prep = gdlm_recover_prep,
 	.recover_slot = gdlm_recover_slot,
 	.recover_done = gdlm_recover_done,

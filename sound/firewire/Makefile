@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # To find a header included by define_trace.h.
 CFLAGS_amdtp-stream.o	:= -I$(src)
 

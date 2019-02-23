@@ -295,7 +295,8 @@ static int zx_pinctrl_build_state(struct platform_device *pdev)
 	pctldev->num_groups = ngroups;
 
 	/* Build function list from pin mux functions */
-	functions = kcalloc(info->npins, sizeof(*functions), GFP_KERNEL);
+	functions = devm_kzalloc(&pdev->dev, info->npins * sizeof(*functions),
+				 GFP_KERNEL);
 	if (!functions)
 		return -ENOMEM;
 
@@ -366,10 +367,8 @@ static int zx_pinctrl_build_state(struct platform_device *pdev)
 						func->num_group_names *
 						sizeof(*func->group_names),
 						GFP_KERNEL);
-				if (!func->group_names) {
-					kfree(functions);
+				if (!func->group_names)
 					return -ENOMEM;
-				}
 			}
 
 			group = func->group_names;

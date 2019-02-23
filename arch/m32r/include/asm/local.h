@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __M32R_LOCAL_H
 #define __M32R_LOCAL_H
 

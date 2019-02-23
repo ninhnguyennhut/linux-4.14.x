@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for the drm device driver.  This driver provides support for the
 # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
@@ -40,7 +39,6 @@ i915-y += i915_cmd_parser.o \
 	  i915_gem_gtt.o \
 	  i915_gem_internal.o \
 	  i915_gem.o \
-	  i915_gem_object.o \
 	  i915_gem_render_state.o \
 	  i915_gem_request.o \
 	  i915_gem_shrinker.o \

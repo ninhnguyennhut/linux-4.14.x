@@ -86,11 +86,8 @@ static int t7l66xb_mmc_enable(struct platform_device *mmc)
 	struct t7l66xb *t7l66xb = platform_get_drvdata(dev);
 	unsigned long flags;
 	u8 dev_ctl;
-	int ret;
 
-	ret = clk_prepare_enable(t7l66xb->clk32k);
-	if (ret)
-		return ret;
+	clk_prepare_enable(t7l66xb->clk32k);
 
 	raw_spin_lock_irqsave(&t7l66xb->lock, flags);
 
@@ -289,12 +286,8 @@ static int t7l66xb_resume(struct platform_device *dev)
 {
 	struct t7l66xb *t7l66xb = platform_get_drvdata(dev);
 	struct t7l66xb_platform_data *pdata = dev_get_platdata(&dev->dev);
-	int ret;
 
-	ret = clk_prepare_enable(t7l66xb->clk48m);
-	if (ret)
-		return ret;
-
+	clk_prepare_enable(t7l66xb->clk48m);
 	if (pdata && pdata->resume)
 		pdata->resume(dev);
 
@@ -368,9 +361,7 @@ static int t7l66xb_probe(struct platform_device *dev)
 		goto err_ioremap;
 	}
 
-	ret = clk_prepare_enable(t7l66xb->clk48m);
-	if (ret)
-		goto err_clk_enable;
+	clk_prepare_enable(t7l66xb->clk48m);
 
 	if (pdata->enable)
 		pdata->enable(dev);
@@ -395,8 +386,6 @@ static int t7l66xb_probe(struct platform_device *dev)
 		return 0;
 
 	t7l66xb_detach_irq(dev);
-	clk_disable_unprepare(t7l66xb->clk48m);
-err_clk_enable:
 	iounmap(t7l66xb->scr);
 err_ioremap:
 	release_resource(&t7l66xb->rscr);

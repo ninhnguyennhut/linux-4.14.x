@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Hodge-podge collection of knfsd-related stuff.
  * I will sort this out later.

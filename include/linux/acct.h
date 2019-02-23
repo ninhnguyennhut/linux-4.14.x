@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  BSD Process Accounting for Linux - Definitions
  *

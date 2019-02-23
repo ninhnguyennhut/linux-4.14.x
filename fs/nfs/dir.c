@@ -1241,7 +1241,8 @@ static int nfs_weak_revalidate(struct dentry *dentry, unsigned int flags)
 		return 0;
 	}
 
-	error = nfs_lookup_verify_inode(inode, flags);
+	if (nfs_mapping_need_revalidate_inode(inode))
+		error = __nfs_revalidate_inode(NFS_SERVER(inode), inode);
 	dfprintk(LOOKUPCACHE, "NFS: %s: inode %lu is %s\n",
 			__func__, inode->i_ino, error ? "invalid" : "valid");
 	return !error;
@@ -1392,7 +1393,6 @@ static int nfs4_lookup_revalidate(struct dentry *, unsigned int);
 
 const struct dentry_operations nfs4_dentry_operations = {
 	.d_revalidate	= nfs4_lookup_revalidate,
-	.d_weak_revalidate	= nfs_weak_revalidate,
 	.d_delete	= nfs_dentry_delete,
 	.d_iput		= nfs_dentry_iput,
 	.d_automount	= nfs_d_automount,
@@ -2064,7 +2064,7 @@ out:
 		 * should mark the directories for revalidation.
 		 */
 		d_move(old_dentry, new_dentry);
-		nfs_set_verifier(old_dentry,
+		nfs_set_verifier(new_dentry,
 					nfs_save_change_attribute(new_dir));
 	} else if (error == -ENOENT)
 		nfs_dentry_handle_enoent(old_dentry);
@@ -2260,6 +2260,7 @@ static int nfs_access_get_cached(struct inode *inode, struct rpc_cred *cred, str
 		spin_lock(&inode->i_lock);
 		retry = false;
 	}
+	res->jiffies = cache->jiffies;
 	res->cred = cache->cred;
 	res->mask = cache->mask;
 	list_move_tail(&cache->lru, &nfsi->access_cache_entry_lru);
@@ -2295,6 +2296,7 @@ static int nfs_access_get_cached_rcu(struct inode *inode, struct rpc_cred *cred,
 		goto out;
 	if (nfs_check_cache_invalid(inode, NFS_INO_INVALID_ACCESS))
 		goto out;
+	res->jiffies = cache->jiffies;
 	res->cred = cache->cred;
 	res->mask = cache->mask;
 	err = 0;
@@ -2342,6 +2344,7 @@ void nfs_access_add_cache(struct inode *inode, struct nfs_access_entry *set)
 	if (cache == NULL)
 		return;
 	RB_CLEAR_NODE(&cache->rb_node);
+	cache->jiffies = set->jiffies;
 	cache->cred = get_rpccred(set->cred);
 	cache->mask = set->mask;
 
@@ -2429,6 +2432,7 @@ static int nfs_do_access(struct inode *inode, struct rpc_cred *cred, int mask)
 	cache.mask = NFS_MAY_LOOKUP | NFS_MAY_EXECUTE
 		     | NFS_MAY_WRITE | NFS_MAY_READ;
 	cache.cred = cred;
+	cache.jiffies = jiffies;
 	status = NFS_PROTO(inode)->access(inode, &cache);
 	if (status != 0) {
 		if (status == -ESTALE) {

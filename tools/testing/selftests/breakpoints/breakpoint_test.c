@@ -367,11 +367,11 @@ static void launch_tests(void)
 
 	/* Icebp traps */
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
-	check_success("Test icebp\n");
+	check_success("Test icebp");
 
 	/* Int 3 traps */
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
-	check_success("Test int 3 trap\n");
+	check_success("Test int 3 trap");
 
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
 }

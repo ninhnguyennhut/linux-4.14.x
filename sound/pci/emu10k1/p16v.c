@@ -122,7 +122,7 @@
  */
 
  /* hardware definition */
-static const struct snd_pcm_hardware snd_p16v_playback_hw = {
+static struct snd_pcm_hardware snd_p16v_playback_hw = {
 	.info =			SNDRV_PCM_INFO_MMAP | 
 				SNDRV_PCM_INFO_INTERLEAVED |
 				SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -143,7 +143,7 @@ static const struct snd_pcm_hardware snd_p16v_playback_hw = {
 	.fifo_size =		0,
 };
 
-static const struct snd_pcm_hardware snd_p16v_capture_hw = {
+static struct snd_pcm_hardware snd_p16v_capture_hw = {
 	.info =			(SNDRV_PCM_INFO_MMAP |
 				 SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_BLOCK_TRANSFER |

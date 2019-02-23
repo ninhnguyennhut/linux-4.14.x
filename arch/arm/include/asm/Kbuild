@@ -20,6 +20,7 @@ generic-y += simd.h
 generic-y += sizes.h
 generic-y += timex.h
 generic-y += trace_clock.h
+generic-y += unaligned.h
 
 generated-y += mach-types.h
 generated-y += unistd-nr.h

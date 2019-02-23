@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * bioscalls.c - the lowlevel layer of the PnPBIOS driver
  */

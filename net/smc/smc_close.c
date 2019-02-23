@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Shared Memory Communications over RDMA (SMC-R) and RoCE
  *
@@ -175,15 +174,15 @@ int smc_close_active(struct smc_sock *smc)
 {
 	struct smc_cdc_conn_state_flags *txflags =
 		&smc->conn.local_tx_ctrl.conn_state_flags;
+	long timeout = SMC_MAX_STREAM_WAIT_TIMEOUT;
 	struct smc_connection *conn = &smc->conn;
 	struct sock *sk = &smc->sk;
 	int old_state;
-	long timeout;
 	int rc = 0;
 
-	timeout = current->flags & PF_EXITING ?
-		  0 : sock_flag(sk, SOCK_LINGER) ?
-		      sk->sk_lingertime : SMC_MAX_STREAM_WAIT_TIMEOUT;
+	if (sock_flag(sk, SOCK_LINGER) &&
+	    !(current->flags & PF_EXITING))
+		timeout = sk->sk_lingertime;
 
 again:
 	old_state = sk->sk_state;
@@ -209,7 +208,7 @@ again:
 	case SMC_ACTIVE:
 		smc_close_stream_wait(smc, timeout);
 		release_sock(sk);
-		cancel_delayed_work_sync(&conn->tx_work);
+		cancel_work_sync(&conn->tx_work);
 		lock_sock(sk);
 		if (sk->sk_state == SMC_ACTIVE) {
 			/* send close request */
@@ -235,7 +234,7 @@ again:
 		if (!smc_cdc_rxed_any_close(conn))
 			smc_close_stream_wait(smc, timeout);
 		release_sock(sk);
-		cancel_delayed_work_sync(&conn->tx_work);
+		cancel_work_sync(&conn->tx_work);
 		lock_sock(sk);
 		if (sk->sk_err != ECONNABORTED) {
 			/* confirm close from peer */
@@ -264,9 +263,7 @@ again:
 		/* peer sending PeerConnectionClosed will cause transition */
 		break;
 	case SMC_PROCESSABORT:
-		release_sock(sk);
-		cancel_delayed_work_sync(&conn->tx_work);
-		lock_sock(sk);
+		cancel_work_sync(&conn->tx_work);
 		smc_close_abort(conn);
 		sk->sk_state = SMC_CLOSED;
 		smc_close_wait_tx_pends(smc);
@@ -414,14 +411,13 @@ void smc_close_sock_put_work(struct work_struct *work)
 int smc_close_shutdown_write(struct smc_sock *smc)
 {
 	struct smc_connection *conn = &smc->conn;
+	long timeout = SMC_MAX_STREAM_WAIT_TIMEOUT;
 	struct sock *sk = &smc->sk;
 	int old_state;
-	long timeout;
 	int rc = 0;
 
-	timeout = current->flags & PF_EXITING ?
-		  0 : sock_flag(sk, SOCK_LINGER) ?
-		      sk->sk_lingertime : SMC_MAX_STREAM_WAIT_TIMEOUT;
+	if (sock_flag(sk, SOCK_LINGER))
+		timeout = sk->sk_lingertime;
 
 again:
 	old_state = sk->sk_state;
@@ -429,7 +425,7 @@ again:
 	case SMC_ACTIVE:
 		smc_close_stream_wait(smc, timeout);
 		release_sock(sk);
-		cancel_delayed_work_sync(&conn->tx_work);
+		cancel_work_sync(&conn->tx_work);
 		lock_sock(sk);
 		/* send close wr request */
 		rc = smc_close_wr(conn);
@@ -443,7 +439,7 @@ again:
 		if (!smc_cdc_rxed_any_close(conn))
 			smc_close_stream_wait(smc, timeout);
 		release_sock(sk);
-		cancel_delayed_work_sync(&conn->tx_work);
+		cancel_work_sync(&conn->tx_work);
 		lock_sock(sk);
 		/* confirm close from peer */
 		rc = smc_close_wr(conn);

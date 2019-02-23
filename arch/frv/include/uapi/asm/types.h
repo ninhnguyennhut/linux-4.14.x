@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /* types.h: FRV types
  *
  * Copyright (C) 2004 Red Hat, Inc. All Rights Reserved.

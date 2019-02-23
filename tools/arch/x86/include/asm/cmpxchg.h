@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef TOOLS_ASM_X86_CMPXCHG_H
 #define TOOLS_ASM_X86_CMPXCHG_H
 

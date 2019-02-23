@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/crypto.h>
 #include <linux/err.h>
 #include <linux/init.h>
@@ -172,6 +171,7 @@ void tcp_fastopen_add_skb(struct sock *sk, struct sk_buff *skb)
 
 static struct sock *tcp_fastopen_create_child(struct sock *sk,
 					      struct sk_buff *skb,
+					      struct dst_entry *dst,
 					      struct request_sock *req)
 {
 	struct tcp_sock *tp;
@@ -278,7 +278,8 @@ static bool tcp_fastopen_queue_check(struct sock *sk)
  */
 struct sock *tcp_try_fastopen(struct sock *sk, struct sk_buff *skb,
 			      struct request_sock *req,
-			      struct tcp_fastopen_cookie *foc)
+			      struct tcp_fastopen_cookie *foc,
+			      struct dst_entry *dst)
 {
 	struct tcp_fastopen_cookie valid_foc = { .len = -1 };
 	bool syn_data = TCP_SKB_CB(skb)->end_seq != TCP_SKB_CB(skb)->seq + 1;
@@ -311,7 +312,7 @@ struct sock *tcp_try_fastopen(struct sock *sk, struct sk_buff *skb,
 		 * data in SYN_RECV state.
 		 */
 fastopen:
-		child = tcp_fastopen_create_child(sk, skb, req);
+		child = tcp_fastopen_create_child(sk, skb, dst, req);
 		if (child) {
 			foc->len = -1;
 			NET_INC_STATS(sock_net(sk),

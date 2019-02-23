@@ -27,6 +27,16 @@
 
 #define DM_MSG_PREFIX "core"
 
+#ifdef CONFIG_PRINTK
+/*
+ * ratelimit state to be used in DMXXX_LIMIT().
+ */
+DEFINE_RATELIMIT_STATE(dm_ratelimit_state,
+		       DEFAULT_RATELIMIT_INTERVAL,
+		       DEFAULT_RATELIMIT_BURST);
+EXPORT_SYMBOL(dm_ratelimit_state);
+#endif
+
 /*
  * Cookies are numeric values sent with CHANGE and REMOVE
  * uevents while resuming, removing or renaming the device.
@@ -51,12 +61,6 @@ static struct workqueue_struct *deferred_remove_workqueue;
 
 atomic_t dm_global_event_nr = ATOMIC_INIT(0);
 DECLARE_WAIT_QUEUE_HEAD(dm_global_eventq);
-
-void dm_issue_global_event(void)
-{
-	atomic_inc(&dm_global_event_nr);
-	wake_up(&dm_global_eventq);
-}
 
 /*
  * One of these is allocated per bio.
@@ -516,7 +520,7 @@ static void start_io_acct(struct dm_io *io)
 	io->start_time = jiffies;
 
 	cpu = part_stat_lock();
-	part_round_stats(md->queue, cpu, &dm_disk(md)->part0);
+	part_round_stats(cpu, &dm_disk(md)->part0);
 	part_stat_unlock();
 	atomic_set(&dm_disk(md)->part0.in_flight[rw],
 		atomic_inc_return(&md->pending[rw]));
@@ -535,7 +539,7 @@ static void end_io_acct(struct dm_io *io)
 	int pending;
 	int rw = bio_data_dir(bio);
 
-	generic_end_io_acct(md->queue, rw, &dm_disk(md)->part0, io->start_time);
+	generic_end_io_acct(rw, &dm_disk(md)->part0, io->start_time);
 
 	if (unlikely(dm_stats_used(&md->stats)))
 		dm_stats_account_io(&md->stats, bio_data_dir(bio),
@@ -847,10 +851,10 @@ static void clone_endio(struct bio *bio)
 
 	if (unlikely(error == BLK_STS_TARGET)) {
 		if (bio_op(bio) == REQ_OP_WRITE_SAME &&
-		    !bio->bi_disk->queue->limits.max_write_same_sectors)
+		    !bdev_get_queue(bio->bi_bdev)->limits.max_write_same_sectors)
 			disable_write_same(md);
 		if (bio_op(bio) == REQ_OP_WRITE_ZEROES &&
-		    !bio->bi_disk->queue->limits.max_write_zeroes_sectors)
+		    !bdev_get_queue(bio->bi_bdev)->limits.max_write_zeroes_sectors)
 			disable_write_zeroes(md);
 	}
 
@@ -991,6 +995,24 @@ static size_t dm_dax_copy_from_iter(struct dax_device *dax_dev, pgoff_t pgoff,
 	dm_put_live_table(md, srcu_idx);
 
 	return ret;
+}
+
+static void dm_dax_flush(struct dax_device *dax_dev, pgoff_t pgoff, void *addr,
+		size_t size)
+{
+	struct mapped_device *md = dax_get_private(dax_dev);
+	sector_t sector = pgoff * PAGE_SECTORS;
+	struct dm_target *ti;
+	int srcu_idx;
+
+	ti = dm_dax_get_live_target(md, sector, &srcu_idx);
+
+	if (!ti)
+		goto out;
+	if (ti->type->dax_flush)
+		ti->type->dax_flush(ti, pgoff, addr, size);
+ out:
+	dm_put_live_table(md, srcu_idx);
 }
 
 /*
@@ -1193,8 +1215,8 @@ static void __map_bio(struct dm_target_io *tio)
 		break;
 	case DM_MAPIO_REMAPPED:
 		/* the bio has been remapped so dispatch it */
-		trace_block_bio_remap(clone->bi_disk->queue, clone,
-				      bio_dev(tio->io->bio), sector);
+		trace_block_bio_remap(bdev_get_queue(clone->bi_bdev), clone,
+				      tio->io->bio->bi_bdev->bd_dev, sector);
 		generic_make_request(clone);
 		break;
 	case DM_MAPIO_KILL:
@@ -1501,7 +1523,7 @@ static void __split_and_process_bio(struct mapped_device *md,
 	}
 
 	/* drop the extra reference count */
-	dec_pending(ci.io, errno_to_blk_status(error));
+	dec_pending(ci.io, error);
 }
 /*-----------------------------------------------------------------
  * CRUD END
@@ -1520,7 +1542,7 @@ static blk_qc_t dm_make_request(struct request_queue *q, struct bio *bio)
 
 	map = dm_get_live_table(md, &srcu_idx);
 
-	generic_start_io_acct(q, rw, bio_sectors(bio), &dm_disk(md)->part0);
+	generic_start_io_acct(rw, bio_sectors(bio), &dm_disk(md)->part0);
 
 	/* if we're suspended, we have to queue this io for later */
 	if (unlikely(test_bit(DMF_BLOCK_IO_FOR_SUSPEND, &md->flags))) {
@@ -1695,7 +1717,7 @@ static struct mapped_device *alloc_dev(int minor)
 	struct mapped_device *md;
 	void *old_md;
 
-	md = kvzalloc_node(sizeof(*md), GFP_KERNEL, numa_node_id);
+	md = kzalloc_node(sizeof(*md), GFP_KERNEL, numa_node_id);
 	if (!md) {
 		DMWARN("unable to allocate device, out of memory.");
 		return NULL;
@@ -1774,7 +1796,7 @@ static struct mapped_device *alloc_dev(int minor)
 		goto bad;
 
 	bio_init(&md->flush_bio, NULL, 0);
-	bio_set_dev(&md->flush_bio, md->bdev);
+	md->flush_bio.bi_bdev = md->bdev;
 	md->flush_bio.bi_opf = REQ_OP_WRITE | REQ_PREFLUSH | REQ_SYNC;
 
 	dm_stats_init(&md->stats);
@@ -1795,7 +1817,7 @@ bad_io_barrier:
 bad_minor:
 	module_put(THIS_MODULE);
 bad_module_get:
-	kvfree(md);
+	kfree(md);
 	return NULL;
 }
 
@@ -1814,7 +1836,7 @@ static void free_dev(struct mapped_device *md)
 	free_minor(minor);
 
 	module_put(THIS_MODULE);
-	kvfree(md);
+	kfree(md);
 }
 
 static void __bind_mempools(struct mapped_device *md, struct dm_table *t)
@@ -1871,8 +1893,9 @@ static void event_callback(void *context)
 	dm_send_uevents(&uevents, &disk_to_dev(md->disk)->kobj);
 
 	atomic_inc(&md->event_nr);
+	atomic_inc(&dm_global_event_nr);
 	wake_up(&md->eventq);
-	dm_issue_global_event();
+	wake_up(&dm_global_eventq);
 }
 
 /*
@@ -2288,7 +2311,6 @@ struct dm_table *dm_swap_table(struct mapped_device *md, struct dm_table *table)
 	}
 
 	map = __bind(md, table, &limits);
-	dm_issue_global_event();
 
 out:
 	mutex_unlock(&md->suspend_lock);
@@ -2709,15 +2731,11 @@ struct mapped_device *dm_get_from_kobject(struct kobject *kobj)
 
 	md = container_of(kobj, struct mapped_device, kobj_holder.kobj);
 
-	spin_lock(&_minor_lock);
-	if (test_bit(DMF_FREEING, &md->flags) || dm_deleting_md(md)) {
-		md = NULL;
-		goto out;
-	}
-	dm_get(md);
-out:
-	spin_unlock(&_minor_lock);
+	if (test_bit(DMF_FREEING, &md->flags) ||
+	    dm_deleting_md(md))
+		return NULL;
 
+	dm_get(md);
 	return md;
 }
 
@@ -2984,6 +3002,7 @@ static const struct block_device_operations dm_blk_dops = {
 static const struct dax_operations dm_dax_ops = {
 	.direct_access = dm_dax_direct_access,
 	.copy_from_iter = dm_dax_copy_from_iter,
+	.flush = dm_dax_flush,
 };
 
 /*

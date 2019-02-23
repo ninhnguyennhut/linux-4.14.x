@@ -2235,8 +2235,14 @@ int vmci_qp_broker_detach(struct vmci_handle handle, struct vmci_ctx *context)
 					handle.context, handle.resource,
 					result);
 
-			qp_host_unregister_user_memory(entry->produce_q,
-						       entry->consume_q);
+			if (entry->vmci_page_files)
+				qp_host_unregister_user_memory(entry->produce_q,
+							       entry->
+							       consume_q);
+			else
+				qp_host_unregister_user_memory(entry->produce_q,
+							       entry->
+							       consume_q);
 
 		}
 

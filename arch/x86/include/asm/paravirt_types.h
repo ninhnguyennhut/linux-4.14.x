@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_PARAVIRT_TYPES_H
 #define _ASM_X86_PARAVIRT_TYPES_H
 
@@ -108,6 +107,7 @@ struct pv_cpu_ops {
 	unsigned long (*read_cr0)(void);
 	void (*write_cr0)(unsigned long);
 
+	unsigned long (*read_cr4)(void);
 	void (*write_cr4)(unsigned long);
 
 #ifdef CONFIG_X86_64
@@ -119,6 +119,8 @@ struct pv_cpu_ops {
 	void (*load_tr_desc)(void);
 	void (*load_gdt)(const struct desc_ptr *);
 	void (*load_idt)(const struct desc_ptr *);
+	/* store_gdt has been removed. */
+	void (*store_idt)(struct desc_ptr *);
 	void (*set_ldt)(const void *desc, unsigned entries);
 	unsigned long (*store_tr)(void);
 	void (*load_tls)(struct thread_struct *t, unsigned int cpu);
@@ -134,7 +136,7 @@ struct pv_cpu_ops {
 	void (*alloc_ldt)(struct desc_struct *ldt, unsigned entries);
 	void (*free_ldt)(struct desc_struct *ldt, unsigned entries);
 
-	void (*load_sp0)(unsigned long sp0);
+	void (*load_sp0)(struct tss_struct *tss, struct thread_struct *t);
 
 	void (*set_iopl_mask)(unsigned mask);
 
@@ -194,6 +196,9 @@ struct pv_irq_ops {
 	void (*safe_halt)(void);
 	void (*halt)(void);
 
+#ifdef CONFIG_X86_64
+	void (*adjust_exception_frame)(void);
+#endif
 } __no_randomize_layout;
 
 struct pv_mmu_ops {
@@ -243,6 +248,12 @@ struct pv_mmu_ops {
 	void (*set_pte_at)(struct mm_struct *mm, unsigned long addr,
 			   pte_t *ptep, pte_t pteval);
 	void (*set_pmd)(pmd_t *pmdp, pmd_t pmdval);
+	void (*set_pmd_at)(struct mm_struct *mm, unsigned long addr,
+			   pmd_t *pmdp, pmd_t pmdval);
+	void (*set_pud_at)(struct mm_struct *mm, unsigned long addr,
+			   pud_t *pudp, pud_t pudval);
+	void (*pte_update)(struct mm_struct *mm, unsigned long addr,
+			   pte_t *ptep);
 
 	pte_t (*ptep_modify_prot_start)(struct mm_struct *mm, unsigned long addr,
 					pte_t *ptep);
@@ -460,8 +471,8 @@ int paravirt_disable_iospace(void);
  */
 #ifdef CONFIG_X86_32
 #define PVOP_VCALL_ARGS							\
-	unsigned long __eax = __eax, __edx = __edx, __ecx = __ecx;
-
+	unsigned long __eax = __eax, __edx = __edx, __ecx = __ecx;	\
+	register void *__sp asm("esp")
 #define PVOP_CALL_ARGS			PVOP_VCALL_ARGS
 
 #define PVOP_CALL_ARG1(x)		"a" ((unsigned long)(x))
@@ -481,8 +492,8 @@ int paravirt_disable_iospace(void);
 /* [re]ax isn't an arg, but the return val */
 #define PVOP_VCALL_ARGS						\
 	unsigned long __edi = __edi, __esi = __esi,		\
-		__edx = __edx, __ecx = __ecx, __eax = __eax;
-
+		__edx = __edx, __ecx = __ecx, __eax = __eax;	\
+	register void *__sp asm("rsp")
 #define PVOP_CALL_ARGS		PVOP_VCALL_ARGS
 
 #define PVOP_CALL_ARG1(x)		"D" ((unsigned long)(x))
@@ -533,7 +544,7 @@ int paravirt_disable_iospace(void);
 			asm volatile(pre				\
 				     paravirt_alt(PARAVIRT_CALL)	\
 				     post				\
-				     : call_clbr, ASM_CALL_CONSTRAINT	\
+				     : call_clbr, "+r" (__sp)		\
 				     : paravirt_type(op),		\
 				       paravirt_clobber(clbr),		\
 				       ##__VA_ARGS__			\
@@ -543,7 +554,7 @@ int paravirt_disable_iospace(void);
 			asm volatile(pre				\
 				     paravirt_alt(PARAVIRT_CALL)	\
 				     post				\
-				     : call_clbr, ASM_CALL_CONSTRAINT	\
+				     : call_clbr, "+r" (__sp)		\
 				     : paravirt_type(op),		\
 				       paravirt_clobber(clbr),		\
 				       ##__VA_ARGS__			\
@@ -570,7 +581,7 @@ int paravirt_disable_iospace(void);
 		asm volatile(pre					\
 			     paravirt_alt(PARAVIRT_CALL)		\
 			     post					\
-			     : call_clbr, ASM_CALL_CONSTRAINT		\
+			     : call_clbr, "+r" (__sp)			\
 			     : paravirt_type(op),			\
 			       paravirt_clobber(clbr),			\
 			       ##__VA_ARGS__				\

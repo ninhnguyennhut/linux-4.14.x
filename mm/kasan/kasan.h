@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __MM_KASAN_KASAN_H
 #define __MM_KASAN_KASAN_H
 

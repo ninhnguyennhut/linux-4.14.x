@@ -592,7 +592,7 @@ static void rds_tcp_sysctl_reset(struct net *net)
 			continue;
 
 		/* reconnect with new parameters */
-		rds_conn_path_drop(tc->t_cpath, false);
+		rds_conn_path_drop(tc->t_cpath);
 	}
 	spin_unlock_irq(&rds_tcp_conn_lock);
 }

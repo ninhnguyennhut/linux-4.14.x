@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CGROUP_HELPERS_H
 #define __CGROUP_HELPERS_H
 #include <errno.h>

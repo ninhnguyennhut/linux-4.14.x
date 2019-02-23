@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* spitfire.h: SpitFire/BlackBird/Cheetah inline MMU operations.
  *
  * Copyright (C) 1996 David S. Miller (davem@davemloft.net)

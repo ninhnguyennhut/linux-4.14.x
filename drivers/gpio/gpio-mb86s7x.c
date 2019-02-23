@@ -168,9 +168,7 @@ static int mb86s70_gpio_probe(struct platform_device *pdev)
 	if (IS_ERR(gchip->clk))
 		return PTR_ERR(gchip->clk);
 
-	ret = clk_prepare_enable(gchip->clk);
-	if (ret)
-		return ret;
+	clk_prepare_enable(gchip->clk);
 
 	spin_lock_init(&gchip->lock);
 

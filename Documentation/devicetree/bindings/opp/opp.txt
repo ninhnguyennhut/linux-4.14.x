@@ -464,6 +464,7 @@ Example 5: opp-supported-hw
 
 	opp_table {
 		compatible = "operating-points-v2";
+		status = "okay";
 		opp-shared;
 
 		opp-600000000 {

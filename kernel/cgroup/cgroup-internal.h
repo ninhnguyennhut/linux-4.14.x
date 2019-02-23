@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CGROUP_INTERNAL_H
 #define __CGROUP_INTERNAL_H
 
@@ -157,8 +156,6 @@ static inline void get_css_set(struct css_set *cset)
 
 bool cgroup_ssid_enabled(int ssid);
 bool cgroup_on_dfl(const struct cgroup *cgrp);
-bool cgroup_is_thread_root(struct cgroup *cgrp);
-bool cgroup_is_threaded(struct cgroup *cgrp);
 
 struct cgroup_root *cgroup_root_from_kf(struct kernfs_root *kf_root);
 struct cgroup *task_cgroup_from_root(struct task_struct *task,
@@ -176,7 +173,7 @@ struct dentry *cgroup_do_mount(struct file_system_type *fs_type, int flags,
 			       struct cgroup_root *root, unsigned long magic,
 			       struct cgroup_namespace *ns);
 
-int cgroup_migrate_vet_dst(struct cgroup *dst_cgrp);
+bool cgroup_may_migrate_to(struct cgroup *dst_cgrp);
 void cgroup_migrate_finish(struct cgroup_mgctx *mgctx);
 void cgroup_migrate_add_src(struct css_set *src_cset, struct cgroup *dst_cgrp,
 			    struct cgroup_mgctx *mgctx);
@@ -186,10 +183,10 @@ int cgroup_migrate(struct task_struct *leader, bool threadgroup,
 
 int cgroup_attach_task(struct cgroup *dst_cgrp, struct task_struct *leader,
 		       bool threadgroup);
-struct task_struct *cgroup_procs_write_start(char *buf, bool threadgroup)
-	__acquires(&cgroup_threadgroup_rwsem);
-void cgroup_procs_write_finish(struct task_struct *task)
-	__releases(&cgroup_threadgroup_rwsem);
+ssize_t __cgroup_procs_write(struct kernfs_open_file *of, char *buf,
+			     size_t nbytes, loff_t off, bool threadgroup);
+ssize_t cgroup_procs_write(struct kernfs_open_file *of, char *buf, size_t nbytes,
+			   loff_t off);
 
 void cgroup_lock_and_drain_offline(struct cgroup *cgrp);
 

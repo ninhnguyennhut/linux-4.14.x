@@ -29,8 +29,11 @@ Arguments
 ``fd``
     File descriptor returned by :ref:`open() <func-open>`.
 
+``request``
+    VIDIOC_G_SELECTION, VIDIOC_S_SELECTION
+
 ``argp``
-    Pointer to struct :c:type:`v4l2_selection`.
+
 
 Description
 ===========

@@ -21,10 +21,6 @@ void exynos4_jpeg_sw_reset(void __iomem *base)
 	unsigned int reg;
 
 	reg = readl(base + EXYNOS4_JPEG_CNTL_REG);
-	writel(reg & ~(EXYNOS4_DEC_MODE | EXYNOS4_ENC_MODE),
-				base + EXYNOS4_JPEG_CNTL_REG);
-
-	reg = readl(base + EXYNOS4_JPEG_CNTL_REG);
 	writel(reg & ~EXYNOS4_SOFT_RESET_HI, base + EXYNOS4_JPEG_CNTL_REG);
 
 	udelay(100);
@@ -42,12 +38,9 @@ void exynos4_jpeg_set_enc_dec_mode(void __iomem *base, unsigned int mode)
 		writel((reg & EXYNOS4_ENC_DEC_MODE_MASK) |
 					EXYNOS4_DEC_MODE,
 			base + EXYNOS4_JPEG_CNTL_REG);
-	} else if (mode == S5P_JPEG_ENCODE) {/* encode */
+	} else {/* encode */
 		writel((reg & EXYNOS4_ENC_DEC_MODE_MASK) |
 					EXYNOS4_ENC_MODE,
-			base + EXYNOS4_JPEG_CNTL_REG);
-	} else { /* disable both */
-		writel(reg & EXYNOS4_ENC_DEC_MODE_MASK,
 			base + EXYNOS4_JPEG_CNTL_REG);
 	}
 }

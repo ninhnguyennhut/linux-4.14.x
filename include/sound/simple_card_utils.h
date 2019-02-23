@@ -15,7 +15,6 @@
 struct asoc_simple_dai {
 	const char *name;
 	unsigned int sysclk;
-	int clk_direction;
 	int slots;
 	int slot_width;
 	unsigned int tx_slot_mask;

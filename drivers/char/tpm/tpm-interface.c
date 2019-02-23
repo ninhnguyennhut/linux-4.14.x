@@ -455,7 +455,7 @@ ssize_t tpm_transmit(struct tpm_chip *chip, struct tpm_space *space,
 			goto out;
 		}
 
-		tpm_msleep(TPM_TIMEOUT);
+		msleep(TPM_TIMEOUT);	/* CHECK */
 		rmb();
 	} while (time_before(jiffies, stop));
 
@@ -970,7 +970,7 @@ int tpm_do_selftest(struct tpm_chip *chip)
 			dev_info(
 			    &chip->dev, HW_ERR
 			    "TPM command timed out during continue self test");
-			tpm_msleep(delay_msec);
+			msleep(delay_msec);
 			continue;
 		}
 
@@ -985,7 +985,7 @@ int tpm_do_selftest(struct tpm_chip *chip)
 		}
 		if (rc != TPM_WARN_DOING_SELFTEST)
 			return rc;
-		tpm_msleep(delay_msec);
+		msleep(delay_msec);
 	} while (--loops > 0);
 
 	return rc;
@@ -1085,7 +1085,7 @@ again:
 		}
 	} else {
 		do {
-			tpm_msleep(TPM_TIMEOUT);
+			msleep(TPM_TIMEOUT);
 			status = chip->ops->status(chip);
 			if ((status & mask) == mask)
 				return 0;
@@ -1150,7 +1150,7 @@ int tpm_pm_suspend(struct device *dev)
 		 */
 		if (rc != TPM_WARN_RETRY)
 			break;
-		tpm_msleep(TPM_TIMEOUT_RETRY);
+		msleep(TPM_TIMEOUT_RETRY);
 	}
 
 	if (rc)

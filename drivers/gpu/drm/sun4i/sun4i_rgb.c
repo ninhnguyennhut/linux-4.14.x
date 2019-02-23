@@ -92,16 +92,14 @@ static int sun4i_rgb_mode_valid(struct drm_connector *connector,
 
 	DRM_DEBUG_DRIVER("Vertical parameters OK\n");
 
-	if (connector->connector_type != DRM_MODE_CONNECTOR_Unknown) {
-		rounded_rate = clk_round_rate(tcon->dclk, rate);
-		if (rounded_rate < rate)
-			return MODE_CLOCK_LOW;
+	rounded_rate = clk_round_rate(tcon->dclk, rate);
+	if (rounded_rate < rate)
+		return MODE_CLOCK_LOW;
 
-		if (rounded_rate > rate)
-			return MODE_CLOCK_HIGH;
+	if (rounded_rate > rate)
+		return MODE_CLOCK_HIGH;
 
-		DRM_DEBUG_DRIVER("Clock rate OK\n");
-	}
+	DRM_DEBUG_DRIVER("Clock rate OK\n");
 
 	return MODE_OK;
 }
@@ -121,13 +119,21 @@ sun4i_rgb_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
-static const struct drm_connector_funcs sun4i_rgb_con_funcs = {
+static struct drm_connector_funcs sun4i_rgb_con_funcs = {
+	.dpms			= drm_atomic_helper_connector_dpms,
 	.fill_modes		= drm_helper_probe_single_connector_modes,
 	.destroy		= sun4i_rgb_connector_destroy,
 	.reset			= drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state	= drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state	= drm_atomic_helper_connector_destroy_state,
 };
+
+static int sun4i_rgb_atomic_check(struct drm_encoder *encoder,
+				  struct drm_crtc_state *crtc_state,
+				  struct drm_connector_state *conn_state)
+{
+	return 0;
+}
 
 static void sun4i_rgb_encoder_enable(struct drm_encoder *encoder)
 {
@@ -176,6 +182,7 @@ static void sun4i_rgb_encoder_mode_set(struct drm_encoder *encoder,
 }
 
 static struct drm_encoder_helper_funcs sun4i_rgb_enc_helper_funcs = {
+	.atomic_check	= sun4i_rgb_atomic_check,
 	.mode_set	= sun4i_rgb_encoder_mode_set,
 	.disable	= sun4i_rgb_encoder_disable,
 	.enable		= sun4i_rgb_encoder_enable,

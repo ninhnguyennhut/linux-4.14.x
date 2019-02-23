@@ -109,20 +109,22 @@ void log_verbosity(int level)
  */
 void print_result(const char *test_name, int ret)
 {
+	const char *result = "Unknown return code";
+
 	switch (ret) {
 	case RET_PASS:
-		ksft_test_result_pass("%s\n", test_name);
-		ksft_print_cnts();
-		return;
+		ksft_inc_pass_cnt();
+		result = PASS;
+		break;
 	case RET_ERROR:
-		ksft_test_result_error("%s\n", test_name);
-		ksft_print_cnts();
-		return;
+		result = ERROR;
+		break;
 	case RET_FAIL:
-		ksft_test_result_fail("%s\n", test_name);
-		ksft_print_cnts();
-		return;
+		ksft_inc_fail_cnt();
+		result = FAIL;
+		break;
 	}
+	printf("selftests: %s [%s]\n", test_name, result);
 }
 
 /* log level macros */

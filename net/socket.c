@@ -652,20 +652,6 @@ int kernel_sendmsg(struct socket *sock, struct msghdr *msg,
 }
 EXPORT_SYMBOL(kernel_sendmsg);
 
-int kernel_sendmsg_locked(struct sock *sk, struct msghdr *msg,
-			  struct kvec *vec, size_t num, size_t size)
-{
-	struct socket *sock = sk->sk_socket;
-
-	if (!sock->ops->sendmsg_locked)
-		return sock_no_sendmsg_locked(sk, msg, size);
-
-	iov_iter_kvec(&msg->msg_iter, WRITE | ITER_KVEC, vec, num, size);
-
-	return sock->ops->sendmsg_locked(sk, msg, msg_data_left(msg));
-}
-EXPORT_SYMBOL(kernel_sendmsg_locked);
-
 static bool skb_is_err_queue(const struct sk_buff *skb)
 {
 	/* pkt_type of skbs enqueued on the error queue are set to
@@ -3390,19 +3376,6 @@ int kernel_sendpage(struct socket *sock, struct page *page, int offset,
 }
 EXPORT_SYMBOL(kernel_sendpage);
 
-int kernel_sendpage_locked(struct sock *sk, struct page *page, int offset,
-			   size_t size, int flags)
-{
-	struct socket *sock = sk->sk_socket;
-
-	if (sock->ops->sendpage_locked)
-		return sock->ops->sendpage_locked(sk, page, offset, size,
-						  flags);
-
-	return sock_no_sendpage_locked(sk, page, offset, size, flags);
-}
-EXPORT_SYMBOL(kernel_sendpage_locked);
-
 int kernel_sock_ioctl(struct socket *sock, int cmd, unsigned long arg)
 {
 	mm_segment_t oldfs = get_fs();
@@ -3432,6 +3405,7 @@ u32 kernel_sock_ip_overhead(struct sock *sk)
 	struct inet_sock *inet;
 	struct ip_options_rcu *opt;
 	u32 overhead = 0;
+	bool owned_by_user;
 #if IS_ENABLED(CONFIG_IPV6)
 	struct ipv6_pinfo *np;
 	struct ipv6_txoptions *optv6 = NULL;
@@ -3440,12 +3414,13 @@ u32 kernel_sock_ip_overhead(struct sock *sk)
 	if (!sk)
 		return overhead;
 
+	owned_by_user = sock_owned_by_user(sk);
 	switch (sk->sk_family) {
 	case AF_INET:
 		inet = inet_sk(sk);
 		overhead += sizeof(struct iphdr);
 		opt = rcu_dereference_protected(inet->inet_opt,
-						sock_owned_by_user(sk));
+						owned_by_user);
 		if (opt)
 			overhead += opt->opt.optlen;
 		return overhead;
@@ -3455,7 +3430,7 @@ u32 kernel_sock_ip_overhead(struct sock *sk)
 		overhead += sizeof(struct ipv6hdr);
 		if (np)
 			optv6 = rcu_dereference_protected(np->opt,
-							  sock_owned_by_user(sk));
+							  owned_by_user);
 		if (optv6)
 			overhead += (optv6->opt_flen + optv6->opt_nflen);
 		return overhead;

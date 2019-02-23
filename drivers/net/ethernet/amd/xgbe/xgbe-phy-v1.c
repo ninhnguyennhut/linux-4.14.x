@@ -231,21 +231,20 @@ static void xgbe_phy_kr_training_post(struct xgbe_prv_data *pdata)
 
 static enum xgbe_mode xgbe_phy_an_outcome(struct xgbe_prv_data *pdata)
 {
-	struct ethtool_link_ksettings *lks = &pdata->phy.lks;
 	struct xgbe_phy_data *phy_data = pdata->phy_data;
 	enum xgbe_mode mode;
 	unsigned int ad_reg, lp_reg;
 
-	XGBE_SET_LP_ADV(lks, Autoneg);
-	XGBE_SET_LP_ADV(lks, Backplane);
+	pdata->phy.lp_advertising |= ADVERTISED_Autoneg;
+	pdata->phy.lp_advertising |= ADVERTISED_Backplane;
 
 	/* Compare Advertisement and Link Partner register 1 */
 	ad_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_ADVERTISE);
 	lp_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_LPA);
 	if (lp_reg & 0x400)
-		XGBE_SET_LP_ADV(lks, Pause);
+		pdata->phy.lp_advertising |= ADVERTISED_Pause;
 	if (lp_reg & 0x800)
-		XGBE_SET_LP_ADV(lks, Asym_Pause);
+		pdata->phy.lp_advertising |= ADVERTISED_Asym_Pause;
 
 	if (pdata->phy.pause_autoneg) {
 		/* Set flow control based on auto-negotiation result */
@@ -267,12 +266,12 @@ static enum xgbe_mode xgbe_phy_an_outcome(struct xgbe_prv_data *pdata)
 	ad_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_ADVERTISE + 1);
 	lp_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_LPA + 1);
 	if (lp_reg & 0x80)
-		XGBE_SET_LP_ADV(lks, 10000baseKR_Full);
+		pdata->phy.lp_advertising |= ADVERTISED_10000baseKR_Full;
 	if (lp_reg & 0x20) {
 		if (phy_data->speed_set == XGBE_SPEEDSET_2500_10000)
-			XGBE_SET_LP_ADV(lks, 2500baseX_Full);
+			pdata->phy.lp_advertising |= ADVERTISED_2500baseX_Full;
 		else
-			XGBE_SET_LP_ADV(lks, 1000baseKX_Full);
+			pdata->phy.lp_advertising |= ADVERTISED_1000baseKX_Full;
 	}
 
 	ad_reg &= lp_reg;
@@ -291,17 +290,14 @@ static enum xgbe_mode xgbe_phy_an_outcome(struct xgbe_prv_data *pdata)
 	ad_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_ADVERTISE + 2);
 	lp_reg = XMDIO_READ(pdata, MDIO_MMD_AN, MDIO_AN_LPA + 2);
 	if (lp_reg & 0xc000)
-		XGBE_SET_LP_ADV(lks, 10000baseR_FEC);
+		pdata->phy.lp_advertising |= ADVERTISED_10000baseR_FEC;
 
 	return mode;
 }
 
-static void xgbe_phy_an_advertising(struct xgbe_prv_data *pdata,
-				    struct ethtool_link_ksettings *dlks)
+static unsigned int xgbe_phy_an_advertising(struct xgbe_prv_data *pdata)
 {
-	struct ethtool_link_ksettings *slks = &pdata->phy.lks;
-
-	XGBE_LM_COPY(dlks, advertising, slks, advertising);
+	return pdata->phy.advertising;
 }
 
 static int xgbe_phy_an_config(struct xgbe_prv_data *pdata)
@@ -569,10 +565,11 @@ static void xgbe_phy_set_mode(struct xgbe_prv_data *pdata, enum xgbe_mode mode)
 }
 
 static bool xgbe_phy_check_mode(struct xgbe_prv_data *pdata,
-				enum xgbe_mode mode, bool advert)
+				enum xgbe_mode mode, u32 advert)
 {
 	if (pdata->phy.autoneg == AUTONEG_ENABLE) {
-		return advert;
+		if (pdata->phy.advertising & advert)
+			return true;
 	} else {
 		enum xgbe_mode cur_mode;
 
@@ -586,18 +583,16 @@ static bool xgbe_phy_check_mode(struct xgbe_prv_data *pdata,
 
 static bool xgbe_phy_use_mode(struct xgbe_prv_data *pdata, enum xgbe_mode mode)
 {
-	struct ethtool_link_ksettings *lks = &pdata->phy.lks;
-
 	switch (mode) {
 	case XGBE_MODE_KX_1000:
 		return xgbe_phy_check_mode(pdata, mode,
-					   XGBE_ADV(lks, 1000baseKX_Full));
+					   ADVERTISED_1000baseKX_Full);
 	case XGBE_MODE_KX_2500:
 		return xgbe_phy_check_mode(pdata, mode,
-					   XGBE_ADV(lks, 2500baseX_Full));
+					   ADVERTISED_2500baseX_Full);
 	case XGBE_MODE_KR:
 		return xgbe_phy_check_mode(pdata, mode,
-					   XGBE_ADV(lks, 10000baseKR_Full));
+					   ADVERTISED_10000baseKR_Full);
 	default:
 		return false;
 	}
@@ -677,7 +672,6 @@ static void xgbe_phy_exit(struct xgbe_prv_data *pdata)
 
 static int xgbe_phy_init(struct xgbe_prv_data *pdata)
 {
-	struct ethtool_link_ksettings *lks = &pdata->phy.lks;
 	struct xgbe_phy_data *phy_data;
 	int ret;
 
@@ -796,23 +790,21 @@ static int xgbe_phy_init(struct xgbe_prv_data *pdata)
 	}
 
 	/* Initialize supported features */
-	XGBE_ZERO_SUP(lks);
-	XGBE_SET_SUP(lks, Autoneg);
-	XGBE_SET_SUP(lks, Pause);
-	XGBE_SET_SUP(lks, Asym_Pause);
-	XGBE_SET_SUP(lks, Backplane);
-	XGBE_SET_SUP(lks, 10000baseKR_Full);
+	pdata->phy.supported = SUPPORTED_Autoneg;
+	pdata->phy.supported |= SUPPORTED_Pause | SUPPORTED_Asym_Pause;
+	pdata->phy.supported |= SUPPORTED_Backplane;
+	pdata->phy.supported |= SUPPORTED_10000baseKR_Full;
 	switch (phy_data->speed_set) {
 	case XGBE_SPEEDSET_1000_10000:
-		XGBE_SET_SUP(lks, 1000baseKX_Full);
+		pdata->phy.supported |= SUPPORTED_1000baseKX_Full;
 		break;
 	case XGBE_SPEEDSET_2500_10000:
-		XGBE_SET_SUP(lks, 2500baseX_Full);
+		pdata->phy.supported |= SUPPORTED_2500baseX_Full;
 		break;
 	}
 
 	if (pdata->fec_ability & MDIO_PMA_10GBR_FECABLE_ABLE)
-		XGBE_SET_SUP(lks, 10000baseR_FEC);
+		pdata->phy.supported |= SUPPORTED_10000baseR_FEC;
 
 	pdata->phy_data = phy_data;
 

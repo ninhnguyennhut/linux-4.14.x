@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	linux/arch/alpha/kernel/smp.c
  *
@@ -116,7 +115,7 @@ wait_boot_cpu_to_stop(int cpuid)
 /*
  * Where secondaries begin a life of C.
  */
-void __init
+void
 smp_callin(void)
 {
 	int cpuid = hard_smp_processor_id();

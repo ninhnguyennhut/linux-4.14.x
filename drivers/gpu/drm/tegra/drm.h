@@ -23,7 +23,6 @@
 #include <drm/drm_fixed.h>
 
 #include "gem.h"
-#include "trace.h"
 
 struct reset_control;
 
@@ -173,19 +172,14 @@ static inline struct tegra_dc *to_tegra_dc(struct drm_crtc *crtc)
 }
 
 static inline void tegra_dc_writel(struct tegra_dc *dc, u32 value,
-				   unsigned int offset)
+				   unsigned long offset)
 {
-	trace_dc_writel(dc->dev, offset, value);
 	writel(value, dc->regs + (offset << 2));
 }
 
-static inline u32 tegra_dc_readl(struct tegra_dc *dc, unsigned int offset)
+static inline u32 tegra_dc_readl(struct tegra_dc *dc, unsigned long offset)
 {
-	u32 value = readl(dc->regs + (offset << 2));
-
-	trace_dc_readl(dc->dev, offset, value);
-
-	return value;
+	return readl(dc->regs + (offset << 2));
 }
 
 struct tegra_dc_window {

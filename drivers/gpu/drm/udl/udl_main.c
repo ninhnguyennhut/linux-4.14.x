@@ -371,6 +371,8 @@ void udl_driver_unload(struct drm_device *dev)
 {
 	struct udl_device *udl = dev->dev_private;
 
+	drm_vblank_cleanup(dev);
+
 	if (udl->urbs.count)
 		udl_free_urb_list(dev);
 

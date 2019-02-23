@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Device driver for the via ADB on (many) Mac II-class machines
  *

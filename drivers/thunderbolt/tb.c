@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Thunderbolt Cactus Ridge driver - bus logic (NHI independent)
  *
@@ -8,7 +7,7 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
-#include <linux/platform_data/x86/apple.h>
+#include <linux/dmi.h>
 
 #include "tb.h"
 #include "tb_regs.h"
@@ -225,7 +224,6 @@ static void tb_activate_pcie_devices(struct tb *tb)
 			tb_port_info(up_port,
 				     "PCIe tunnel activation failed, aborting\n");
 			tb_pci_free(tunnel);
-			continue;
 		}
 
 		list_add(&tunnel->list, &tcm->tunnel_list);
@@ -455,7 +453,7 @@ struct tb *tb_probe(struct tb_nhi *nhi)
 	struct tb_cm *tcm;
 	struct tb *tb;
 
-	if (!x86_apple_machine)
+	if (!dmi_match(DMI_BOARD_VENDOR, "Apple Inc."))
 		return NULL;
 
 	tb = tb_domain_alloc(nhi, sizeof(*tcm));

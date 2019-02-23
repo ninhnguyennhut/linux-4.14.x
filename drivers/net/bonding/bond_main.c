@@ -2042,7 +2042,6 @@ static int bond_miimon_inspect(struct bonding *bond)
 
 	bond_for_each_slave_rcu(bond, slave, iter) {
 		slave->new_link = BOND_LINK_NOCHANGE;
-		slave->link_new_state = slave->link;
 
 		link_state = bond_check_dev_link(bond, slave->dev, 0);
 
@@ -3254,7 +3253,7 @@ u32 bond_xmit_hash(struct bonding *bond, struct sk_buff *skb)
 	hash ^= (hash >> 16);
 	hash ^= (hash >> 8);
 
-	return hash >> 1;
+	return hash;
 }
 
 /*-------------------------- Device entry points ----------------------------*/
@@ -4290,7 +4289,7 @@ static int bond_check_params(struct bond_params *params)
 	int bond_mode	= BOND_MODE_ROUNDROBIN;
 	int xmit_hashtype = BOND_XMIT_POLICY_LAYER2;
 	int lacp_fast = 0;
-	int tlb_dynamic_lb;
+	int tlb_dynamic_lb = 0;
 
 	/* Convert string parameters. */
 	if (mode) {
@@ -4602,13 +4601,16 @@ static int bond_check_params(struct bond_params *params)
 	}
 	ad_user_port_key = valptr->value;
 
-	bond_opt_initstr(&newval, "default");
-	valptr = bond_opt_parse(bond_opt_get(BOND_OPT_TLB_DYNAMIC_LB), &newval);
-	if (!valptr) {
-		pr_err("Error: No tlb_dynamic_lb default value");
-		return -EINVAL;
+	if ((bond_mode == BOND_MODE_TLB) || (bond_mode == BOND_MODE_ALB)) {
+		bond_opt_initstr(&newval, "default");
+		valptr = bond_opt_parse(bond_opt_get(BOND_OPT_TLB_DYNAMIC_LB),
+					&newval);
+		if (!valptr) {
+			pr_err("Error: No tlb_dynamic_lb default value");
+			return -EINVAL;
+		}
+		tlb_dynamic_lb = valptr->value;
 	}
-	tlb_dynamic_lb = valptr->value;
 
 	if (lp_interval == 0) {
 		pr_warn("Warning: ip_interval must be between 1 and %d, so it was reset to %d\n",

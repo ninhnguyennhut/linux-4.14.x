@@ -466,6 +466,7 @@
 	pinctrl-names = "default";
 	status = "okay";
 	vmmc-supply = <&buck9_reg>;
+	num-slots = <1>;
 	broken-cd;
 	card-detect-delay = <200>;
 	samsung,dw-mshc-ciu-div = <3>;

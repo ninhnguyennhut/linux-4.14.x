@@ -178,18 +178,6 @@ cifs_reconnect_tcon(struct cifs_tcon *tcon, int smb_command)
 	 * reconnect the same SMB session
 	 */
 	mutex_lock(&ses->session_mutex);
-
-	/*
-	 * Recheck after acquire mutex. If another thread is negotiating
-	 * and the server never sends an answer the socket will be closed
-	 * and tcpStatus set to reconnect.
-	 */
-	if (server->tcpStatus == CifsNeedReconnect) {
-		rc = -EHOSTDOWN;
-		mutex_unlock(&ses->session_mutex);
-		goto out;
-	}
-
 	rc = cifs_negotiate_protocol(0, ses);
 	if (rc == 0 && ses->need_reconnect)
 		rc = cifs_setup_session(0, ses, nls_codepage);
@@ -2534,7 +2522,7 @@ CIFSSMBPosixLock(const unsigned int xid, struct cifs_tcon *tcon,
 			pLockData->fl_start = le64_to_cpu(parm_data->start);
 			pLockData->fl_end = pLockData->fl_start +
 					le64_to_cpu(parm_data->length) - 1;
-			pLockData->fl_pid = -le32_to_cpu(parm_data->pid);
+			pLockData->fl_pid = le32_to_cpu(parm_data->pid);
 		}
 	}
 
@@ -6276,7 +6264,7 @@ int
 CIFSSMBSetEA(const unsigned int xid, struct cifs_tcon *tcon,
 	     const char *fileName, const char *ea_name, const void *ea_value,
 	     const __u16 ea_value_len, const struct nls_table *nls_codepage,
-	     struct cifs_sb_info *cifs_sb)
+	     int remap)
 {
 	struct smb_com_transaction2_spi_req *pSMB = NULL;
 	struct smb_com_transaction2_spi_rsp *pSMBr = NULL;
@@ -6285,7 +6273,6 @@ CIFSSMBSetEA(const unsigned int xid, struct cifs_tcon *tcon,
 	int rc = 0;
 	int bytes_returned = 0;
 	__u16 params, param_offset, byte_count, offset, count;
-	int remap = cifs_remap(cifs_sb);
 
 	cifs_dbg(FYI, "In SetEA\n");
 SetEARetry:

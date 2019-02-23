@@ -809,7 +809,7 @@ void MACvSetKeyEntry(struct vnt_private *priv, unsigned short wKeyCtl,
 	if (byLocalID <= 1)
 		return;
 
-	pr_debug("%s\n", __func__);
+	pr_debug("MACvSetKeyEntry\n");
 	offset = MISCFIFO_KEYETRY0;
 	offset += (uEntryIdx * MISCFIFO_KEYENTRYSIZE);
 

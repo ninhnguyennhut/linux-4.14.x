@@ -1000,7 +1000,8 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		return -ENOMEM;
 
 	attr->qp_state = IB_QPS_INIT;
-	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE;
+	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_READ |
+	    IB_ACCESS_REMOTE_WRITE;
 	attr->port_num = ch->sport->port;
 	attr->pkey_index = 0;
 
@@ -1991,7 +1992,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	guid = (__be16 *)&param->primary_path->dgid.global.interface_id;
+	guid = (__be16 *)&param->primary_path->sgid.global.interface_id;
 	snprintf(ch->ini_guid, sizeof(ch->ini_guid), "%04x:%04x:%04x:%04x",
 		 be16_to_cpu(guid[0]), be16_to_cpu(guid[1]),
 		 be16_to_cpu(guid[2]), be16_to_cpu(guid[3]));
@@ -2237,7 +2238,7 @@ static int srpt_write_pending(struct se_cmd *se_cmd)
 				cqe, first_wr);
 		cqe = NULL;
 	}
-
+	
 	ret = ib_post_send(ch->qp, first_wr, &bad_wr);
 	if (ret) {
 		pr_err("%s: ib_post_send() returned %d for %d (avail: %d)\n",
@@ -2529,7 +2530,8 @@ static void srpt_add_one(struct ib_device *device)
 
 	INIT_IB_EVENT_HANDLER(&sdev->event_handler, sdev->device,
 			      srpt_event_handler);
-	ib_register_event_handler(&sdev->event_handler);
+	if (ib_register_event_handler(&sdev->event_handler))
+		goto err_cm;
 
 	sdev->ioctx_ring = (struct srpt_recv_ioctx **)
 		srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
@@ -2776,7 +2778,7 @@ static int srpt_parse_i_port_id(u8 i_port_id[16], const char *name)
 {
 	const char *p;
 	unsigned len, count, leading_zero_bytes;
-	int ret;
+	int ret, rc;
 
 	p = name;
 	if (strncasecmp(p, "0x", 2) == 0)
@@ -2788,9 +2790,10 @@ static int srpt_parse_i_port_id(u8 i_port_id[16], const char *name)
 	count = min(len / 2, 16U);
 	leading_zero_bytes = 16 - count;
 	memset(i_port_id, 0, leading_zero_bytes);
-	ret = hex2bin(i_port_id + leading_zero_bytes, p, count);
-	if (ret < 0)
-		pr_debug("hex2bin failed for srpt_parse_i_port_id: %d\n", ret);
+	rc = hex2bin(i_port_id + leading_zero_bytes, p, count);
+	if (rc < 0)
+		pr_debug("hex2bin failed for srpt_parse_i_port_id: %d\n", rc);
+	ret = 0;
 out:
 	return ret;
 }

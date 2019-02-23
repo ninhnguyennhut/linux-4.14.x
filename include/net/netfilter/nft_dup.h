@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NFT_DUP_H_
 #define _NFT_DUP_H_
 

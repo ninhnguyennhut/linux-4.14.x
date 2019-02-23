@@ -59,12 +59,6 @@ struct i915_vma {
 	u32 fence_size;
 	u32 fence_alignment;
 
-	/**
-	 * Count of the number of times this vma has been opened by different
-	 * handles (but same file) for execbuf, i.e. the number of aliases
-	 * that exist in the ctx->handle_vmas LUT for this vma.
-	 */
-	unsigned int open_count;
 	unsigned int flags;
 	/**
 	 * How many users have pinned this object in GTT space. The following
@@ -118,9 +112,13 @@ struct i915_vma {
 	/**
 	 * Used for performing relocations during execbuffer insertion.
 	 */
-	unsigned int *exec_flags;
+	struct drm_i915_gem_exec_object2 *exec_entry;
 	struct hlist_node exec_node;
 	u32 exec_handle;
+
+	struct i915_gem_context *ctx;
+	struct hlist_node ctx_node;
+	u32 ctx_handle;
 };
 
 struct i915_vma *

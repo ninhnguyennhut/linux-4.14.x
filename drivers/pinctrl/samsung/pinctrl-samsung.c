@@ -30,8 +30,6 @@
 #include <linux/of_device.h>
 #include <linux/spinlock.h>
 
-#include <dt-bindings/pinctrl/samsung.h>
-
 #include "../core.h"
 #include "pinctrl-samsung.h"
 
@@ -588,7 +586,7 @@ static int samsung_gpio_set_direction(struct gpio_chip *gc,
 	data = readl(reg);
 	data &= ~(mask << shift);
 	if (!input)
-		data |= EXYNOS_PIN_FUNC_OUTPUT << shift;
+		data |= FUNC_OUTPUT << shift;
 	writel(data, reg);
 
 	return 0;
@@ -681,7 +679,7 @@ static int samsung_pinctrl_create_function(struct device *dev,
 
 	npins = of_property_count_strings(func_np, "samsung,pins");
 	if (npins < 1) {
-		dev_err(dev, "invalid pin list in %pOFn node", func_np);
+		dev_err(dev, "invalid pin list in %s node", func_np->name);
 		return -EINVAL;
 	}
 
@@ -698,8 +696,8 @@ static int samsung_pinctrl_create_function(struct device *dev,
 							i, &gname);
 		if (ret) {
 			dev_err(dev,
-				"failed to read pin name %d from %pOFn node\n",
-				i, func_np);
+				"failed to read pin name %d from %s node\n",
+				i, func_np->name);
 			return ret;
 		}
 
@@ -960,7 +958,7 @@ samsung_pinctrl_get_soc_data(struct samsung_pinctrl_drv_data *d,
 	struct samsung_pin_bank *bank;
 	struct resource *res;
 	void __iomem *virt_base[SAMSUNG_PINCTRL_NUM_RESOURCES];
-	unsigned int i;
+	int i;
 
 	id = of_alias_get_id(node, "pinctrl");
 	if (id < 0) {
@@ -1015,12 +1013,6 @@ samsung_pinctrl_get_soc_data(struct samsung_pinctrl_drv_data *d,
 		bank->eint_base = virt_base[0];
 		bank->pctl_base = virt_base[bdata->pctl_res_idx];
 	}
-	/*
-	 * Legacy platforms should provide only one resource with IO memory.
-	 * Store it as virt_base because legacy driver needs to access it
-	 * through samsung_pinctrl_drv_data.
-	 */
-	d->virt_base = virt_base[0];
 
 	for_each_child_of_node(node, np) {
 		if (!of_find_property(np, "gpio-controller", NULL))

@@ -65,32 +65,21 @@ static int serdev_uevent(struct device *dev, struct kobj_uevent_env *env)
  */
 int serdev_device_add(struct serdev_device *serdev)
 {
-	struct serdev_controller *ctrl = serdev->ctrl;
 	struct device *parent = serdev->dev.parent;
 	int err;
 
 	dev_set_name(&serdev->dev, "%s-%d", dev_name(parent), serdev->nr);
 
-	/* Only a single slave device is currently supported. */
-	if (ctrl->serdev) {
-		dev_err(&serdev->dev, "controller busy\n");
-		return -EBUSY;
-	}
-	ctrl->serdev = serdev;
-
 	err = device_add(&serdev->dev);
 	if (err < 0) {
 		dev_err(&serdev->dev, "Can't add %s, status %d\n",
 			dev_name(&serdev->dev), err);
-		goto err_clear_serdev;
+		goto err_device_add;
 	}
 
 	dev_dbg(&serdev->dev, "device %s registered\n", dev_name(&serdev->dev));
 
-	return 0;
-
-err_clear_serdev:
-	ctrl->serdev = NULL;
+err_device_add:
 	return err;
 }
 EXPORT_SYMBOL_GPL(serdev_device_add);
@@ -101,10 +90,7 @@ EXPORT_SYMBOL_GPL(serdev_device_add);
  */
 void serdev_device_remove(struct serdev_device *serdev)
 {
-	struct serdev_controller *ctrl = serdev->ctrl;
-
 	device_unregister(&serdev->dev);
-	ctrl->serdev = NULL;
 }
 EXPORT_SYMBOL_GPL(serdev_device_remove);
 
@@ -309,6 +295,7 @@ struct serdev_device *serdev_device_alloc(struct serdev_controller *ctrl)
 		return NULL;
 
 	serdev->ctrl = ctrl;
+	ctrl->serdev = serdev;
 	device_initialize(&serdev->dev);
 	serdev->dev.parent = &ctrl->dev;
 	serdev->dev.bus = &serdev_bus_type;
@@ -376,7 +363,7 @@ static int of_serdev_register_devices(struct serdev_controller *ctrl)
 		if (!of_get_property(node, "compatible", NULL))
 			continue;
 
-		dev_dbg(&ctrl->dev, "adding child %pOF\n", node);
+		dev_dbg(&ctrl->dev, "adding child %s\n", node->full_name);
 
 		serdev = serdev_device_alloc(ctrl);
 		if (!serdev)

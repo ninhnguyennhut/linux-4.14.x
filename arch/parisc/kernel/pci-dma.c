@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
 ** PARISC 1.1 Dynamic DMA mapping support.
 ** This implementation is for PA-RISC platforms that do not support
@@ -42,7 +41,7 @@ static unsigned long pcxl_used_bytes __read_mostly = 0;
 static unsigned long pcxl_used_pages __read_mostly = 0;
 
 extern unsigned long pcxl_dma_start; /* Start of pcxl dma mapping area */
-static DEFINE_SPINLOCK(pcxl_res_lock);
+static spinlock_t   pcxl_res_lock;
 static char    *pcxl_res_map;
 static int     pcxl_res_hint;
 static int     pcxl_res_size;
@@ -391,6 +390,7 @@ pcxl_dma_init(void)
 	if (pcxl_dma_start == 0)
 		return 0;
 
+	spin_lock_init(&pcxl_res_lock);
 	pcxl_res_size = PCXL_DMA_MAP_SIZE >> (PAGE_SHIFT + 3);
 	pcxl_res_hint = 0;
 	pcxl_res_map = (char *)__get_free_pages(GFP_KERNEL,

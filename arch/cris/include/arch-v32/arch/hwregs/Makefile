@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Makefile to generate or copy the latest register definitions
 # and related datastructures and helpermacros.
 # The official place for these files is at:

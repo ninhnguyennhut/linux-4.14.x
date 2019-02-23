@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* 
  * Coda File System, Linux Kernel module
  * 

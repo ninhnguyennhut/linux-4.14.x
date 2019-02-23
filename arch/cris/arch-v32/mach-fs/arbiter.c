@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Memory arbiter functions. Allocates bandwidth through the
  * arbiter and sets up arbiter breakpoints.
@@ -159,7 +158,7 @@ static void crisv32_arbiter_config(int region, int unused_slots)
 	}
 }
 
-extern char _stext[], _etext[];
+extern char _stext, _etext;
 
 static void crisv32_arbiter_init(void)
 {
@@ -191,7 +190,7 @@ static void crisv32_arbiter_init(void)
 
 #ifndef CONFIG_ETRAX_KGDB
 	/* Global watch for writes to kernel text segment. */
-	crisv32_arbiter_watch(virt_to_phys(_stext), _etext - _stext,
+	crisv32_arbiter_watch(virt_to_phys(&_stext), &_etext - &_stext,
 			      arbiter_all_clients, arbiter_all_write, NULL);
 #endif
 }

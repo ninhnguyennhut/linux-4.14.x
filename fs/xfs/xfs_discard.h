@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef XFS_DISCARD_H
 #define XFS_DISCARD_H 1
 

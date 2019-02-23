@@ -37,9 +37,6 @@ struct ovl_fs {
 	bool noxattr;
 	/* sb common to all layers */
 	struct super_block *same_sb;
-	/* Did we take the inuse lock? */
-	bool upperdir_locked;
-	bool workdir_locked;
 };
 
 /* private information held for every overlayfs dentry */
@@ -77,5 +74,5 @@ static inline struct ovl_inode *OVL_I(struct inode *inode)
 
 static inline struct dentry *ovl_upperdentry_dereference(struct ovl_inode *oi)
 {
-	return READ_ONCE(oi->__upperdentry);
+	return lockless_dereference(oi->__upperdentry);
 }

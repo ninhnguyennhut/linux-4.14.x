@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef MOXA_H_FILE
 #define MOXA_H_FILE
 

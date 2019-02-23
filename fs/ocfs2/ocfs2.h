@@ -320,6 +320,7 @@ struct ocfs2_super
 	u64 system_dir_blkno;
 	u64 bitmap_blkno;
 	u32 bitmap_cpg;
+	u8 *uuid;
 	char *uuid_str;
 	u32 uuid_hash;
 	u8 *vol_label;
@@ -387,8 +388,9 @@ struct ocfs2_super
 	unsigned int	osb_resv_level;
 	unsigned int	osb_dir_resv_level;
 
-	/* Next two fields are for local node slot recovery during
+	/* Next three fields are for local node slot recovery during
 	 * mount. */
+	int dirty;
 	struct ocfs2_dinode *local_alloc_copy;
 	struct ocfs2_quota_recovery *quota_rec;
 

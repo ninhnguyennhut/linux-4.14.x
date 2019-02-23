@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
   nubus.h: various definitions and prototypes for NuBus drivers to use.
 

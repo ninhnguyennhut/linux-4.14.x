@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "misc.h"
 
 #if CONFIG_EARLY_PRINTK || CONFIG_RANDOMIZE_BASE

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config PPC_XIVE
 	bool
 	default n
@@ -10,8 +9,3 @@ config PPC_XIVE_NATIVE
 	default n
 	select PPC_XIVE
 	depends on PPC_POWERNV
-
-config PPC_XIVE_SPAPR
-	bool
-	default n
-	select PPC_XIVE

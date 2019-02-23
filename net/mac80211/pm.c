@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <net/mac80211.h>
 #include <net/rtnetlink.h>
 

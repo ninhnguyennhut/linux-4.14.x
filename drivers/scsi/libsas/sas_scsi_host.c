@@ -526,7 +526,7 @@ int sas_eh_device_reset_handler(struct scsi_cmnd *cmd)
 	return FAILED;
 }
 
-int sas_eh_target_reset_handler(struct scsi_cmnd *cmd)
+int sas_eh_bus_reset_handler(struct scsi_cmnd *cmd)
 {
 	int res;
 	struct Scsi_Host *host = cmd->device->host;
@@ -554,15 +554,15 @@ static int try_to_reset_cmd_device(struct scsi_cmnd *cmd)
 	struct Scsi_Host *shost = cmd->device->host;
 
 	if (!shost->hostt->eh_device_reset_handler)
-		goto try_target_reset;
+		goto try_bus_reset;
 
 	res = shost->hostt->eh_device_reset_handler(cmd);
 	if (res == SUCCESS)
 		return res;
 
-try_target_reset:
-	if (shost->hostt->eh_target_reset_handler)
-		return shost->hostt->eh_target_reset_handler(cmd);
+try_bus_reset:
+	if (shost->hostt->eh_bus_reset_handler)
+		return shost->hostt->eh_bus_reset_handler(cmd);
 
 	return FAILED;
 }
@@ -855,6 +855,7 @@ int sas_target_alloc(struct scsi_target *starget)
 int sas_slave_configure(struct scsi_device *scsi_dev)
 {
 	struct domain_device *dev = sdev_to_domain_dev(scsi_dev);
+	struct sas_ha_struct *sas_ha;
 
 	BUG_ON(dev->rphy->identify.device_type != SAS_END_DEVICE);
 
@@ -862,6 +863,8 @@ int sas_slave_configure(struct scsi_device *scsi_dev)
 		ata_sas_slave_configure(scsi_dev, dev->sata_dev.ap);
 		return 0;
 	}
+
+	sas_ha = dev->port->ha;
 
 	sas_read_port_mode_page(scsi_dev);
 
@@ -993,6 +996,6 @@ EXPORT_SYMBOL_GPL(sas_bios_param);
 EXPORT_SYMBOL_GPL(sas_task_abort);
 EXPORT_SYMBOL_GPL(sas_phy_reset);
 EXPORT_SYMBOL_GPL(sas_eh_device_reset_handler);
-EXPORT_SYMBOL_GPL(sas_eh_target_reset_handler);
+EXPORT_SYMBOL_GPL(sas_eh_bus_reset_handler);
 EXPORT_SYMBOL_GPL(sas_target_destroy);
 EXPORT_SYMBOL_GPL(sas_ioctl);

@@ -670,7 +670,7 @@ err:
 
 }
 
-static void __init acpi_processor_check_duplicates(void)
+void __init acpi_processor_check_duplicates(void)
 {
 	/* check the correctness for all processors in ACPI namespace */
 	acpi_walk_namespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT,

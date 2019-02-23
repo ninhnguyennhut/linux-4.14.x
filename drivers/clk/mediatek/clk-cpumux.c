@@ -27,12 +27,16 @@ static inline struct mtk_clk_cpumux *to_mtk_clk_cpumux(struct clk_hw *_hw)
 static u8 clk_cpumux_get_parent(struct clk_hw *hw)
 {
 	struct mtk_clk_cpumux *mux = to_mtk_clk_cpumux(hw);
+	int num_parents = clk_hw_get_num_parents(hw);
 	unsigned int val;
 
 	regmap_read(mux->regmap, mux->reg, &val);
 
 	val >>= mux->shift;
 	val &= mux->mask;
+
+	if (val >= num_parents)
+		return -EINVAL;
 
 	return val;
 }
@@ -94,7 +98,7 @@ int __init mtk_clk_register_cpumuxes(struct device_node *node,
 
 	regmap = syscon_node_to_regmap(node);
 	if (IS_ERR(regmap)) {
-		pr_err("Cannot find regmap for %pOF: %ld\n", node,
+		pr_err("Cannot find regmap for %s: %ld\n", node->full_name,
 		       PTR_ERR(regmap));
 		return PTR_ERR(regmap);
 	}

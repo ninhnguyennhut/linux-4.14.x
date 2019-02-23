@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 menu "Certificates for signature checking"
 
 config MODULE_SIG_KEY

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -10,7 +9,7 @@
 #define NAME	(const char *) "perf"
 #define NAMEUL	(unsigned long) NAME
 
-int test__thread_map(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__thread_map(int subtest __maybe_unused)
 {
 	struct thread_map *map;
 
@@ -77,7 +76,7 @@ static int process_event(struct perf_tool *tool __maybe_unused,
 	return 0;
 }
 
-int test__thread_map_synthesize(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__thread_map_synthesize(int subtest __maybe_unused)
 {
 	struct thread_map *threads;
 
@@ -96,7 +95,7 @@ int test__thread_map_synthesize(struct test *test __maybe_unused, int subtest __
 	return 0;
 }
 
-int test__thread_map_remove(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__thread_map_remove(int subtest __maybe_unused)
 {
 	struct thread_map *threads;
 	char *str;

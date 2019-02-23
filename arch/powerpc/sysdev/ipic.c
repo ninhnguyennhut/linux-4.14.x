@@ -315,7 +315,6 @@ static struct ipic_info ipic_info[] = {
 		.prio_mask = 7,
 	},
 	[48] = {
-		.ack	= IPIC_SEPNR,
 		.mask	= IPIC_SEMSR,
 		.prio	= IPIC_SMPRR_A,
 		.force	= IPIC_SEFCR,
@@ -846,12 +845,12 @@ void ipic_disable_mcp(enum ipic_mcp_irq mcp_irq)
 
 u32 ipic_get_mcp_status(void)
 {
-	return ipic_read(primary_ipic->regs, IPIC_SERSR);
+	return ipic_read(primary_ipic->regs, IPIC_SERMR);
 }
 
 void ipic_clear_mcp_status(u32 mask)
 {
-	ipic_write(primary_ipic->regs, IPIC_SERSR, mask);
+	ipic_write(primary_ipic->regs, IPIC_SERMR, mask);
 }
 
 /* Return an interrupt vector or 0 if no interrupt is pending. */

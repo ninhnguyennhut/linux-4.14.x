@@ -221,7 +221,7 @@ struct qxl_bo *qxl_bo_ref(struct qxl_bo *bo)
 	return bo;
 }
 
-static int __qxl_bo_pin(struct qxl_bo *bo, u32 domain, u64 *gpu_addr)
+int __qxl_bo_pin(struct qxl_bo *bo, u32 domain, u64 *gpu_addr)
 {
 	struct drm_device *ddev = bo->gem_base.dev;
 	int r;
@@ -244,7 +244,7 @@ static int __qxl_bo_pin(struct qxl_bo *bo, u32 domain, u64 *gpu_addr)
 	return r;
 }
 
-static int __qxl_bo_unpin(struct qxl_bo *bo)
+int __qxl_bo_unpin(struct qxl_bo *bo)
 {
 	struct drm_device *ddev = bo->gem_base.dev;
 	int r, i;

@@ -203,7 +203,19 @@ static void vmw_ldu_crtc_mode_set_nofb(struct drm_crtc *crtc)
 }
 
 /**
- * vmw_ldu_crtc_atomic_enable - Noop
+ * vmw_ldu_crtc_helper_prepare - Noop
+ *
+ * @crtc: CRTC associated with the new screen
+ *
+ * Prepares the CRTC for a mode set, but we don't need to do anything here.
+ *
+ */
+static void vmw_ldu_crtc_helper_prepare(struct drm_crtc *crtc)
+{
+}
+
+/**
+ * vmw_ldu_crtc_helper_commit - Noop
  *
  * @crtc: CRTC associated with the new screen
  *
@@ -212,18 +224,16 @@ static void vmw_ldu_crtc_mode_set_nofb(struct drm_crtc *crtc)
  * but since for LDU the display plane is closely tied to the
  * CRTC, it makes more sense to do those at plane update time.
  */
-static void vmw_ldu_crtc_atomic_enable(struct drm_crtc *crtc,
-				       struct drm_crtc_state *old_state)
+static void vmw_ldu_crtc_helper_commit(struct drm_crtc *crtc)
 {
 }
 
 /**
- * vmw_ldu_crtc_atomic_disable - Turns off CRTC
+ * vmw_ldu_crtc_helper_disable - Turns off CRTC
  *
  * @crtc: CRTC to be turned off
  */
-static void vmw_ldu_crtc_atomic_disable(struct drm_crtc *crtc,
-					struct drm_crtc_state *old_state)
+static void vmw_ldu_crtc_helper_disable(struct drm_crtc *crtc)
 {
 }
 
@@ -378,12 +388,13 @@ drm_plane_helper_funcs vmw_ldu_primary_plane_helper_funcs = {
 };
 
 static const struct drm_crtc_helper_funcs vmw_ldu_crtc_helper_funcs = {
+	.prepare = vmw_ldu_crtc_helper_prepare,
+	.commit = vmw_ldu_crtc_helper_commit,
+	.disable = vmw_ldu_crtc_helper_disable,
 	.mode_set_nofb = vmw_ldu_crtc_mode_set_nofb,
 	.atomic_check = vmw_du_crtc_atomic_check,
 	.atomic_begin = vmw_du_crtc_atomic_begin,
 	.atomic_flush = vmw_du_crtc_atomic_flush,
-	.atomic_enable = vmw_ldu_crtc_atomic_enable,
-	.atomic_disable = vmw_ldu_crtc_atomic_disable,
 };
 
 
@@ -428,7 +439,7 @@ static int vmw_ldu_init(struct vmw_private *dev_priv, unsigned unit)
 				       0, &vmw_ldu_plane_funcs,
 				       vmw_primary_plane_formats,
 				       ARRAY_SIZE(vmw_primary_plane_formats),
-				       NULL, DRM_PLANE_TYPE_PRIMARY, NULL);
+				       DRM_PLANE_TYPE_PRIMARY, NULL);
 	if (ret) {
 		DRM_ERROR("Failed to initialize primary plane");
 		goto err_free;
@@ -443,7 +454,7 @@ static int vmw_ldu_init(struct vmw_private *dev_priv, unsigned unit)
 			0, &vmw_ldu_cursor_funcs,
 			vmw_cursor_plane_formats,
 			ARRAY_SIZE(vmw_cursor_plane_formats),
-			NULL, DRM_PLANE_TYPE_CURSOR, NULL);
+			DRM_PLANE_TYPE_CURSOR, NULL);
 	if (ret) {
 		DRM_ERROR("Failed to initialize cursor plane");
 		drm_plane_cleanup(&ldu->base.primary);
@@ -571,8 +582,12 @@ err_free:
 
 int vmw_kms_ldu_close_display(struct vmw_private *dev_priv)
 {
+	struct drm_device *dev = dev_priv->dev;
+
 	if (!dev_priv->ldu_priv)
 		return -ENOSYS;
+
+	drm_vblank_cleanup(dev);
 
 	BUG_ON(!list_empty(&dev_priv->ldu_priv->active));
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ARCH_S390_PERCPU__
 #define __ARCH_S390_PERCPU__
 

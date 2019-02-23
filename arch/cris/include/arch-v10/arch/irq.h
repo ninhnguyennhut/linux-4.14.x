@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Interrupt handling assembler and defines for Linux/CRISv10
  */

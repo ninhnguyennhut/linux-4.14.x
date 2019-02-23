@@ -647,7 +647,7 @@ int amdgpu_vce_ring_parse_cs(struct amdgpu_cs_parser *p, uint32_t ib_idx)
 	uint32_t allocated = 0;
 	uint32_t tmp, handle = 0;
 	uint32_t *size = &tmp;
-	int i, r = 0, idx = 0;
+	int i, r, idx = 0;
 
 	p->job->vm = NULL;
 	ib->gpu_addr = amdgpu_sa_bo_gpu_addr(ib->sa_bo);
@@ -937,9 +937,9 @@ int amdgpu_vce_ring_test_ring(struct amdgpu_ring *ring)
 	unsigned i;
 	int r, timeout = adev->usec_timeout;
 
-	/* skip ring test for sriov*/
+	/* workaround VCE ring test slow issue for sriov*/
 	if (amdgpu_sriov_vf(adev))
-		return 0;
+		timeout *= 10;
 
 	r = amdgpu_ring_alloc(ring, 16);
 	if (r) {

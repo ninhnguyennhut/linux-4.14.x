@@ -92,6 +92,7 @@ dumb_vga_connector_detect(struct drm_connector *connector, bool force)
 }
 
 static const struct drm_connector_funcs dumb_vga_con_funcs = {
+	.dpms			= drm_atomic_helper_connector_dpms,
 	.detect			= dumb_vga_connector_detect,
 	.fill_modes		= drm_helper_probe_single_connector_modes,
 	.destroy		= drm_connector_cleanup,
@@ -176,6 +177,7 @@ static struct i2c_adapter *dumb_vga_retrieve_ddc(struct device *dev)
 static int dumb_vga_probe(struct platform_device *pdev)
 {
 	struct dumb_vga *vga;
+	int ret;
 
 	vga = devm_kzalloc(&pdev->dev, sizeof(*vga), GFP_KERNEL);
 	if (!vga)
@@ -184,7 +186,7 @@ static int dumb_vga_probe(struct platform_device *pdev)
 
 	vga->vdd = devm_regulator_get_optional(&pdev->dev, "vdd");
 	if (IS_ERR(vga->vdd)) {
-		int ret = PTR_ERR(vga->vdd);
+		ret = PTR_ERR(vga->vdd);
 		if (ret == -EPROBE_DEFER)
 			return -EPROBE_DEFER;
 		vga->vdd = NULL;
@@ -205,9 +207,11 @@ static int dumb_vga_probe(struct platform_device *pdev)
 	vga->bridge.funcs = &dumb_vga_bridge_funcs;
 	vga->bridge.of_node = pdev->dev.of_node;
 
-	drm_bridge_add(&vga->bridge);
+	ret = drm_bridge_add(&vga->bridge);
+	if (ret && !IS_ERR(vga->ddc))
+		i2c_put_adapter(vga->ddc);
 
-	return 0;
+	return ret;
 }
 
 static int dumb_vga_remove(struct platform_device *pdev)

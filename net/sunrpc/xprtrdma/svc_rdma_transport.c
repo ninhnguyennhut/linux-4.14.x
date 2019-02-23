@@ -51,7 +51,6 @@
 #include <linux/workqueue.h>
 #include <rdma/ib_verbs.h>
 #include <rdma/rdma_cm.h>
-#include <rdma/rw.h>
 #include <linux/sunrpc/svc_rdma.h>
 #include <linux/export.h>
 #include "xprt_rdma.h"
@@ -71,7 +70,7 @@ static int svc_rdma_has_wspace(struct svc_xprt *xprt);
 static int svc_rdma_secure_port(struct svc_rqst *);
 static void svc_rdma_kill_temp_xprt(struct svc_xprt *);
 
-static const struct svc_xprt_ops svc_rdma_ops = {
+static struct svc_xprt_ops svc_rdma_ops = {
 	.xpo_create = svc_rdma_create,
 	.xpo_recvfrom = svc_rdma_recvfrom,
 	.xpo_sendto = svc_rdma_sendto,
@@ -99,7 +98,7 @@ static struct svc_xprt *svc_rdma_bc_create(struct svc_serv *, struct net *,
 static void svc_rdma_bc_detach(struct svc_xprt *);
 static void svc_rdma_bc_free(struct svc_xprt *);
 
-static const struct svc_xprt_ops svc_rdma_bc_ops = {
+static struct svc_xprt_ops svc_rdma_bc_ops = {
 	.xpo_create = svc_rdma_bc_create,
 	.xpo_detach = svc_rdma_bc_detach,
 	.xpo_free = svc_rdma_bc_free,
@@ -168,8 +167,8 @@ static bool svc_rdma_prealloc_ctxts(struct svcxprt_rdma *xprt)
 {
 	unsigned int i;
 
-	/* Each RPC/RDMA credit can consume one Receive and
-	 * one Send WQE at the same time.
+	/* Each RPC/RDMA credit can consume a number of send
+	 * and receive WQEs. One ctxt is allocated for each.
 	 */
 	i = xprt->sc_sq_depth + xprt->sc_rq_depth;
 
@@ -714,7 +713,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
 	struct ib_qp_init_attr qp_attr;
 	struct ib_device *dev;
 	struct sockaddr *sap;
-	unsigned int i, ctxts;
+	unsigned int i;
 	int ret = 0;
 
 	listen_rdma = container_of(xprt, struct svcxprt_rdma, sc_xprt);
@@ -743,26 +742,14 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
 	newxprt->sc_max_sge = min((size_t)dev->attrs.max_sge,
 				  (size_t)RPCSVC_MAXPAGES);
 	newxprt->sc_max_req_size = svcrdma_max_req_size;
-	newxprt->sc_max_requests = svcrdma_max_requests;
-	newxprt->sc_max_bc_requests = svcrdma_max_bc_requests;
+	newxprt->sc_max_requests = min_t(u32, dev->attrs.max_qp_wr,
+					 svcrdma_max_requests);
+	newxprt->sc_fc_credits = cpu_to_be32(newxprt->sc_max_requests);
+	newxprt->sc_max_bc_requests = min_t(u32, dev->attrs.max_qp_wr,
+					    svcrdma_max_bc_requests);
 	newxprt->sc_rq_depth = newxprt->sc_max_requests +
 			       newxprt->sc_max_bc_requests;
-	if (newxprt->sc_rq_depth > dev->attrs.max_qp_wr) {
-		pr_warn("svcrdma: reducing receive depth to %d\n",
-			dev->attrs.max_qp_wr);
-		newxprt->sc_rq_depth = dev->attrs.max_qp_wr;
-		newxprt->sc_max_requests = newxprt->sc_rq_depth - 2;
-		newxprt->sc_max_bc_requests = 2;
-	}
-	newxprt->sc_fc_credits = cpu_to_be32(newxprt->sc_max_requests);
-	ctxts = rdma_rw_mr_factor(dev, newxprt->sc_port_num, RPCSVC_MAXPAGES);
-	ctxts *= newxprt->sc_max_requests;
-	newxprt->sc_sq_depth = newxprt->sc_rq_depth + ctxts;
-	if (newxprt->sc_sq_depth > dev->attrs.max_qp_wr) {
-		pr_warn("svcrdma: reducing send depth to %d\n",
-			dev->attrs.max_qp_wr);
-		newxprt->sc_sq_depth = dev->attrs.max_qp_wr;
-	}
+	newxprt->sc_sq_depth = newxprt->sc_rq_depth;
 	atomic_set(&newxprt->sc_sq_avail, newxprt->sc_sq_depth);
 
 	if (!svc_rdma_prealloc_ctxts(newxprt))
@@ -797,8 +784,8 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
 	qp_attr.event_handler = qp_event_handler;
 	qp_attr.qp_context = &newxprt->sc_xprt;
 	qp_attr.port_num = newxprt->sc_port_num;
-	qp_attr.cap.max_rdma_ctxs = ctxts;
-	qp_attr.cap.max_send_wr = newxprt->sc_sq_depth - ctxts;
+	qp_attr.cap.max_rdma_ctxs = newxprt->sc_max_requests;
+	qp_attr.cap.max_send_wr = newxprt->sc_sq_depth;
 	qp_attr.cap.max_recv_wr = newxprt->sc_rq_depth;
 	qp_attr.cap.max_send_sge = newxprt->sc_max_sge;
 	qp_attr.cap.max_recv_sge = newxprt->sc_max_sge;
@@ -866,7 +853,6 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
 	dprintk("    remote address  : %pIS:%u\n", sap, rpc_get_port(sap));
 	dprintk("    max_sge         : %d\n", newxprt->sc_max_sge);
 	dprintk("    sq_depth        : %d\n", newxprt->sc_sq_depth);
-	dprintk("    rdma_rw_ctxs    : %d\n", ctxts);
 	dprintk("    max_requests    : %d\n", newxprt->sc_max_requests);
 	dprintk("    ord             : %d\n", newxprt->sc_ord);
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_IIO_KFIFO_BUF_H__
 #define __LINUX_IIO_KFIFO_BUF_H__
 

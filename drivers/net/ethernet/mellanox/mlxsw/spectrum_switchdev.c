@@ -134,12 +134,6 @@ mlxsw_sp_bridge_device_find(const struct mlxsw_sp_bridge *bridge,
 	return NULL;
 }
 
-bool mlxsw_sp_bridge_device_is_offloaded(const struct mlxsw_sp *mlxsw_sp,
-					 const struct net_device *br_dev)
-{
-	return !!mlxsw_sp_bridge_device_find(mlxsw_sp->bridge, br_dev);
-}
-
 static struct mlxsw_sp_bridge_device *
 mlxsw_sp_bridge_device_create(struct mlxsw_sp_bridge *bridge,
 			      struct net_device *br_dev)
@@ -711,7 +705,6 @@ static int mlxsw_sp_port_attr_mc_router_set(struct mlxsw_sp_port *mlxsw_sp_port,
 					    bool is_port_mc_router)
 {
 	struct mlxsw_sp_bridge_port *bridge_port;
-	int err;
 
 	if (switchdev_trans_ph_prepare(trans))
 		return 0;
@@ -722,17 +715,11 @@ static int mlxsw_sp_port_attr_mc_router_set(struct mlxsw_sp_port *mlxsw_sp_port,
 		return 0;
 
 	if (!bridge_port->bridge_device->multicast_enabled)
-		goto out;
+		return 0;
 
-	err = mlxsw_sp_bridge_port_flood_table_set(mlxsw_sp_port, bridge_port,
-						   MLXSW_SP_FLOOD_TYPE_MC,
-						   is_port_mc_router);
-	if (err)
-		return err;
-
-out:
-	bridge_port->mrouter = is_port_mc_router;
-	return 0;
+	return mlxsw_sp_bridge_port_flood_table_set(mlxsw_sp_port, bridge_port,
+						    MLXSW_SP_FLOOD_TYPE_MC,
+						    is_port_mc_router);
 }
 
 static int mlxsw_sp_port_mc_disabled_set(struct mlxsw_sp_port *mlxsw_sp_port,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 typedef struct vmidi_devc {
 	   int dev;
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Standard user space access functions based on mvcp/mvcs and doing
  *  interesting things in the secondary space mode.
@@ -16,29 +15,7 @@
 #include <asm/mmu_context.h>
 #include <asm/facility.h>
 
-#ifndef CONFIG_HAVE_MARCH_Z10_FEATURES
 static DEFINE_STATIC_KEY_FALSE(have_mvcos);
-
-static int __init uaccess_init(void)
-{
-	if (test_facility(27))
-		static_branch_enable(&have_mvcos);
-	return 0;
-}
-early_initcall(uaccess_init);
-
-static inline int copy_with_mvcos(void)
-{
-	if (static_branch_likely(&have_mvcos))
-		return 1;
-	return 0;
-}
-#else
-static inline int copy_with_mvcos(void)
-{
-	return 1;
-}
-#endif
 
 static inline unsigned long copy_from_user_mvcos(void *x, const void __user *ptr,
 						 unsigned long size)
@@ -107,7 +84,7 @@ static inline unsigned long copy_from_user_mvcp(void *x, const void __user *ptr,
 
 unsigned long raw_copy_from_user(void *to, const void __user *from, unsigned long n)
 {
-	if (copy_with_mvcos())
+	if (static_branch_likely(&have_mvcos))
 		return copy_from_user_mvcos(to, from, n);
 	return copy_from_user_mvcp(to, from, n);
 }
@@ -180,7 +157,7 @@ static inline unsigned long copy_to_user_mvcs(void __user *ptr, const void *x,
 
 unsigned long raw_copy_to_user(void __user *to, const void *from, unsigned long n)
 {
-	if (copy_with_mvcos())
+	if (static_branch_likely(&have_mvcos))
 		return copy_to_user_mvcos(to, from, n);
 	return copy_to_user_mvcs(to, from, n);
 }
@@ -243,7 +220,7 @@ static inline unsigned long copy_in_user_mvc(void __user *to, const void __user 
 
 unsigned long raw_copy_in_user(void __user *to, const void __user *from, unsigned long n)
 {
-	if (copy_with_mvcos())
+	if (static_branch_likely(&have_mvcos))
 		return copy_in_user_mvcos(to, from, n);
 	return copy_in_user_mvc(to, from, n);
 }
@@ -315,7 +292,7 @@ static inline unsigned long clear_user_xc(void __user *to, unsigned long size)
 
 unsigned long __clear_user(void __user *to, unsigned long size)
 {
-	if (copy_with_mvcos())
+	if (static_branch_likely(&have_mvcos))
 			return clear_user_mvcos(to, size);
 	return clear_user_xc(to, size);
 }
@@ -372,3 +349,11 @@ long __strncpy_from_user(char *dst, const char __user *src, long size)
 	return done;
 }
 EXPORT_SYMBOL(__strncpy_from_user);
+
+static int __init uaccess_init(void)
+{
+	if (test_facility(27))
+		static_branch_enable(&have_mvcos);
+	return 0;
+}
+early_initcall(uaccess_init);

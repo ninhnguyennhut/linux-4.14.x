@@ -82,14 +82,9 @@ static int uvc_queue_setup(struct vb2_queue *vq,
 	struct uvc_streaming *stream = uvc_queue_to_stream(queue);
 	unsigned size = stream->ctrl.dwMaxVideoFrameSize;
 
-	/*
-	 * When called with plane sizes, validate them. The driver supports
-	 * single planar formats only, and requires buffers to be large enough
-	 * to store a complete frame.
-	 */
+	/* Make sure the image size is large enough. */
 	if (*nplanes)
-		return *nplanes != 1 || sizes[0] < size ? -EINVAL : 0;
-
+		return sizes[0] < size ? -EINVAL : 0;
 	*nplanes = 1;
 	sizes[0] = size;
 	return 0;

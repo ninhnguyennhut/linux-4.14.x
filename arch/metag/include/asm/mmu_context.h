@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __METAG_MMU_CONTEXT_H
 #define __METAG_MMU_CONTEXT_H
 

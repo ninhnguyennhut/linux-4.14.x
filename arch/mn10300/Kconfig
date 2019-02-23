@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config MN10300
 	def_bool y
 	select HAVE_EXIT_THREAD

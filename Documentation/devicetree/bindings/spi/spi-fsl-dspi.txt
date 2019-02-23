@@ -39,6 +39,7 @@ dspi0@4002c000 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_dspi0_1>;
 	big-endian;
+	status = "okay";
 
 	sflash: at26df081a@0 {
 		#address-cells = <1>;

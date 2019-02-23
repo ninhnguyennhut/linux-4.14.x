@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* ptrace.c */
 /* By Ross Biro 1/23/92 */
 /* edited by Linus Torvalds */

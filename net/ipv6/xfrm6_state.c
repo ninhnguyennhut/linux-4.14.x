@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * xfrm6_state.c: based on xfrm4_state.c
  *

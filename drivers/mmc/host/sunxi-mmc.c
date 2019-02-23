@@ -22,7 +22,6 @@
 #include <linux/err.h>
 
 #include <linux/clk.h>
-#include <linux/clk/sunxi-ng.h>
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
@@ -260,11 +259,7 @@ struct sunxi_mmc_cfg {
 	/* Does DATA0 needs to be masked while the clock is updated */
 	bool mask_data0;
 
-	/* hardware only supports new timing mode */
 	bool needs_new_timings;
-
-	/* hardware can switch between old and new timing modes */
-	bool has_timings_switch;
 };
 
 struct sunxi_mmc_host {
@@ -298,9 +293,6 @@ struct sunxi_mmc_host {
 
 	/* vqmmc */
 	bool		vqmmc_enabled;
-
-	/* timings */
-	bool		use_new_timings;
 };
 
 static int sunxi_mmc_reset_host(struct sunxi_mmc_host *host)
@@ -722,11 +714,6 @@ static int sunxi_mmc_clk_set_phase(struct sunxi_mmc_host *host,
 {
 	int index;
 
-	/* clk controller delays not used under new timings mode */
-	if (host->use_new_timings)
-		return 0;
-
-	/* some old controllers don't support delays */
 	if (!host->cfg->clk_delays)
 		return 0;
 
@@ -760,7 +747,7 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 {
 	struct mmc_host *mmc = host->mmc;
 	long rate;
-	u32 rval, clock = ios->clock, div = 1;
+	u32 rval, clock = ios->clock;
 	int ret;
 
 	ret = sunxi_mmc_oclk_onoff(host, 0);
@@ -773,30 +760,10 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 	if (!ios->clock)
 		return 0;
 
-	/*
-	 * Under the old timing mode, 8 bit DDR requires the module
-	 * clock to be double the card clock. Under the new timing
-	 * mode, all DDR modes require a doubled module clock.
-	 *
-	 * We currently only support the standard MMC DDR52 mode.
-	 * This block should be updated once support for other DDR
-	 * modes is added.
-	 */
+	/* 8 bit DDR requires a higher module clock */
 	if (ios->timing == MMC_TIMING_MMC_DDR52 &&
-	    (host->use_new_timings ||
-	     ios->bus_width == MMC_BUS_WIDTH_8)) {
-		div = 2;
+	    ios->bus_width == MMC_BUS_WIDTH_8)
 		clock <<= 1;
-	}
-
-	if (host->use_new_timings && host->cfg->has_timings_switch) {
-		ret = sunxi_ccu_set_mmc_timing_mode(host->clk_mmc, true);
-		if (ret) {
-			dev_err(mmc_dev(mmc),
-				"error setting new timing mode\n");
-			return ret;
-		}
-	}
 
 	rate = clk_round_rate(host->clk_mmc, clock);
 	if (rate < 0) {
@@ -815,23 +782,24 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 		return ret;
 	}
 
-	/* set internal divider */
+	/* clear internal divider */
 	rval = mmc_readl(host, REG_CLKCR);
 	rval &= ~0xff;
-	rval |= div - 1;
+	/* set internal divider for 8 bit eMMC DDR, so card clock is right */
+	if (ios->timing == MMC_TIMING_MMC_DDR52 &&
+	    ios->bus_width == MMC_BUS_WIDTH_8) {
+		rval |= 1;
+		rate >>= 1;
+	}
 	mmc_writel(host, REG_CLKCR, rval);
 
-	/* update card clock rate to account for internal divider */
-	rate /= div;
-
-	if (host->use_new_timings) {
+	if (host->cfg->needs_new_timings) {
 		/* Don't touch the delay bits */
 		rval = mmc_readl(host, REG_SD_NTSR);
 		rval |= SDXC_2X_TIMING_MODE;
 		mmc_writel(host, REG_SD_NTSR, rval);
 	}
 
-	/* sunxi_mmc_clk_set_phase expects the actual card clock rate */
 	ret = sunxi_mmc_clk_set_phase(host, ios, rate);
 	if (ret)
 		return ret;
@@ -1080,7 +1048,7 @@ static int sunxi_mmc_card_busy(struct mmc_host *mmc)
 	return !!(mmc_readl(host, REG_STAS) & SDXC_CARD_DATA_BUSY);
 }
 
-static const struct mmc_host_ops sunxi_mmc_ops = {
+static struct mmc_host_ops sunxi_mmc_ops = {
 	.request	 = sunxi_mmc_request,
 	.set_ios	 = sunxi_mmc_set_ios,
 	.get_ro		 = mmc_gpio_get_ro,
@@ -1126,13 +1094,6 @@ static const struct sunxi_mmc_cfg sun7i_a20_cfg = {
 	.can_calibrate = false,
 };
 
-static const struct sunxi_mmc_cfg sun8i_a83t_emmc_cfg = {
-	.idma_des_size_bits = 16,
-	.clk_delays = sunxi_mmc_clk_delays,
-	.can_calibrate = false,
-	.has_timings_switch = true,
-};
-
 static const struct sunxi_mmc_cfg sun9i_a80_cfg = {
 	.idma_des_size_bits = 16,
 	.clk_delays = sun9i_mmc_clk_delays,
@@ -1157,7 +1118,6 @@ static const struct of_device_id sunxi_mmc_of_match[] = {
 	{ .compatible = "allwinner,sun4i-a10-mmc", .data = &sun4i_a10_cfg },
 	{ .compatible = "allwinner,sun5i-a13-mmc", .data = &sun5i_a13_cfg },
 	{ .compatible = "allwinner,sun7i-a20-mmc", .data = &sun7i_a20_cfg },
-	{ .compatible = "allwinner,sun8i-a83t-emmc", .data = &sun8i_a83t_emmc_cfg },
 	{ .compatible = "allwinner,sun9i-a80-mmc", .data = &sun9i_a80_cfg },
 	{ .compatible = "allwinner,sun50i-a64-mmc", .data = &sun50i_a64_cfg },
 	{ .compatible = "allwinner,sun50i-a64-emmc", .data = &sun50i_a64_emmc_cfg },
@@ -1212,8 +1172,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		}
 	}
 
-	host->reset = devm_reset_control_get_optional_exclusive(&pdev->dev,
-								"ahb");
+	host->reset = devm_reset_control_get_optional(&pdev->dev, "ahb");
 	if (PTR_ERR(host->reset) == -EPROBE_DEFER)
 		return PTR_ERR(host->reset);
 
@@ -1242,7 +1201,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	}
 
 	if (!IS_ERR(host->reset)) {
-		ret = reset_control_reset(host->reset);
+		ret = reset_control_deassert(host->reset);
 		if (ret) {
 			dev_err(&pdev->dev, "reset err %d\n", ret);
 			goto error_disable_clk_sample;
@@ -1303,30 +1262,6 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 		goto error_free_host;
 	}
 
-	if (host->cfg->has_timings_switch) {
-		/*
-		 * Supports both old and new timing modes.
-		 * Try setting the clk to new timing mode.
-		 */
-		sunxi_ccu_set_mmc_timing_mode(host->clk_mmc, true);
-
-		/* And check the result */
-		ret = sunxi_ccu_get_mmc_timing_mode(host->clk_mmc);
-		if (ret < 0) {
-			/*
-			 * For whatever reason we were not able to get
-			 * the current active mode. Default to old mode.
-			 */
-			dev_warn(&pdev->dev, "MMC clk timing mode unknown\n");
-			host->use_new_timings = false;
-		} else {
-			host->use_new_timings = !!ret;
-		}
-	} else if (host->cfg->needs_new_timings) {
-		/* Supports new timing mode only */
-		host->use_new_timings = true;
-	}
-
 	mmc->ops		= &sunxi_mmc_ops;
 	mmc->max_blk_count	= 8192;
 	mmc->max_blk_size	= 4096;
@@ -1339,7 +1274,7 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	mmc->caps	       |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED |
 				  MMC_CAP_ERASE | MMC_CAP_SDIO_IRQ;
 
-	if (host->cfg->clk_delays || host->use_new_timings)
+	if (host->cfg->clk_delays)
 		mmc->caps      |= MMC_CAP_1_8V_DDR;
 
 	ret = mmc_of_parse(mmc);

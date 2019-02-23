@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NET_ESP_H
 #define _NET_ESP_H
 

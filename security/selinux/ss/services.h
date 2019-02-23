@@ -1,8 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Implementation of the security services.
  *
- * Author : Stephen Smalley, <sds@tycho.nsa.gov>
+ * Author : Stephen Smalley, <sds@epoch.ncsc.mil>
  */
 #ifndef _SS_SERVICES_H_
 #define _SS_SERVICES_H_

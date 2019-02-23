@@ -298,8 +298,9 @@ static int mwifiex_ret_tx_rate_cfg(struct mwifiex_private *priv,
 			priv->bitmap_rates[1] =
 				le16_to_cpu(rate_scope->ofdm_rate_bitmap);
 			for (i = 0;
-			     i < ARRAY_SIZE(rate_scope->ht_mcs_rate_bitmap);
-			     i++)
+			     i <
+			     sizeof(rate_scope->ht_mcs_rate_bitmap) /
+			     sizeof(u16); i++)
 				priv->bitmap_rates[2 + i] =
 					le16_to_cpu(rate_scope->
 						    ht_mcs_rate_bitmap[i]);

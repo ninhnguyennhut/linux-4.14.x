@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_TEGRA_SOCTHERM)	+= tegra-soctherm.o
 
 tegra-soctherm-y				:= soctherm.o soctherm-fuse.o

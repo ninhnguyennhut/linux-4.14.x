@@ -97,8 +97,21 @@ static void rpf_configure(struct vsp1_entity *entity,
 		 * 'width' need to be adjusted.
 		 */
 		if (pipe->partitions > 1) {
-			crop.width = pipe->partition->rpf.width;
-			crop.left += pipe->partition->rpf.left;
+			const struct v4l2_mbus_framefmt *output;
+			struct vsp1_entity *wpf = &pipe->output->entity;
+			unsigned int input_width = crop.width;
+
+			/*
+			 * Scale the partition window based on the configuration
+			 * of the pipeline.
+			 */
+			output = vsp1_entity_get_pad_format(wpf, wpf->config,
+							    RWPF_PAD_SINK);
+
+			crop.width = pipe->partition.width * input_width
+				   / output->width;
+			crop.left += pipe->partition.left * input_width
+				   / output->width;
 		}
 
 		vsp1_rpf_write(rpf, dl, VI6_RPF_SRC_BSIZE,
@@ -247,18 +260,8 @@ static void rpf_configure(struct vsp1_entity *entity,
 
 }
 
-static void rpf_partition(struct vsp1_entity *entity,
-			  struct vsp1_pipeline *pipe,
-			  struct vsp1_partition *partition,
-			  unsigned int partition_idx,
-			  struct vsp1_partition_window *window)
-{
-	partition->rpf = *window;
-}
-
 static const struct vsp1_entity_operations rpf_entity_ops = {
 	.configure = rpf_configure,
-	.partition = rpf_partition,
 };
 
 /* -----------------------------------------------------------------------------

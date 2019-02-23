@@ -51,9 +51,6 @@
 #define __KSELFTEST_HARNESS_H
 
 #define _GNU_SOURCE
-#include <asm/types.h>
-#include <errno.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,14 +84,6 @@
  * E.g., #define TH_LOG_ENABLED 1
  *
  * If no definition is provided, logging is enabled by default.
- *
- * If there is no way to print an error message for the process running the
- * test (e.g. not allowed to write to stderr), it is still possible to get the
- * ASSERT_* number for which the test failed.  This behavior can be enabled by
- * writing `_metadata->no_print = true;` before the check sequence that is
- * unable to print.  When an error occur, instead of printing an error message
- * and calling `abort(3)`, the test process call `_exit(2)` with the assert
- * number as argument, which is then printed by the parent process.
  */
 #define TH_LOG(fmt, ...) do { \
 	if (TH_LOG_ENABLED) \
@@ -566,18 +555,12 @@
  * return while still providing an optional block to the API consumer.
  */
 #define OPTIONAL_HANDLER(_assert) \
-	for (; _metadata->trigger; _metadata->trigger = \
-			__bail(_assert, _metadata->no_print, _metadata->step))
-
-#define __INC_STEP(_metadata) \
-	if (_metadata->passed && _metadata->step < 255) \
-		_metadata->step++;
+	for (; _metadata->trigger;  _metadata->trigger = __bail(_assert))
 
 #define __EXPECT(_expected, _seen, _t, _assert) do { \
 	/* Avoid multiple evaluation of the cases */ \
 	__typeof__(_expected) __exp = (_expected); \
 	__typeof__(_seen) __seen = (_seen); \
-	if (_assert) __INC_STEP(_metadata); \
 	if (!(__exp _t __seen)) { \
 		unsigned long long __exp_print = (uintptr_t)__exp; \
 		unsigned long long __seen_print = (uintptr_t)__seen; \
@@ -593,7 +576,6 @@
 #define __EXPECT_STR(_expected, _seen, _t, _assert) do { \
 	const char *__exp = (_expected); \
 	const char *__seen = (_seen); \
-	if (_assert) __INC_STEP(_metadata); \
 	if (!(strcmp(__exp, __seen) _t 0))  { \
 		__TH_LOG("Expected '%s' %s '%s'.", __exp, #_t, __seen); \
 		_metadata->passed = 0; \
@@ -608,8 +590,6 @@ struct __test_metadata {
 	int termsig;
 	int passed;
 	int trigger; /* extra handler after the evaluation */
-	__u8 step;
-	bool no_print; /* manual trigger when TH_LOG_STREAM is not available */
 	struct __test_metadata *prev, *next;
 };
 
@@ -654,13 +634,10 @@ static inline void __register_test(struct __test_metadata *t)
 	}
 }
 
-static inline int __bail(int for_realz, bool no_print, __u8 step)
+static inline int __bail(int for_realz)
 {
-	if (for_realz) {
-		if (no_print)
-			_exit(step);
+	if (for_realz)
 		abort();
-	}
 	return 0;
 }
 
@@ -678,22 +655,16 @@ void __run_test(struct __test_metadata *t)
 		t->passed = 0;
 	} else if (child_pid == 0) {
 		t->fn(t);
-		/* return the step that failed or 0 */
-		_exit(t->passed ? 0 : t->step);
+		_exit(t->passed);
 	} else {
 		/* TODO(wad) add timeout support. */
 		waitpid(child_pid, &status, 0);
 		if (WIFEXITED(status)) {
-			t->passed = t->termsig == -1 ? !WEXITSTATUS(status) : 0;
+			t->passed = t->termsig == -1 ? WEXITSTATUS(status) : 0;
 			if (t->termsig != -1) {
 				fprintf(TH_LOG_STREAM,
 					"%s: Test exited normally "
 					"instead of by signal (code: %d)\n",
-					t->name,
-					WEXITSTATUS(status));
-			} else if (!t->passed) {
-				fprintf(TH_LOG_STREAM,
-					"%s: Test failed at step #%d\n",
 					t->name,
 					WEXITSTATUS(status));
 			}

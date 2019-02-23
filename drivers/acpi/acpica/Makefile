@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for ACPICA Core interpreter
 #
@@ -19,7 +18,6 @@ acpi-y :=		\
 	dsmthdat.o	\
 	dsobject.o	\
 	dsopcode.o	\
-	dspkginit.o	\
 	dsutils.o	\
 	dswexec.o	\
 	dswload.o	\

@@ -68,10 +68,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Block on a futex and wait for timeout\n",
+	printf("%s: Block on a futex and wait for timeout\n",
 	       basename(argv[0]));
-	ksft_print_msg("\tArguments: timeout=%ldns\n", timeout_ns);
+	printf("\tArguments: timeout=%ldns\n", timeout_ns);
 
 	/* initialize timeout */
 	to.tv_sec = 0;

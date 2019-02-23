@@ -337,9 +337,17 @@ void mwifiex_wake_up_net_dev_queue(struct net_device *netdev,
 					struct mwifiex_adapter *adapter)
 {
 	unsigned long dev_queue_flags;
+	unsigned int i;
 
 	spin_lock_irqsave(&adapter->queue_lock, dev_queue_flags);
-	netif_tx_wake_all_queues(netdev);
+
+	for (i = 0; i < netdev->num_tx_queues; i++) {
+		struct netdev_queue *txq = netdev_get_tx_queue(netdev, i);
+
+		if (netif_tx_queue_stopped(txq))
+			netif_tx_wake_queue(txq);
+	}
+
 	spin_unlock_irqrestore(&adapter->queue_lock, dev_queue_flags);
 }
 
@@ -350,20 +358,30 @@ void mwifiex_stop_net_dev_queue(struct net_device *netdev,
 					struct mwifiex_adapter *adapter)
 {
 	unsigned long dev_queue_flags;
+	unsigned int i;
 
 	spin_lock_irqsave(&adapter->queue_lock, dev_queue_flags);
-	netif_tx_stop_all_queues(netdev);
+
+	for (i = 0; i < netdev->num_tx_queues; i++) {
+		struct netdev_queue *txq = netdev_get_tx_queue(netdev, i);
+
+		if (!netif_tx_queue_stopped(txq))
+			netif_tx_stop_queue(txq);
+	}
+
 	spin_unlock_irqrestore(&adapter->queue_lock, dev_queue_flags);
 }
 
 /*
- * This function invalidates the list heads.
+ *  This function releases the lock variables and frees the locks and
+ *  associated locks.
  */
-static void mwifiex_invalidate_lists(struct mwifiex_adapter *adapter)
+static void mwifiex_free_lock_list(struct mwifiex_adapter *adapter)
 {
 	struct mwifiex_private *priv;
 	s32 i, j;
 
+	/* Free lists */
 	list_del(&adapter->cmd_free_q);
 	list_del(&adapter->cmd_pending_q);
 	list_del(&adapter->scan_pending_q);
@@ -400,11 +418,9 @@ mwifiex_adapter_cleanup(struct mwifiex_adapter *adapter)
 	mwifiex_cancel_all_pending_cmd(adapter);
 	wake_up_interruptible(&adapter->cmd_wait_q.wait);
 	wake_up_interruptible(&adapter->hs_activate_wait_q);
-}
 
-void mwifiex_free_cmd_buffers(struct mwifiex_adapter *adapter)
-{
-	mwifiex_invalidate_lists(adapter);
+	/* Free lock variables */
+	mwifiex_free_lock_list(adapter);
 
 	/* Free command buffer */
 	mwifiex_dbg(adapter, INFO, "info: free cmd buffer\n");

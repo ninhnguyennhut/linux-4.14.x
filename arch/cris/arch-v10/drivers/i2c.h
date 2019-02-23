@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* i2c.h */
 int i2c_init(void);
 

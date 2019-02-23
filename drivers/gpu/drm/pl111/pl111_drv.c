@@ -66,15 +66,14 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_gem_cma_helper.h>
-#include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_fb_cma_helper.h>
 
 #include "pl111_drm.h"
 
 #define DRIVER_DESC      "DRM module for PL111"
 
-static const struct drm_mode_config_funcs mode_config_funcs = {
-	.fb_create = drm_gem_fb_create,
+static struct drm_mode_config_funcs mode_config_funcs = {
+	.fb_create = drm_fb_cma_create,
 	.atomic_check = drm_atomic_helper_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
@@ -160,7 +159,9 @@ static struct drm_driver pl111_drm_driver = {
 	.minor = 0,
 	.patchlevel = 0,
 	.dumb_create = drm_gem_cma_dumb_create,
-	.gem_free_object_unlocked = drm_gem_cma_free_object,
+	.dumb_destroy = drm_gem_dumb_destroy,
+	.dumb_map_offset = drm_gem_cma_dumb_map_offset,
+	.gem_free_object = drm_gem_cma_free_object,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
 	.enable_vblank = pl111_enable_vblank,

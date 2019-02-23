@@ -745,7 +745,7 @@ static struct bio *r5l_bio_alloc(struct r5l_log *log)
 	struct bio *bio = bio_alloc_bioset(GFP_NOIO, BIO_MAX_PAGES, log->bs);
 
 	bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
-	bio_set_dev(bio, log->rdev->bdev);
+	bio->bi_bdev = log->rdev->bdev;
 	bio->bi_iter.bi_sector = log->rdev->data_offset + log->log_start;
 
 	return bio;
@@ -1313,7 +1313,7 @@ void r5l_flush_stripe_to_raid(struct r5l_log *log)
 	if (!do_flush)
 		return;
 	bio_reset(&log->flush_bio);
-	bio_set_dev(&log->flush_bio, log->rdev->bdev);
+	log->flush_bio.bi_bdev = log->rdev->bdev;
 	log->flush_bio.bi_end_io = r5l_log_flush_endio;
 	log->flush_bio.bi_opf = REQ_OP_WRITE | REQ_PREFLUSH;
 	submit_bio(&log->flush_bio);
@@ -1691,7 +1691,7 @@ static int r5l_recovery_fetch_ra_pool(struct r5l_log *log,
 				      sector_t offset)
 {
 	bio_reset(ctx->ra_bio);
-	bio_set_dev(ctx->ra_bio, log->rdev->bdev);
+	ctx->ra_bio->bi_bdev = log->rdev->bdev;
 	bio_set_op_attrs(ctx->ra_bio, REQ_OP_READ, 0);
 	ctx->ra_bio->bi_iter.bi_sector = log->rdev->data_offset + offset;
 
@@ -2529,18 +2529,11 @@ static void r5l_write_super(struct r5l_log *log, sector_t cp)
 
 static ssize_t r5c_journal_mode_show(struct mddev *mddev, char *page)
 {
-	struct r5conf *conf;
+	struct r5conf *conf = mddev->private;
 	int ret;
 
-	ret = mddev_lock(mddev);
-	if (ret)
-		return ret;
-
-	conf = mddev->private;
-	if (!conf || !conf->log) {
-		mddev_unlock(mddev);
+	if (!conf->log)
 		return 0;
-	}
 
 	switch (conf->log->r5c_journal_mode) {
 	case R5C_JOURNAL_MODE_WRITE_THROUGH:
@@ -2558,7 +2551,6 @@ static ssize_t r5c_journal_mode_show(struct mddev *mddev, char *page)
 	default:
 		ret = 0;
 	}
-	mddev_unlock(mddev);
 	return ret;
 }
 
@@ -2571,22 +2563,31 @@ static ssize_t r5c_journal_mode_show(struct mddev *mddev, char *page)
 int r5c_journal_mode_set(struct mddev *mddev, int mode)
 {
 	struct r5conf *conf;
+	int err;
 
 	if (mode < R5C_JOURNAL_MODE_WRITE_THROUGH ||
 	    mode > R5C_JOURNAL_MODE_WRITE_BACK)
 		return -EINVAL;
 
+	err = mddev_lock(mddev);
+	if (err)
+		return err;
 	conf = mddev->private;
-	if (!conf || !conf->log)
+	if (!conf || !conf->log) {
+		mddev_unlock(mddev);
 		return -ENODEV;
+	}
 
 	if (raid5_calc_degraded(conf) > 0 &&
-	    mode == R5C_JOURNAL_MODE_WRITE_BACK)
+	    mode == R5C_JOURNAL_MODE_WRITE_BACK) {
+		mddev_unlock(mddev);
 		return -EINVAL;
+	}
 
 	mddev_suspend(mddev);
 	conf->log->r5c_journal_mode = mode;
 	mddev_resume(mddev);
+	mddev_unlock(mddev);
 
 	pr_debug("md/raid:%s: setting r5c cache mode to %d: %s\n",
 		 mdname(mddev), mode, r5c_journal_mode_str[mode]);
@@ -2599,7 +2600,6 @@ static ssize_t r5c_journal_mode_store(struct mddev *mddev,
 {
 	int mode = ARRAY_SIZE(r5c_journal_mode_str);
 	size_t len = length;
-	int ret;
 
 	if (len < 2)
 		return -EINVAL;
@@ -2611,12 +2611,8 @@ static ssize_t r5c_journal_mode_store(struct mddev *mddev,
 		if (strlen(r5c_journal_mode_str[mode]) == len &&
 		    !strncmp(page, r5c_journal_mode_str[mode], len))
 			break;
-	ret = mddev_lock(mddev);
-	if (ret)
-		return ret;
-	ret = r5c_journal_mode_set(mddev, mode);
-	mddev_unlock(mddev);
-	return ret ?: length;
+
+	return r5c_journal_mode_set(mddev, mode) ?: length;
 }
 
 struct md_sysfs_entry

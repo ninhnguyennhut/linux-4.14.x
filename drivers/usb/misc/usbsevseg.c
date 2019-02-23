@@ -330,7 +330,7 @@ static struct attribute *dev_attrs[] = {
 	NULL
 };
 
-static const struct attribute_group dev_attr_grp = {
+static struct attribute_group dev_attr_grp = {
 	.attrs = dev_attrs,
 };
 

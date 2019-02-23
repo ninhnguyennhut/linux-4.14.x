@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * s390 (re)ipl support
  *
@@ -82,7 +81,7 @@ struct ipl_parameter_block {
 		struct ipl_block_fcp fcp;
 		struct ipl_block_ccw ccw;
 	} ipl_info;
-} __packed __aligned(PAGE_SIZE);
+} __attribute__((packed,aligned(4096)));
 
 /*
  * IPL validity flags

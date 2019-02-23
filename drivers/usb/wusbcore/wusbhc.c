@@ -244,7 +244,7 @@ static struct attribute *wusbhc_attrs[] = {
 		NULL,
 };
 
-static const struct attribute_group wusbhc_attr_group = {
+static struct attribute_group wusbhc_attr_group = {
 	.name = NULL,	/* we want them in the same directory */
 	.attrs = wusbhc_attrs,
 };

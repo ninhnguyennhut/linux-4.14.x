@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Local helper macros and functions for HD-audio core drivers
  */

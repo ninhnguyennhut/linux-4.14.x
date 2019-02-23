@@ -37,7 +37,7 @@
 
 #define DEBUG_SUBSYSTEM S_OSC
 
-#include <lustre_obdo.h>
+#include "../include/lustre_obdo.h"
 
 #include "osc_cl_internal.h"
 

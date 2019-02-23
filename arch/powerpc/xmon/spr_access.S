@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <asm/ppc_asm.h>
 
 /* unsigned long xmon_mfspr(sprn, default_value) */

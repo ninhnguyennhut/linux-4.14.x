@@ -26,7 +26,6 @@ Arguments
     File descriptor returned by :ref:`open() <func-open>`.
 
 ``argp``
-    Pointer to struct :c:type:`v4l2_standard`.
 
 
 Description
@@ -225,15 +224,12 @@ support digital TV. See also the Linux DVB API at
     #define V4L2_STD_ALL            (V4L2_STD_525_60        |
 		     V4L2_STD_625_50)
 
-
 .. raw:: latex
 
-    \begingroup
-    \tiny
-    \setlength{\tabcolsep}{2pt}
+    \begin{adjustbox}{width=\columnwidth}
 
 ..                            NTSC/M   PAL/M    /N       /B       /D       /H       /I        SECAM/B    /D       /K1     /L
-.. tabularcolumns:: |p{1.43cm}|p{1.38cm}|p{1.59cm}|p{1.7cm}|p{1.7cm}|p{1.17cm}|p{0.64cm}|p{1.71cm}|p{1.6cm}|p{1.07cm}|p{1.07cm}|p{1.07cm}|
+.. tabularcolumns:: |p{2.7cm}|p{2.6cm}|p{3.0cm}|p{3.2cm}|p{3.2cm}|p{2.2cm}|p{1.2cm}|p{3.2cm}|p{3.0cm}|p{2.0cm}|p{2.0cm}|p{2.0cm}|
 
 .. _video-standards:
 
@@ -297,7 +293,7 @@ support digital TV. See also the Linux DVB API at
 
 .. raw:: latex
 
-    \endgroup
+    \end{adjustbox}\newline\newline
 
 
 

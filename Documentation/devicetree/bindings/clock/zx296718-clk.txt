@@ -34,4 +34,5 @@ usbphy0:usb-phy0 {
 	#phy-cells = <0>;
 	clocks = <&topclk USB20_PHY_CLK>;
 	clock-names = "phyclk";
+	status = "okay";
 };

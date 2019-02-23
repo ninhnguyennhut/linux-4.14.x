@@ -21,7 +21,7 @@
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/mtd/mtd.h>
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 #include <linux/of.h>
 
@@ -112,19 +112,14 @@ static int oxnas_nand_probe(struct platform_device *pdev)
 	if (count > 1)
 		return -EINVAL;
 
-	err = clk_prepare_enable(oxnas->clk);
-	if (err)
-		return err;
-
+	clk_prepare_enable(oxnas->clk);
 	device_reset_optional(&pdev->dev);
 
 	for_each_child_of_node(np, nand_np) {
 		chip = devm_kzalloc(&pdev->dev, sizeof(struct nand_chip),
 				    GFP_KERNEL);
-		if (!chip) {
-			err = -ENOMEM;
-			goto err_clk_unprepare;
-		}
+		if (!chip)
+			return -ENOMEM;
 
 		chip->controller = &oxnas->base;
 
@@ -144,12 +139,12 @@ static int oxnas_nand_probe(struct platform_device *pdev)
 		/* Scan to find existence of the device */
 		err = nand_scan(mtd, 1);
 		if (err)
-			goto err_clk_unprepare;
+			return err;
 
 		err = mtd_device_register(mtd, NULL, 0);
 		if (err) {
 			nand_release(mtd);
-			goto err_clk_unprepare;
+			return err;
 		}
 
 		oxnas->chips[nchips] = chip;
@@ -157,18 +152,12 @@ static int oxnas_nand_probe(struct platform_device *pdev)
 	}
 
 	/* Exit if no chips found */
-	if (!nchips) {
-		err = -ENODEV;
-		goto err_clk_unprepare;
-	}
+	if (!nchips)
+		return -ENODEV;
 
 	platform_set_drvdata(pdev, oxnas);
 
 	return 0;
-
-err_clk_unprepare:
-	clk_disable_unprepare(oxnas->clk);
-	return err;
 }
 
 static int oxnas_nand_remove(struct platform_device *pdev)

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __VIRT_CONVERT__
 #define __VIRT_CONVERT__
 

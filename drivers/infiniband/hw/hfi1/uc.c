@@ -65,7 +65,7 @@ int hfi1_make_uc_req(struct rvt_qp *qp, struct hfi1_pkt_state *ps)
 	struct hfi1_qp_priv *priv = qp->priv;
 	struct ib_other_headers *ohdr;
 	struct rvt_swqe *wqe;
-	u32 hwords;
+	u32 hwords = 5;
 	u32 bth0 = 0;
 	u32 len;
 	u32 pmtu = qp->pmtu;
@@ -93,23 +93,9 @@ int hfi1_make_uc_req(struct rvt_qp *qp, struct hfi1_pkt_state *ps)
 		goto done_free_tx;
 	}
 
-	ps->s_txreq->phdr.hdr.hdr_type = priv->hdr_type;
-	if (priv->hdr_type == HFI1_PKT_TYPE_9B) {
-		/* header size in 32-bit words LRH+BTH = (8+12)/4. */
-		hwords = 5;
-		if (rdma_ah_get_ah_flags(&qp->remote_ah_attr) & IB_AH_GRH)
-			ohdr = &ps->s_txreq->phdr.hdr.ibh.u.l.oth;
-		else
-			ohdr = &ps->s_txreq->phdr.hdr.ibh.u.oth;
-	} else {
-		/* header size in 32-bit words 16B LRH+BTH = (16+12)/4. */
-		hwords = 7;
-		if ((rdma_ah_get_ah_flags(&qp->remote_ah_attr) & IB_AH_GRH) &&
-		    (hfi1_check_mcast(rdma_ah_get_dlid(&qp->remote_ah_attr))))
-			ohdr = &ps->s_txreq->phdr.hdr.opah.u.l.oth;
-		else
-			ohdr = &ps->s_txreq->phdr.hdr.opah.u.oth;
-	}
+	ohdr = &ps->s_txreq->phdr.hdr.u.oth;
+	if (rdma_ah_get_ah_flags(&qp->remote_ah_attr) & IB_AH_GRH)
+		ohdr = &ps->s_txreq->phdr.hdr.u.l.oth;
 
 	/* Get the next send request. */
 	wqe = rvt_get_swqe_ptr(qp, qp->s_cur);
@@ -311,26 +297,31 @@ bail_no_tx:
 void hfi1_uc_rcv(struct hfi1_packet *packet)
 {
 	struct hfi1_ibport *ibp = rcd_to_iport(packet->rcd);
-	void *data = packet->payload;
+	struct ib_header *hdr = packet->hdr;
+	u32 rcv_flags = packet->rcv_flags;
+	void *data = packet->ebuf;
 	u32 tlen = packet->tlen;
 	struct rvt_qp *qp = packet->qp;
 	struct ib_other_headers *ohdr = packet->ohdr;
-	u32 opcode = packet->opcode;
+	u32 bth0, opcode;
 	u32 hdrsize = packet->hlen;
 	u32 psn;
-	u32 pad = packet->pad;
+	u32 pad;
 	struct ib_wc wc;
 	u32 pmtu = qp->pmtu;
 	struct ib_reth *reth;
+	int has_grh = rcv_flags & HFI1_HAS_GRH;
 	int ret;
-	u8 extra_bytes = pad + packet->extra_byte + (SIZE_OF_CRC << 2);
 
-	if (hfi1_ruc_check_hdr(ibp, packet))
+	bth0 = be32_to_cpu(ohdr->bth[0]);
+	if (hfi1_ruc_check_hdr(ibp, hdr, has_grh, qp, bth0))
 		return;
 
 	process_ecn(qp, packet, true);
 
-	psn = ib_bth_get_psn(ohdr);
+	psn = be32_to_cpu(ohdr->bth[2]);
+	opcode = ib_bth_get_opcode(ohdr);
+
 	/* Compare the PSN verses the expected PSN. */
 	if (unlikely(cmp_psn(psn, qp->r_psn) != 0)) {
 		/*
@@ -423,12 +414,7 @@ send_first:
 		/* FALLTHROUGH */
 	case OP(SEND_MIDDLE):
 		/* Check for invalid length PMTU or posted rwqe len. */
-		/*
-		 * There will be no padding for 9B packet but 16B packets
-		 * will come in with some padding since we always add
-		 * CRC and LT bytes which will need to be flit aligned
-		 */
-		if (unlikely(tlen != (hdrsize + pmtu + extra_bytes)))
+		if (unlikely(tlen != (hdrsize + pmtu + 4)))
 			goto rewind;
 		qp->r_rcv_len += pmtu;
 		if (unlikely(qp->r_rcv_len > qp->r_len))
@@ -446,12 +432,14 @@ no_immediate_data:
 		wc.ex.imm_data = 0;
 		wc.wc_flags = 0;
 send_last:
+		/* Get the number of bytes the message was padded by. */
+		pad = ib_bth_get_pad(ohdr);
 		/* Check for invalid length. */
 		/* LAST len should be >= 1 */
-		if (unlikely(tlen < (hdrsize + extra_bytes)))
+		if (unlikely(tlen < (hdrsize + pad + 4)))
 			goto rewind;
 		/* Don't count the CRC. */
-		tlen -= (hdrsize + extra_bytes);
+		tlen -= (hdrsize + pad + 4);
 		wc.byte_len = tlen + qp->r_rcv_len;
 		if (unlikely(wc.byte_len > qp->r_len))
 			goto rewind;
@@ -539,12 +527,14 @@ rdma_first:
 rdma_last_imm:
 		wc.wc_flags = IB_WC_WITH_IMM;
 
+		/* Get the number of bytes the message was padded by. */
+		pad = ib_bth_get_pad(ohdr);
 		/* Check for invalid length. */
 		/* LAST len should be >= 1 */
 		if (unlikely(tlen < (hdrsize + pad + 4)))
 			goto drop;
 		/* Don't count the CRC. */
-		tlen -= (hdrsize + extra_bytes);
+		tlen -= (hdrsize + pad + 4);
 		if (unlikely(tlen + qp->r_rcv_len != qp->r_len))
 			goto drop;
 		if (test_and_clear_bit(RVT_R_REWIND_SGE, &qp->r_aflags)) {
@@ -564,12 +554,14 @@ rdma_last_imm:
 
 	case OP(RDMA_WRITE_LAST):
 rdma_last:
+		/* Get the number of bytes the message was padded by. */
+		pad = ib_bth_get_pad(ohdr);
 		/* Check for invalid length. */
 		/* LAST len should be >= 1 */
 		if (unlikely(tlen < (hdrsize + pad + 4)))
 			goto drop;
 		/* Don't count the CRC. */
-		tlen -= (hdrsize + extra_bytes);
+		tlen -= (hdrsize + pad + 4);
 		if (unlikely(tlen + qp->r_rcv_len != qp->r_len))
 			goto drop;
 		hfi1_copy_sge(&qp->r_sge, data, tlen, true, false);

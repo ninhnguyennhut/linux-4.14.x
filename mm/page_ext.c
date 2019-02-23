@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/mm.h>
 #include <linux/mmzone.h>
 #include <linux/bootmem.h>
@@ -125,6 +124,7 @@ struct page_ext *lookup_page_ext(struct page *page)
 	struct page_ext *base;
 
 	base = NODE_DATA(page_to_nid(page))->node_page_ext;
+#if defined(CONFIG_DEBUG_VM)
 	/*
 	 * The sanity checks the page allocator does upon freeing a
 	 * page can reach here before the page_ext arrays are
@@ -133,6 +133,7 @@ struct page_ext *lookup_page_ext(struct page *page)
 	 */
 	if (unlikely(!base))
 		return NULL;
+#endif
 	index = pfn - round_down(node_start_pfn(page_to_nid(page)),
 					MAX_ORDER_NR_PAGES);
 	return get_entry(base, index);
@@ -197,6 +198,7 @@ struct page_ext *lookup_page_ext(struct page *page)
 {
 	unsigned long pfn = page_to_pfn(page);
 	struct mem_section *section = __pfn_to_section(pfn);
+#if defined(CONFIG_DEBUG_VM)
 	/*
 	 * The sanity checks the page allocator does upon freeing a
 	 * page can reach here before the page_ext arrays are
@@ -205,6 +207,7 @@ struct page_ext *lookup_page_ext(struct page *page)
 	 */
 	if (!section->page_ext)
 		return NULL;
+#endif
 	return get_entry(section->page_ext, pfn);
 }
 
@@ -219,7 +222,10 @@ static void *__meminit alloc_page_ext(size_t size, int nid)
 		return addr;
 	}
 
-	addr = vzalloc_node(size, nid);
+	if (node_state(nid, N_HIGH_MEMORY))
+		addr = vzalloc_node(size, nid);
+	else
+		addr = vzalloc(size);
 
 	return addr;
 }
@@ -403,7 +409,6 @@ void __init page_ext_init(void)
 				continue;
 			if (init_section_page_ext(pfn, nid))
 				goto oom;
-			cond_resched();
 		}
 	}
 	hotplug_memory_notifier(page_ext_callback, 0);

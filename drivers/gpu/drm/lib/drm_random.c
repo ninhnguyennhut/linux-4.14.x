@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/bitops.h>
 #include <linux/kernel.h>
 #include <linux/random.h>
@@ -29,7 +28,7 @@ unsigned int *drm_random_order(unsigned int count, struct rnd_state *state)
 {
 	unsigned int *order, i;
 
-	order = kmalloc_array(count, sizeof(*order), GFP_KERNEL);
+	order = kmalloc_array(count, sizeof(*order), GFP_TEMPORARY);
 	if (!order)
 		return order;
 

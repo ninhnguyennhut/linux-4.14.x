@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ARM_HW_BREAKPOINT_H
 #define _ARM_HW_BREAKPOINT_H
 

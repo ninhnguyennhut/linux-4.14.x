@@ -67,7 +67,7 @@ static unsigned int iptable_nat_ipv4_local_fn(void *priv,
 	return nf_nat_ipv4_local_fn(priv, skb, state, iptable_nat_do_chain);
 }
 
-static const struct nf_hook_ops nf_nat_ipv4_ops[] = {
+static struct nf_hook_ops nf_nat_ipv4_ops[] __read_mostly = {
 	/* Before packet filtering, change destination */
 	{
 		.hook		= iptable_nat_ipv4_in,

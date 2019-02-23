@@ -47,8 +47,7 @@
 
 DEFINE_RAW_SPINLOCK(native_tlbie_lock);
 
-static inline unsigned long  ___tlbie(unsigned long vpn, int psize,
-						int apsize, int ssize)
+static inline void __tlbie(unsigned long vpn, int psize, int apsize, int ssize)
 {
 	unsigned long va;
 	unsigned int penc;
@@ -101,15 +100,7 @@ static inline unsigned long  ___tlbie(unsigned long vpn, int psize,
 			     : "memory");
 		break;
 	}
-	return va;
-}
-
-static inline void __tlbie(unsigned long vpn, int psize, int apsize, int ssize)
-{
-	unsigned long rb;
-
-	rb = ___tlbie(vpn, psize, apsize, ssize);
-	trace_tlbie(0, 0, rb, 0, 0, 0, 0);
+	trace_tlbie(0, 0, va, 0, 0, 0, 0);
 }
 
 static inline void __tlbiel(unsigned long vpn, int psize, int apsize, int ssize)
@@ -661,7 +652,7 @@ static void native_hpte_clear(void)
 		if (hpte_v & HPTE_V_VALID) {
 			hpte_decode(hptep, slot, &psize, &apsize, &ssize, &vpn);
 			hptep->v = 0;
-			___tlbie(vpn, psize, apsize, ssize);
+			__tlbie(vpn, psize, apsize, ssize);
 		}
 	}
 

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 if ETRAX_ARCH_V10
 
 menu "CRIS v10 options"

@@ -69,6 +69,7 @@ Examples:
 		};
 	};
 	ethernet@70000 {
+		status = "okay";
 		phy = <&phy0>;
 		phy-mode = "rgmii-id";
 	};

@@ -839,10 +839,9 @@ static int safexcel_probe(struct platform_device *pdev)
 		snprintf(irq_name, 6, "ring%d", i);
 		irq = safexcel_request_ring_irq(pdev, irq_name, safexcel_irq_ring,
 						ring_irq);
-		if (irq < 0) {
-			ret = irq;
+
+		if (irq < 0)
 			goto err_clk;
-		}
 
 		priv->ring[i].work_data.priv = priv;
 		priv->ring[i].work_data.ring = i;

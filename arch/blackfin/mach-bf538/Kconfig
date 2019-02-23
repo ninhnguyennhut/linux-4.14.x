@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 if (BF538 || BF539)
 
 source "arch/blackfin/mach-bf538/boards/Kconfig"

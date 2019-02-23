@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright IBM Corp. 1999, 2010
  *
@@ -303,8 +302,7 @@ ENTRY(startup_kdump)
 	xc	0xe00(256),0xe00
 	xc	0xf00(256),0xf00
 	lctlg	%c0,%c15,0x200(%r0)	# initialize control registers
-	stcke	__LC_BOOT_CLOCK
-	mvc	__LC_LAST_UPDATE_CLOCK(8),__LC_BOOT_CLOCK+1
+	stck	__LC_LAST_UPDATE_CLOCK
 	spt	6f-.LPG0(%r13)
 	mvc	__LC_LAST_UPDATE_TIMER(8),6f-.LPG0(%r13)
 	l	%r15,.Lstack-.LPG0(%r13)

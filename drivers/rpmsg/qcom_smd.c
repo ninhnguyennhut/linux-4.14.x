@@ -1368,7 +1368,6 @@ struct qcom_smd_edge *qcom_smd_register_edge(struct device *parent,
 
 	edge->dev.parent = parent;
 	edge->dev.release = qcom_smd_edge_release;
-	edge->dev.of_node = node;
 	edge->dev.groups = qcom_smd_edge_groups;
 	dev_set_name(&edge->dev, "%s:%s", dev_name(parent), node->name);
 	ret = device_register(&edge->dev);

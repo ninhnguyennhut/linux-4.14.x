@@ -709,7 +709,7 @@ static int __load_free_space_cache(struct btrfs_root *root, struct inode *inode,
 
 	if (!BTRFS_I(inode)->generation) {
 		btrfs_info(fs_info,
-			   "the free space cache file (%llu) is invalid, skip it",
+			   "The free space cache file (%llu) is invalid. skip it\n",
 			   offset);
 		return 0;
 	}

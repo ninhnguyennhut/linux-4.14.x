@@ -71,8 +71,6 @@ struct skl {
 	struct work_struct probe_work;
 
 	struct skl_debug *debugfs;
-	u8 nr_modules;
-	struct skl_module **modules;
 };
 
 #define skl_to_ebus(s)	(&(s)->ebus)
@@ -92,7 +90,6 @@ struct skl_machine_pdata {
 
 struct skl_dsp_ops {
 	int id;
-	unsigned int num_cores;
 	struct skl_dsp_loader_ops (*loader_ops)(void);
 	int (*init)(struct device *dev, void __iomem *mmio_base,
 			int irq, const char *fw_name,

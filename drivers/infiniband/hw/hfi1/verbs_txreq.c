@@ -1,5 +1,5 @@
 /*
- * Copyright(c) 2016 - 2017 Intel Corporation.
+ * Copyright(c) 2016 Intel Corporation.
  *
  * This file is provided under a dual BSD/GPLv2 license.  When using or
  * redistributing this file, you may do so under either license.
@@ -119,6 +119,13 @@ out:
 	return tx;
 }
 
+static void verbs_txreq_kmem_cache_ctor(void *obj)
+{
+	struct verbs_txreq *tx = (struct verbs_txreq *)obj;
+
+	memset(tx, 0, sizeof(*tx));
+}
+
 int verbs_txreq_init(struct hfi1_ibdev *dev)
 {
 	char buf[TXREQ_LEN];
@@ -128,7 +135,7 @@ int verbs_txreq_init(struct hfi1_ibdev *dev)
 	dev->verbs_txreq_cache = kmem_cache_create(buf,
 						   sizeof(struct verbs_txreq),
 						   0, SLAB_HWCACHE_ALIGN,
-						   NULL);
+						   verbs_txreq_kmem_cache_ctor);
 	if (!dev->verbs_txreq_cache)
 		return -ENOMEM;
 	return 0;

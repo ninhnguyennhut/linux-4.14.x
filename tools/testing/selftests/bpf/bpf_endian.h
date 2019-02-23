@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __BPF_ENDIAN__
 #define __BPF_ENDIAN__
 

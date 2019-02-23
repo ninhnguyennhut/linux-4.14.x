@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Author(s)......: Holger Smolinski <Holger.Smolinski@de.ibm.com>
  *		    Horst Hummel <Horst.Hummel@de.ibm.com>
@@ -91,7 +90,7 @@ dasd_devices_show(struct seq_file *m, void *v)
 			seq_printf(m, "n/f	 ");
 		else
 			seq_printf(m,
-				   "at blocksize: %u, %lu blocks, %lu MB",
+				   "at blocksize: %d, %lld blocks, %lld MB",
 				   block->bp_block, block->blocks,
 				   ((block->bp_block >> 9) *
 				    block->blocks) >> 11);

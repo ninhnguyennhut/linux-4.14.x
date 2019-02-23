@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * builtin-config.c
  *
@@ -14,7 +13,6 @@
 #include "util/util.h"
 #include "util/debug.h"
 #include "util/config.h"
-#include <linux/string.h>
 
 static bool use_system_config, use_user_config;
 
@@ -60,7 +58,7 @@ static int set_config(struct perf_config_set *set, const char *file_name,
 		fprintf(fp, "[%s]\n", section->name);
 
 		perf_config_items__for_each_entry(&section->items, item) {
-			if (!use_system_config && item->from_system_config)
+			if (!use_system_config && section->from_system_config)
 				continue;
 			if (item->value)
 				fprintf(fp, "\t%s = %s\n",
@@ -81,7 +79,7 @@ static int show_spec_config(struct perf_config_set *set, const char *var)
 		return -1;
 
 	perf_config_items__for_each_entry(&set->sections, section) {
-		if (!strstarts(var, section->name))
+		if (prefixcmp(var, section->name) != 0)
 			continue;
 
 		perf_config_items__for_each_entry(&section->items, item) {

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Implement 802.11d. */
 
 #include "dot11d.h"

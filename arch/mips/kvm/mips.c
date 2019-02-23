@@ -98,11 +98,6 @@ int kvm_arch_vcpu_runnable(struct kvm_vcpu *vcpu)
 	return !!(vcpu->arch.pending_exceptions);
 }
 
-bool kvm_arch_vcpu_in_kernel(struct kvm_vcpu *vcpu)
-{
-	return false;
-}
-
 int kvm_arch_vcpu_should_kick(struct kvm_vcpu *vcpu)
 {
 	return 1;
@@ -514,7 +509,7 @@ int kvm_vcpu_ioctl_interrupt(struct kvm_vcpu *vcpu,
 
 	dvcpu->arch.wait = 0;
 
-	if (swq_has_sleeper(&dvcpu->wq))
+	if (swait_active(&dvcpu->wq))
 		swake_up(&dvcpu->wq);
 
 	return 0;
@@ -1179,7 +1174,7 @@ static void kvm_mips_comparecount_func(unsigned long data)
 	kvm_mips_callbacks->queue_timer_int(vcpu);
 
 	vcpu->arch.wait = 0;
-	if (swq_has_sleeper(&vcpu->wq))
+	if (swait_active(&vcpu->wq))
 		swake_up(&vcpu->wq);
 }
 

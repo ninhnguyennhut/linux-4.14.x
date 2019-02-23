@@ -25,14 +25,6 @@
 #define BTRFS_SUPER_MIRROR_MAX	 3
 #define BTRFS_SUPER_MIRROR_SHIFT 12
 
-/*
- * Fixed blocksize for all devices, applies to specific ways of reading
- * metadata like superblock. Must meet the set_blocksize requirements.
- *
- * Do not change.
- */
-#define BTRFS_BDEV_BLOCKSIZE	(4096)
-
 enum btrfs_wq_endio_type {
 	BTRFS_WQ_ENDIO_DATA = 0,
 	BTRFS_WQ_ENDIO_METADATA = 1,
@@ -150,6 +142,8 @@ struct btrfs_root *btrfs_create_tree(struct btrfs_trans_handle *trans,
 int btree_lock_page_hook(struct page *page, void *data,
 				void (*flush_fn)(void *));
 int btrfs_get_num_tolerated_disk_barrier_failures(u64 flags);
+int btrfs_calc_num_tolerated_disk_barrier_failures(
+	struct btrfs_fs_info *fs_info);
 int __init btrfs_end_io_wq_init(void);
 void btrfs_end_io_wq_exit(void);
 

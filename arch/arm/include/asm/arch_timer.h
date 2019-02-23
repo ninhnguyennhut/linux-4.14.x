@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASMARM_ARCH_TIMER_H
 #define __ASMARM_ARCH_TIMER_H
 

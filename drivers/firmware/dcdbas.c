@@ -534,7 +534,7 @@ static struct attribute *dcdbas_dev_attrs[] = {
 	NULL
 };
 
-static const struct attribute_group dcdbas_attr_group = {
+static struct attribute_group dcdbas_attr_group = {
 	.attrs = dcdbas_dev_attrs,
 	.bin_attrs = dcdbas_bin_attrs,
 };

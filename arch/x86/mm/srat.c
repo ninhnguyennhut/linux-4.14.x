@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * ACPI 3.0 based NUMA setup
  * Copyright 2004 Andi Kleen, SuSE Labs.

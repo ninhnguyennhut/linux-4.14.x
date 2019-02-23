@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __cris_defs_asm_h
 #define __cris_defs_asm_h
 

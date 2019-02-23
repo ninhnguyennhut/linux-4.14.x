@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _IMX_DRM_H_
 #define _IMX_DRM_H_
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PARISC_UACCESS_H
 #define __PARISC_UACCESS_H
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_DISP_H__
 #define __NVKM_DISP_H__
 #define nvkm_disp(p) container_of((p), struct nvkm_disp, engine)

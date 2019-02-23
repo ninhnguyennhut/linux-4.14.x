@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _AMBA_CLCD_NOMADIK_H
 #define _AMBA_CLCD_NOMADIK_H
 

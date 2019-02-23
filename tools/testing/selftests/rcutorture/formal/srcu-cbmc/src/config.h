@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* "Cheater" definitions based on restricted Kconfig choices. */
 
 #undef CONFIG_TINY_RCU

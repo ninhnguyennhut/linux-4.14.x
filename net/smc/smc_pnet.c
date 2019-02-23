@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Shared Memory Communications over RDMA (SMC-R) and RoCE
  *
@@ -182,10 +181,8 @@ static int smc_pnet_enter(struct smc_pnetentry *new_pnetelem)
 			     sizeof(new_pnetelem->ndev->name)) ||
 		    smc_pnet_same_ibname(pnetelem,
 					 new_pnetelem->smcibdev->ibdev->name,
-					 new_pnetelem->ib_port)) {
-			dev_put(pnetelem->ndev);
+					 new_pnetelem->ib_port))
 			goto found;
-		}
 	}
 	list_add_tail(&new_pnetelem->list, &smc_pnettable.pnetlist);
 	rc = 0;

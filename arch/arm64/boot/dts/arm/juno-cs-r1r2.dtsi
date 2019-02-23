@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 / {
 	funnel@20130000 { /* cssys1 */
 		compatible = "arm,coresight-funnel", "arm,primecell";

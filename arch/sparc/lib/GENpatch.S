@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* GENpatch.S: Patch Ultra-I routines with generic variant.
  *
  * Copyright (C) 2007 David S. Miller <davem@davemloft.net>

@@ -32,6 +32,10 @@
 
 #define DRIVER_NAME	"keystone-pcie"
 
+/* driver specific constants */
+#define MAX_MSI_HOST_IRQS		8
+#define MAX_LEGACY_HOST_IRQS		4
+
 /* DEV_STAT_CTRL */
 #define PCIE_CAP_BASE		0x70
 
@@ -169,7 +173,7 @@ static int ks_pcie_get_irq_controller_info(struct keystone_pcie *ks_pcie,
 
 	if (legacy) {
 		np_temp = &ks_pcie->legacy_intc_np;
-		max_host_irqs = PCI_NUM_INTX;
+		max_host_irqs = MAX_LEGACY_HOST_IRQS;
 		host_irqs = &ks_pcie->legacy_host_irqs[0];
 	} else {
 		np_temp = &ks_pcie->msi_intc_np;
@@ -257,7 +261,7 @@ static int keystone_pcie_fault(unsigned long addr, unsigned int fsr,
 	return 0;
 }
 
-static int __init ks_pcie_host_init(struct pcie_port *pp)
+static void __init ks_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	struct keystone_pcie *ks_pcie = to_keystone_pcie(pci);
@@ -285,8 +289,6 @@ static int __init ks_pcie_host_init(struct pcie_port *pp)
 	 */
 	hook_fault_code(17, keystone_pcie_fault, SIGBUS, 0,
 			"Asynchronous external abort");
-
-	return 0;
 }
 
 static const struct dw_pcie_host_ops keystone_pcie_host_ops = {

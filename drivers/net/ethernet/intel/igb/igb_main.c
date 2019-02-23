@@ -1791,8 +1791,6 @@ void igb_down(struct igb_adapter *adapter)
 	wr32(E1000_RCTL, rctl & ~E1000_RCTL_EN);
 	/* flush and sleep below */
 
-	igb_nfc_filter_exit(adapter);
-
 	netif_carrier_off(netdev);
 	netif_tx_stop_all_queues(netdev);
 
@@ -3162,8 +3160,6 @@ static int igb_sw_init(struct igb_adapter *adapter)
 	/* Setup and initialize a copy of the hw vlan table array */
 	adapter->shadow_vfta = kcalloc(E1000_VLAN_FILTER_TBL_SIZE, sizeof(u32),
 				       GFP_ATOMIC);
-	if (!adapter->shadow_vfta)
-		return -ENOMEM;
 
 	/* This call may decrease the number of queues */
 	if (igb_init_interrupt_scheme(adapter, true)) {
@@ -3320,6 +3316,8 @@ static int __igb_close(struct net_device *netdev, bool suspending)
 
 	igb_down(adapter);
 	igb_free_irq(adapter);
+
+	igb_nfc_filter_exit(adapter);
 
 	igb_free_all_tx_resources(adapter);
 	igb_free_all_rx_resources(adapter);
@@ -5328,7 +5326,7 @@ dma_error:
 				       DMA_TO_DEVICE);
 		dma_unmap_len_set(tx_buffer, len, 0);
 
-		if (i-- == 0)
+		if (i--)
 			i += tx_ring->count;
 		tx_buffer = &tx_ring->tx_buffer_info[i];
 	}
@@ -5382,8 +5380,7 @@ netdev_tx_t igb_xmit_frame_ring(struct sk_buff *skb,
 	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)) {
 		struct igb_adapter *adapter = netdev_priv(tx_ring->netdev);
 
-		if (adapter->tstamp_config.tx_type & HWTSTAMP_TX_ON &&
-		    !test_and_set_bit_lock(__IGB_PTP_TX_IN_PROGRESS,
+		if (!test_and_set_bit_lock(__IGB_PTP_TX_IN_PROGRESS,
 					   &adapter->state)) {
 			skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 			tx_flags |= IGB_TX_FLAGS_TSTAMP;
@@ -5748,6 +5745,8 @@ static void igb_tsync_interrupt(struct igb_adapter *adapter)
 		event.type = PTP_CLOCK_PPS;
 		if (adapter->ptp_caps.pps)
 			ptp_clock_event(adapter->ptp_clock, &event);
+		else
+			dev_err(&adapter->pdev->dev, "unexpected SYS WRAP");
 		ack |= TSINTR_SYS_WRAP;
 	}
 
@@ -6677,33 +6676,32 @@ static void igb_rcv_msg_from_vf(struct igb_adapter *adapter, u32 vf)
 	struct vf_data_storage *vf_data = &adapter->vf_data[vf];
 	s32 retval;
 
-	retval = igb_read_mbx(hw, msgbuf, E1000_VFMAILBOX_SIZE, vf, false);
+	retval = igb_read_mbx(hw, msgbuf, E1000_VFMAILBOX_SIZE, vf);
 
 	if (retval) {
 		/* if receive failed revoke VF CTS stats and restart init */
 		dev_err(&pdev->dev, "Error receiving message from VF\n");
 		vf_data->flags &= ~IGB_VF_FLAG_CTS;
 		if (!time_after(jiffies, vf_data->last_nack + (2 * HZ)))
-			goto unlock;
+			return;
 		goto out;
 	}
 
 	/* this is a message we already processed, do nothing */
 	if (msgbuf[0] & (E1000_VT_MSGTYPE_ACK | E1000_VT_MSGTYPE_NACK))
-		goto unlock;
+		return;
 
 	/* until the vf completes a reset it should not be
 	 * allowed to start any configuration.
 	 */
 	if (msgbuf[0] == E1000_VF_RESET) {
-		/* unlocks mailbox */
 		igb_vf_reset_msg(adapter, vf);
 		return;
 	}
 
 	if (!(vf_data->flags & IGB_VF_FLAG_CTS)) {
 		if (!time_after(jiffies, vf_data->last_nack + (2 * HZ)))
-			goto unlock;
+			return;
 		retval = -1;
 		goto out;
 	}
@@ -6744,12 +6742,7 @@ out:
 	else
 		msgbuf[0] |= E1000_VT_MSGTYPE_ACK;
 
-	/* unlocks mailbox */
 	igb_write_mbx(hw, msgbuf, 1, vf);
-	return;
-
-unlock:
-	igb_unlock_mbx(hw, vf);
 }
 
 static void igb_msg_task(struct igb_adapter *adapter)
@@ -6972,7 +6965,7 @@ static bool igb_clean_tx_irq(struct igb_q_vector *q_vector, int napi_budget)
 			break;
 
 		/* prevent any other reads prior to eop_desc */
-		smp_rmb();
+		read_barrier_depends();
 
 		/* if DD is not set pending work has not been completed */
 		if (!(eop_desc->wb.status & cpu_to_le32(E1000_TXD_STAT_DD)))

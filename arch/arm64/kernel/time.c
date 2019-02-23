@@ -50,6 +50,7 @@ unsigned long profile_pc(struct pt_regs *regs)
 		return regs->pc;
 
 	frame.fp = regs->regs[29];
+	frame.sp = regs->sp;
 	frame.pc = regs->pc;
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 	frame.graph = -1; /* no task info */

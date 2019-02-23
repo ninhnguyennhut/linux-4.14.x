@@ -37,11 +37,6 @@ struct smu7_buffer_entry {
 	unsigned long  handle;
 };
 
-struct smu7_avfs {
-	enum AVFS_BTC_STATUS avfs_btc_status;
-	uint32_t           avfs_btc_param;
-};
-
 struct smu7_smumgr {
 	uint8_t *header;
 	uint8_t *mec_image;
@@ -55,8 +50,7 @@ struct smu7_smumgr {
 	uint32_t                             arb_table_start;
 	uint32_t                             ulv_setting_starts;
 	uint8_t                              security_hard_key;
-	uint32_t                             acpi_optimization;
-	struct smu7_avfs                     avfs;
+	uint32_t acpi_optimization;
 };
 
 

@@ -242,8 +242,8 @@ static void dump_urb(const char *type, const u8 *data, int length)
 {
 	snd_printk(KERN_DEBUG "%s packet: [", type);
 	for (; length > 0; ++data, --length)
-		printk(KERN_CONT " %02x", *data);
-	printk(KERN_CONT " ]\n");
+		printk(" %02x", *data);
+	printk(" ]\n");
 }
 #else
 #define dump_urb(type, data, length) /* nothing */
@@ -2435,8 +2435,10 @@ int __snd_usbmidi_create(struct snd_card *card,
 		err = -ENXIO;
 		break;
 	}
-	if (err < 0)
-		goto free_midi;
+	if (err < 0) {
+		kfree(umidi);
+		return err;
+	}
 
 	/* create rawmidi device */
 	out_ports = 0;
@@ -2446,25 +2448,23 @@ int __snd_usbmidi_create(struct snd_card *card,
 		in_ports += hweight16(endpoints[i].in_cables);
 	}
 	err = snd_usbmidi_create_rawmidi(umidi, out_ports, in_ports);
-	if (err < 0)
-		goto free_midi;
+	if (err < 0) {
+		kfree(umidi);
+		return err;
+	}
 
 	/* create endpoint/port structures */
 	if (quirk && quirk->type == QUIRK_MIDI_MIDIMAN)
 		err = snd_usbmidi_create_endpoints_midiman(umidi, &endpoints[0]);
 	else
 		err = snd_usbmidi_create_endpoints(umidi, endpoints);
-	if (err < 0)
-		goto exit;
+	if (err < 0) {
+		return err;
+	}
 
 	usb_autopm_get_interface_no_resume(umidi->iface);
 
 	list_add_tail(&umidi->list, midi_list);
 	return 0;
-
-free_midi:
-	kfree(umidi);
-exit:
-	return err;
 }
 EXPORT_SYMBOL(__snd_usbmidi_create);

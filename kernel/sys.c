@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/kernel/sys.c
  *
@@ -1897,11 +1896,15 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 
 	/*
 	 * Finally, make sure the caller has the rights to
-	 * change /proc/pid/exe link: only local sys admin should
+	 * change /proc/pid/exe link: only local root should
 	 * be allowed to.
 	 */
 	if (prctl_map->exe_fd != (u32)-1) {
-		if (!ns_capable(current_user_ns(), CAP_SYS_ADMIN))
+		struct user_namespace *ns = current_user_ns();
+		const struct cred *cred = current_cred();
+
+		if (!uid_eq(cred->uid, make_kuid(ns, 0)) ||
+		    !gid_eq(cred->gid, make_kgid(ns, 0)))
 			goto out;
 	}
 

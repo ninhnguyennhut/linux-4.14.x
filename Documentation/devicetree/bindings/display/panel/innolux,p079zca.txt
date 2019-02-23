@@ -18,5 +18,6 @@ Example:
 			power-supply = <...>;
 			backlight = <&backlight>;
 			enable-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+			status = "okay";
 		};
 	};

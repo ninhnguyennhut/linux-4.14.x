@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NOUVEAU_CHAN_H__
 #define __NOUVEAU_CHAN_H__
 #include <nvif/object.h>

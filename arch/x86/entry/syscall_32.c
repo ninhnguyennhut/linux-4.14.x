@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* System call table for i386. */
 
 #include <linux/linkage.h>

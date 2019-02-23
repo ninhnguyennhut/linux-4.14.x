@@ -40,13 +40,18 @@ mock_context(struct drm_i915_private *i915,
 	INIT_LIST_HEAD(&ctx->link);
 	ctx->i915 = i915;
 
-	INIT_RADIX_TREE(&ctx->handles_vma, GFP_KERNEL);
-	INIT_LIST_HEAD(&ctx->handles_list);
+	ctx->vma_lut.ht_bits = VMA_HT_BITS;
+	ctx->vma_lut.ht_size = BIT(VMA_HT_BITS);
+	ctx->vma_lut.ht = kcalloc(ctx->vma_lut.ht_size,
+				  sizeof(*ctx->vma_lut.ht),
+				  GFP_KERNEL);
+	if (!ctx->vma_lut.ht)
+		goto err_free;
 
-	ret = ida_simple_get(&i915->contexts.hw_ida,
+	ret = ida_simple_get(&i915->context_hw_ida,
 			     0, MAX_CONTEXT_HW_ID, GFP_KERNEL);
 	if (ret < 0)
-		goto err_handles;
+		goto err_vma_ht;
 	ctx->hw_id = ret;
 
 	if (name) {
@@ -61,7 +66,9 @@ mock_context(struct drm_i915_private *i915,
 
 	return ctx;
 
-err_handles:
+err_vma_ht:
+	kvfree(ctx->vma_lut.ht);
+err_free:
 	kfree(ctx);
 	return NULL;
 
@@ -78,21 +85,4 @@ void mock_context_close(struct i915_gem_context *ctx)
 	i915_ppgtt_close(&ctx->ppgtt->base);
 
 	i915_gem_context_put(ctx);
-}
-
-void mock_init_contexts(struct drm_i915_private *i915)
-{
-	INIT_LIST_HEAD(&i915->contexts.list);
-	ida_init(&i915->contexts.hw_ida);
-
-	INIT_WORK(&i915->contexts.free_work, contexts_free_worker);
-	init_llist_head(&i915->contexts.free_list);
-}
-
-struct i915_gem_context *
-live_context(struct drm_i915_private *i915, struct drm_file *file)
-{
-	lockdep_assert_held(&i915->drm.struct_mutex);
-
-	return i915_gem_create_context(i915, file->driver_priv);
 }

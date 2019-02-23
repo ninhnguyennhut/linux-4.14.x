@@ -5,10 +5,10 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  *
- * This file implements the core part of PCIe AER. When a PCIe
+ * This file implements the core part of PCI-Express AER. When an pci-express
  * error is delivered, an error message will be collected and printed to
  * console, then, an error recovery procedure will be executed by following
- * the PCI error recovery rules.
+ * the pci error recovery rules.
  *
  * Copyright (C) 2006 Intel Corp.
  *	Tom Long Nguyen (tom.l.nguyen@intel.com)
@@ -390,14 +390,7 @@ static pci_ers_result_t broadcast_error_message(struct pci_dev *dev,
 		 * If the error is reported by an end point, we think this
 		 * error is related to the upstream link of the end point.
 		 */
-		if (state == pci_channel_io_normal)
-			/*
-			 * the error is non fatal so the bus is ok, just invoke
-			 * the callback for the function that logged the error.
-			 */
-			cb(dev, &result_data);
-		else
-			pci_walk_bus(dev->bus, cb, &result_data);
+		pci_walk_bus(dev->bus, cb, &result_data);
 	}
 
 	return result_data.result;

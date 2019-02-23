@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "../perf.h"
 #include "util.h"
 #include "debug.h"
@@ -144,17 +143,13 @@ out:
 	return list;
 }
 
-static int slow_copyfile(const char *from, const char *to, struct nsinfo *nsi)
+static int slow_copyfile(const char *from, const char *to)
 {
 	int err = -1;
 	char *line = NULL;
 	size_t n;
-	FILE *from_fp, *to_fp;
-	struct nscookie nsc;
+	FILE *from_fp = fopen(from, "r"), *to_fp;
 
-	nsinfo__mountns_enter(nsi, &nsc);
-	from_fp = fopen(from, "r");
-	nsinfo__mountns_exit(&nsc);
 	if (from_fp == NULL)
 		goto out;
 
@@ -203,21 +198,15 @@ int copyfile_offset(int ifd, loff_t off_in, int ofd, loff_t off_out, u64 size)
 	return size ? -1 : 0;
 }
 
-static int copyfile_mode_ns(const char *from, const char *to, mode_t mode,
-			    struct nsinfo *nsi)
+int copyfile_mode(const char *from, const char *to, mode_t mode)
 {
 	int fromfd, tofd;
 	struct stat st;
-	int err;
+	int err = -1;
 	char *tmp = NULL, *ptr = NULL;
-	struct nscookie nsc;
 
-	nsinfo__mountns_enter(nsi, &nsc);
-	err = stat(from, &st);
-	nsinfo__mountns_exit(&nsc);
-	if (err)
+	if (stat(from, &st))
 		goto out;
-	err = -1;
 
 	/* extra 'x' at the end is to reserve space for '.' */
 	if (asprintf(&tmp, "%s.XXXXXXx", to) < 0) {
@@ -238,13 +227,11 @@ static int copyfile_mode_ns(const char *from, const char *to, mode_t mode,
 		goto out_close_to;
 
 	if (st.st_size == 0) { /* /proc? do it slowly... */
-		err = slow_copyfile(from, tmp, nsi);
+		err = slow_copyfile(from, tmp);
 		goto out_close_to;
 	}
 
-	nsinfo__mountns_enter(nsi, &nsc);
 	fromfd = open(from, O_RDONLY);
-	nsinfo__mountns_exit(&nsc);
 	if (fromfd < 0)
 		goto out_close_to;
 
@@ -261,16 +248,6 @@ out:
 	return err;
 }
 
-int copyfile_ns(const char *from, const char *to, struct nsinfo *nsi)
-{
-	return copyfile_mode_ns(from, to, 0755, nsi);
-}
-
-int copyfile_mode(const char *from, const char *to, mode_t mode)
-{
-	return copyfile_mode_ns(from, to, mode, NULL);
-}
-
 int copyfile(const char *from, const char *to)
 {
 	return copyfile_mode(from, to, 0755);
@@ -282,7 +259,6 @@ static ssize_t ion(bool is_read, int fd, void *buf, size_t n)
 	size_t left = n;
 
 	while (left) {
-		/* buf must be treated as const if !is_read. */
 		ssize_t ret = is_read ? read(fd, buf, left) :
 					write(fd, buf, left);
 
@@ -310,10 +286,9 @@ ssize_t readn(int fd, void *buf, size_t n)
 /*
  * Write exactly 'n' bytes or return an error.
  */
-ssize_t writen(int fd, const void *buf, size_t n)
+ssize_t writen(int fd, void *buf, size_t n)
 {
-	/* ion does not modify buf. */
-	return ion(false, fd, (void *)buf, n);
+	return ion(false, fd, buf, n);
 }
 
 size_t hex_width(u64 v)

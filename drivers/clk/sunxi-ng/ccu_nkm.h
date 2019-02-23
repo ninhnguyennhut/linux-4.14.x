@@ -34,8 +34,6 @@ struct ccu_nkm {
 	struct ccu_div_internal		m;
 	struct ccu_mux_internal	mux;
 
-	unsigned int		fixed_post_div;
-
 	struct ccu_common	common;
 };
 

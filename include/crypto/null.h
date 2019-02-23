@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* Values for NULL algorithms */
 
 #ifndef _CRYPTO_NULL_H

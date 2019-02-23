@@ -84,7 +84,3 @@
 &sas1 {
 	status = "ok";
 };
-
-&p0_pcie2_a {
-	status = "ok";
-};

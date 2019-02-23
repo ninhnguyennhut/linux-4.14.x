@@ -48,7 +48,7 @@ static atomic64_t dma_fence_context_counter = ATOMIC64_INIT(0);
  */
 u64 dma_fence_context_alloc(unsigned num)
 {
-	WARN_ON(!num);
+	BUG_ON(!num);
 	return atomic64_add_return(num, &dma_fence_context_counter) - num;
 }
 EXPORT_SYMBOL(dma_fence_context_alloc);
@@ -172,7 +172,7 @@ void dma_fence_release(struct kref *kref)
 
 	trace_dma_fence_destroy(fence);
 
-	WARN_ON(!list_empty(&fence->cb_list));
+	BUG_ON(!list_empty(&fence->cb_list));
 
 	if (fence->ops->release)
 		fence->ops->release(fence);

@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 
 static void samsung_nand_decode_id(struct nand_chip *chip)
 {

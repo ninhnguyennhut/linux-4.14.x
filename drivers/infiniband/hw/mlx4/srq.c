@@ -34,6 +34,7 @@
 #include <linux/mlx4/qp.h>
 #include <linux/mlx4/srq.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 
 #include "mlx4_ib.h"
 #include <rdma/mlx4-abi.h>
@@ -170,16 +171,20 @@ struct ib_srq *mlx4_ib_create_srq(struct ib_pd *pd,
 		if (err)
 			goto err_mtt;
 
-		srq->wrid = kvmalloc_array(srq->msrq.max,
-					   sizeof(u64), GFP_KERNEL);
+		srq->wrid = kmalloc_array(srq->msrq.max, sizeof(u64),
+					GFP_KERNEL | __GFP_NOWARN);
 		if (!srq->wrid) {
-			err = -ENOMEM;
-			goto err_mtt;
+			srq->wrid = __vmalloc(srq->msrq.max * sizeof(u64),
+					      GFP_KERNEL, PAGE_KERNEL);
+			if (!srq->wrid) {
+				err = -ENOMEM;
+				goto err_mtt;
+			}
 		}
 	}
 
-	cqn = ib_srq_has_cq(init_attr->srq_type) ?
-		to_mcq(init_attr->ext.cq)->mcq.cqn : 0;
+	cqn = (init_attr->srq_type == IB_SRQT_XRC) ?
+		to_mcq(init_attr->ext.xrc.cq)->mcq.cqn : 0;
 	xrcdn = (init_attr->srq_type == IB_SRQT_XRC) ?
 		to_mxrcd(init_attr->ext.xrc.xrcd)->xrcdn :
 		(u16) dev->dev->caps.reserved_xrcds;

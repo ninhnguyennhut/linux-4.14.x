@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* linux/arch/sparc/kernel/sys_sparc.c
  *
  * This file contains various random system calls that

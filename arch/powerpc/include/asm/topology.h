@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_POWERPC_TOPOLOGY_H
 #define _ASM_POWERPC_TOPOLOGY_H
 #ifdef __KERNEL__
@@ -16,6 +15,8 @@ struct device_node;
 #define RECLAIM_DISTANCE 10
 
 #include <asm/mmzone.h>
+
+#define parent_node(node)	(node)
 
 #define cpumask_of_node(node) ((node) == -1 ?				\
 			       cpu_all_mask :				\

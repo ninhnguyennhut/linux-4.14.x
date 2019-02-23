@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _DRM_SYSFS_H_
 #define _DRM_SYSFS_H_
 

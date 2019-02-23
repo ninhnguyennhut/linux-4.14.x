@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * cachectl.h -- defines for M32R cache control system calls
  *

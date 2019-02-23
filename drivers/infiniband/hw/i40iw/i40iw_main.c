@@ -77,6 +77,7 @@ MODULE_PARM_DESC(mpa_version, "MPA version to be used in MPA Req/Resp 1 or 2");
 MODULE_AUTHOR("Intel Corporation, <e1000-rdma@lists.sourceforge.net>");
 MODULE_DESCRIPTION("Intel(R) Ethernet Connection X722 iWARP RDMA Driver");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_VERSION(DRV_VERSION);
 
 static struct i40e_client i40iw_client;
 static char i40iw_client_name[I40E_CLIENT_STR_LENGTH] = "i40iw";
@@ -98,6 +99,8 @@ static struct notifier_block i40iw_inetaddr6_notifier = {
 static struct notifier_block i40iw_net_notifier = {
 	.notifier_call = i40iw_net_event
 };
+
+static atomic_t i40iw_notifiers_registered;
 
 /**
  * i40iw_find_i40e_handler - find a handler given a client info
@@ -1374,20 +1377,11 @@ error:
  */
 static void i40iw_register_notifiers(void)
 {
-	register_inetaddr_notifier(&i40iw_inetaddr_notifier);
-	register_inet6addr_notifier(&i40iw_inetaddr6_notifier);
-	register_netevent_notifier(&i40iw_net_notifier);
-}
-
-/**
- * i40iw_unregister_notifiers - unregister tcp ip notifiers
- */
-
-static void i40iw_unregister_notifiers(void)
-{
-	unregister_netevent_notifier(&i40iw_net_notifier);
-	unregister_inetaddr_notifier(&i40iw_inetaddr_notifier);
-	unregister_inet6addr_notifier(&i40iw_inetaddr6_notifier);
+	if (atomic_inc_return(&i40iw_notifiers_registered) == 1) {
+		register_inetaddr_notifier(&i40iw_inetaddr_notifier);
+		register_inet6addr_notifier(&i40iw_inetaddr6_notifier);
+		register_netevent_notifier(&i40iw_net_notifier);
+	}
 }
 
 /**
@@ -1406,11 +1400,6 @@ static enum i40iw_status_code i40iw_save_msix_info(struct i40iw_device *iwdev,
 	u32 ceq_idx;
 	u32 i;
 	u32 size;
-
-	if (!ldev->msix_count) {
-		i40iw_pr_err("No MSI-X vectors\n");
-		return I40IW_ERR_CONFIG;
-	}
 
 	iwdev->msix_count = ldev->msix_count;
 
@@ -1474,6 +1463,12 @@ static void i40iw_deinit_device(struct i40iw_device *iwdev)
 		if (!iwdev->reset)
 			i40iw_del_macip_entry(iwdev, (u8)iwdev->mac_ip_table_idx);
 		/* fallthrough */
+	case INET_NOTIFIER:
+		if (!atomic_dec_return(&i40iw_notifiers_registered)) {
+			unregister_netevent_notifier(&i40iw_net_notifier);
+			unregister_inetaddr_notifier(&i40iw_inetaddr_notifier);
+			unregister_inet6addr_notifier(&i40iw_inetaddr6_notifier);
+		}
 		/* fallthrough */
 	case PBLE_CHUNK_MEM:
 		i40iw_destroy_pble_pool(dev, iwdev->pble_rsrc);
@@ -1556,7 +1551,7 @@ static enum i40iw_status_code i40iw_setup_init_state(struct i40iw_handler *hdl,
 
 	status = i40iw_save_msix_info(iwdev, ldev);
 	if (status)
-		return status;
+		goto exit;
 	iwdev->hw.dev_context = (void *)ldev->pcidev;
 	iwdev->hw.hw_addr = ldev->hw_addr;
 	status = i40iw_allocate_dma_mem(&iwdev->hw,
@@ -1673,6 +1668,8 @@ static int i40iw_open(struct i40e_info *ldev, struct i40e_client *client)
 			break;
 		iwdev->init_state = PBLE_CHUNK_MEM;
 		iwdev->virtchnl_wq = alloc_ordered_workqueue("iwvch", WQ_MEM_RECLAIM);
+		i40iw_register_notifiers();
+		iwdev->init_state = INET_NOTIFIER;
 		status = i40iw_add_mac_ip(iwdev);
 		if (status)
 			break;
@@ -2022,8 +2019,6 @@ static int __init i40iw_init_module(void)
 	i40iw_client.type = I40E_CLIENT_IWARP;
 	spin_lock_init(&i40iw_handler_lock);
 	ret = i40e_register_client(&i40iw_client);
-	i40iw_register_notifiers();
-
 	return ret;
 }
 
@@ -2035,7 +2030,6 @@ static int __init i40iw_init_module(void)
  */
 static void __exit i40iw_exit_module(void)
 {
-	i40iw_unregister_notifiers();
 	i40e_unregister_client(&i40iw_client);
 }
 

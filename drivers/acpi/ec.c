@@ -112,7 +112,8 @@ enum {
 	EC_FLAGS_EVT_HANDLER_INSTALLED, /* _Qxx handlers installed */
 	EC_FLAGS_STARTED,		/* Driver is started */
 	EC_FLAGS_STOPPED,		/* Driver is stopped */
-	EC_FLAGS_GPE_MASKED,		/* GPE masked */
+	EC_FLAGS_COMMAND_STORM,		/* GPE storms occurred to the
+					 * current command processing */
 };
 
 #define ACPI_EC_COMMAND_POLL		0x01 /* Available for command byte */
@@ -424,19 +425,19 @@ static void acpi_ec_complete_request(struct acpi_ec *ec)
 		wake_up(&ec->wait);
 }
 
-static void acpi_ec_mask_gpe(struct acpi_ec *ec)
+static void acpi_ec_set_storm(struct acpi_ec *ec, u8 flag)
 {
-	if (!test_bit(EC_FLAGS_GPE_MASKED, &ec->flags)) {
+	if (!test_bit(flag, &ec->flags)) {
 		acpi_ec_disable_gpe(ec, false);
 		ec_dbg_drv("Polling enabled");
-		set_bit(EC_FLAGS_GPE_MASKED, &ec->flags);
+		set_bit(flag, &ec->flags);
 	}
 }
 
-static void acpi_ec_unmask_gpe(struct acpi_ec *ec)
+static void acpi_ec_clear_storm(struct acpi_ec *ec, u8 flag)
 {
-	if (test_bit(EC_FLAGS_GPE_MASKED, &ec->flags)) {
-		clear_bit(EC_FLAGS_GPE_MASKED, &ec->flags);
+	if (test_bit(flag, &ec->flags)) {
+		clear_bit(flag, &ec->flags);
 		acpi_ec_enable_gpe(ec, false);
 		ec_dbg_drv("Polling disabled");
 	}
@@ -463,7 +464,7 @@ static bool acpi_ec_submit_flushable_request(struct acpi_ec *ec)
 
 static void acpi_ec_submit_query(struct acpi_ec *ec)
 {
-	acpi_ec_mask_gpe(ec);
+	acpi_ec_set_storm(ec, EC_FLAGS_COMMAND_STORM);
 	if (!acpi_ec_event_enabled(ec))
 		return;
 	if (!test_and_set_bit(EC_FLAGS_QUERY_PENDING, &ec->flags)) {
@@ -479,18 +480,15 @@ static void acpi_ec_complete_query(struct acpi_ec *ec)
 	if (test_and_clear_bit(EC_FLAGS_QUERY_PENDING, &ec->flags))
 		ec_dbg_evt("Command(%s) unblocked",
 			   acpi_ec_cmd_string(ACPI_EC_COMMAND_QUERY));
-	acpi_ec_unmask_gpe(ec);
+	acpi_ec_clear_storm(ec, EC_FLAGS_COMMAND_STORM);
 }
 
 static inline void __acpi_ec_enable_event(struct acpi_ec *ec)
 {
 	if (!test_and_set_bit(EC_FLAGS_QUERY_ENABLED, &ec->flags))
 		ec_log_drv("event unblocked");
-	/*
-	 * Unconditionally invoke this once after enabling the event
-	 * handling mechanism to detect the pending events.
-	 */
-	advance_transaction(ec);
+	if (!test_bit(EC_FLAGS_QUERY_PENDING, &ec->flags))
+		advance_transaction(ec);
 }
 
 static inline void __acpi_ec_disable_event(struct acpi_ec *ec)
@@ -702,7 +700,7 @@ err:
 				++t->irq_count;
 			/* Allow triggering on 0 threshold */
 			if (t->irq_count == ec_storm_threshold)
-				acpi_ec_mask_gpe(ec);
+				acpi_ec_set_storm(ec, EC_FLAGS_COMMAND_STORM);
 		}
 	}
 out:
@@ -800,7 +798,7 @@ static int acpi_ec_transaction_unlocked(struct acpi_ec *ec,
 
 	spin_lock_irqsave(&ec->lock, tmp);
 	if (t->irq_count == ec_storm_threshold)
-		acpi_ec_unmask_gpe(ec);
+		acpi_ec_clear_storm(ec, EC_FLAGS_COMMAND_STORM);
 	ec_dbg_req("Command(%s) stopped", acpi_ec_cmd_string(t->command));
 	ec->curr = NULL;
 	/* Disable GPE for command processing (IBF=0/OBF=1) */
@@ -1459,10 +1457,11 @@ static int ec_install_handlers(struct acpi_ec *ec, bool handle_events)
 			if (test_bit(EC_FLAGS_STARTED, &ec->flags) &&
 			    ec->reference_count >= 1)
 				acpi_ec_enable_gpe(ec, true);
+
+			/* EC is fully operational, allow queries */
+			acpi_ec_enable_event(ec);
 		}
 	}
-	/* EC is fully operational, allow queries */
-	acpi_ec_enable_event(ec);
 
 	return 0;
 }
@@ -1587,7 +1586,9 @@ static bool acpi_is_boot_ec(struct acpi_ec *ec)
 {
 	if (!boot_ec)
 		return false;
-	if (ec->command_addr == boot_ec->command_addr &&
+	if (ec->handle == boot_ec->handle &&
+	    ec->gpe == boot_ec->gpe &&
+	    ec->command_addr == boot_ec->command_addr &&
 	    ec->data_addr == boot_ec->data_addr)
 		return true;
 	return false;
@@ -1597,41 +1598,25 @@ static int acpi_ec_add(struct acpi_device *device)
 {
 	struct acpi_ec *ec = NULL;
 	int ret;
-	bool is_ecdt = false;
-	acpi_status status;
 
 	strcpy(acpi_device_name(device), ACPI_EC_DEVICE_NAME);
 	strcpy(acpi_device_class(device), ACPI_EC_CLASS);
 
-	if (!strcmp(acpi_device_hid(device), ACPI_ECDT_HID)) {
-		is_ecdt = true;
-		ec = boot_ec;
-	} else {
-		ec = acpi_ec_alloc();
-		if (!ec)
-			return -ENOMEM;
-		status = ec_parse_device(device->handle, 0, ec, NULL);
-		if (status != AE_CTRL_TERMINATE) {
+	ec = acpi_ec_alloc();
+	if (!ec)
+		return -ENOMEM;
+	if (ec_parse_device(device->handle, 0, ec, NULL) !=
+		AE_CTRL_TERMINATE) {
 			ret = -EINVAL;
 			goto err_alloc;
-		}
 	}
 
 	if (acpi_is_boot_ec(ec)) {
-		boot_ec_is_ecdt = is_ecdt;
-		if (!is_ecdt) {
-			/*
-			 * Trust PNP0C09 namespace location rather than
-			 * ECDT ID. But trust ECDT GPE rather than _GPE
-			 * because of ASUS quirks, so do not change
-			 * boot_ec->gpe to ec->gpe.
-			 */
-			boot_ec->handle = ec->handle;
-			acpi_handle_debug(ec->handle, "duplicated.\n");
-			acpi_ec_free(ec);
-			ec = boot_ec;
-		}
-		ret = acpi_config_boot_ec(ec, ec->handle, true, is_ecdt);
+		boot_ec_is_ecdt = false;
+		acpi_handle_debug(ec->handle, "duplicated.\n");
+		acpi_ec_free(ec);
+		ec = boot_ec;
+		ret = acpi_config_boot_ec(ec, ec->handle, true, false);
 	} else
 		ret = acpi_ec_setup(ec, true);
 	if (ret)
@@ -1644,10 +1629,8 @@ static int acpi_ec_add(struct acpi_device *device)
 	ret = !!request_region(ec->command_addr, 1, "EC cmd");
 	WARN(!ret, "Could not request EC cmd io port 0x%lx", ec->command_addr);
 
-	if (!is_ecdt) {
-		/* Reprobe devices depending on the EC */
-		acpi_walk_dep_device_list(ec->handle);
-	}
+	/* Reprobe devices depending on the EC */
+	acpi_walk_dep_device_list(ec->handle);
 	acpi_handle_debug(ec->handle, "enumerated.\n");
 	return 0;
 
@@ -1703,7 +1686,6 @@ ec_parse_io_ports(struct acpi_resource *resource, void *context)
 
 static const struct acpi_device_id ec_device_ids[] = {
 	{"PNP0C09", 0},
-	{ACPI_ECDT_HID, 0},
 	{"", 0},
 };
 
@@ -1765,25 +1747,20 @@ static int __init acpi_ec_ecdt_start(void)
 
 	if (!boot_ec)
 		return -ENODEV;
-	/* In case acpi_ec_ecdt_start() is called after acpi_ec_add() */
+	/*
+	 * The DSDT EC should have already been started in
+	 * acpi_ec_add().
+	 */
 	if (!boot_ec_is_ecdt)
 		return -ENODEV;
 
 	/*
 	 * At this point, the namespace and the GPE is initialized, so
 	 * start to find the namespace objects and handle the events.
-	 *
-	 * Note: ec->handle can be valid if this function is called after
-	 * acpi_ec_add(), hence the fast path.
 	 */
-	if (boot_ec->handle == ACPI_ROOT_OBJECT) {
-		if (!acpi_ec_ecdt_get_handle(&handle))
-			return -ENODEV;
-		boot_ec->handle = handle;
-	}
-
-	/* Register to ACPI bus with PM ops attached */
-	return acpi_bus_register_early_device(ACPI_BUS_TYPE_ECDT_EC);
+	if (!acpi_ec_ecdt_get_handle(&handle))
+		return -ENODEV;
+	return acpi_config_boot_ec(boot_ec, handle, true, true);
 }
 
 #if 0
@@ -1826,7 +1803,7 @@ static int ec_honor_ecdt_gpe(const struct dmi_system_id *id)
 	return 0;
 }
 
-static const struct dmi_system_id ec_dmi_table[] __initconst = {
+static struct dmi_system_id ec_dmi_table[] __initdata = {
 	{
 	ec_correct_ecdt, "MSI MS-171F", {
 	DMI_MATCH(DMI_SYS_VENDOR, "Micro-Star"),
@@ -2034,14 +2011,8 @@ int __init acpi_ec_init(void)
 		return result;
 
 	/* Drivers must be started after acpi_ec_query_init() */
-	dsdt_fail = acpi_bus_register_driver(&acpi_ec_driver);
-	/*
-	 * Register ECDT to ACPI bus only when PNP0C09 probe fails. This is
-	 * useful for platforms (confirmed on ASUS X550ZE) with valid ECDT
-	 * settings but invalid DSDT settings.
-	 * https://bugzilla.kernel.org/show_bug.cgi?id=196847
-	 */
 	ecdt_fail = acpi_ec_ecdt_start();
+	dsdt_fail = acpi_bus_register_driver(&acpi_ec_driver);
 	return ecdt_fail && dsdt_fail ? -ENODEV : 0;
 }
 

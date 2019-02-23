@@ -60,14 +60,16 @@ static const SMU74_Discrete_GraphicsLevel avfs_graphics_level_polaris10[8] = {
 static const SMU74_Discrete_MemoryLevel avfs_memory_level_polaris10 = {
 	0x100ea446, 0, 0x30750000, 0x01, 0x01, 0x01, 0x00, 0x00, 0x64, 0x00, 0x00, 0x1f00, 0x00, 0x00};
 
+
 static int polaris10_setup_pwr_virus(struct pp_smumgr *smumgr)
 {
 	int i;
-	int result = -EINVAL;
+	int result = -1;
 	uint32_t reg, data;
 
 	const PWR_Command_Table *pvirus = pwr_virus_table;
-	struct smu7_smumgr *smu_data = (struct smu7_smumgr *)(smumgr->backend);
+	struct polaris10_smumgr *smu_data = (struct polaris10_smumgr *)(smumgr->backend);
+
 
 	for (i = 0; i < PWR_VIRUS_TABLE_SIZE; i++) {
 		switch (pvirus->command) {
@@ -84,7 +86,7 @@ static int polaris10_setup_pwr_virus(struct pp_smumgr *smumgr)
 		default:
 			pr_info("Table Exit with Invalid Command!");
 			smu_data->avfs.avfs_btc_status = AVFS_BTC_VIRUS_FAIL;
-			result = -EINVAL;
+			result = -1;
 			break;
 		}
 		pvirus++;
@@ -96,7 +98,7 @@ static int polaris10_setup_pwr_virus(struct pp_smumgr *smumgr)
 static int polaris10_perform_btc(struct pp_smumgr *smumgr)
 {
 	int result = 0;
-	struct smu7_smumgr *smu_data = (struct smu7_smumgr *)(smumgr->backend);
+	struct polaris10_smumgr *smu_data = (struct polaris10_smumgr *)(smumgr->backend);
 
 	if (0 != smu_data->avfs.avfs_btc_param) {
 		if (0 != smu7_send_msg_to_smc_with_parameter(smumgr, PPSMC_MSG_PerformBtc, smu_data->avfs.avfs_btc_param)) {
@@ -170,11 +172,10 @@ static int polaris10_setup_graphics_level_structure(struct pp_smumgr *smumgr)
 	return 0;
 }
 
-
 static int
 polaris10_avfs_event_mgr(struct pp_smumgr *smumgr, bool SMU_VFT_INTACT)
 {
-	struct smu7_smumgr *smu_data = (struct smu7_smumgr *)(smumgr->backend);
+	struct polaris10_smumgr *smu_data = (struct polaris10_smumgr *)(smumgr->backend);
 
 	switch (smu_data->avfs.avfs_btc_status) {
 	case AVFS_BTC_COMPLETED_PREVIOUSLY:
@@ -184,31 +185,30 @@ polaris10_avfs_event_mgr(struct pp_smumgr *smumgr, bool SMU_VFT_INTACT)
 
 		smu_data->avfs.avfs_btc_status = AVFS_BTC_DPMTABLESETUP_FAILED;
 		PP_ASSERT_WITH_CODE(0 == polaris10_setup_graphics_level_structure(smumgr),
-			"[AVFS][Polaris10_AVFSEventMgr] Could not Copy Graphics Level table over to SMU",
-			return -EINVAL);
+		"[AVFS][Polaris10_AVFSEventMgr] Could not Copy Graphics Level table over to SMU",
+		return -1);
 
 		if (smu_data->avfs.avfs_btc_param > 1) {
 			pr_info("[AVFS][Polaris10_AVFSEventMgr] AC BTC has not been successfully verified on Fiji. There may be in this setting.");
 			smu_data->avfs.avfs_btc_status = AVFS_BTC_VIRUS_FAIL;
-			PP_ASSERT_WITH_CODE(0 == polaris10_setup_pwr_virus(smumgr),
+			PP_ASSERT_WITH_CODE(-1 == polaris10_setup_pwr_virus(smumgr),
 			"[AVFS][Polaris10_AVFSEventMgr] Could not setup Pwr Virus for AVFS ",
-			return -EINVAL);
+			return -1);
 		}
 
 		smu_data->avfs.avfs_btc_status = AVFS_BTC_FAILED;
 		PP_ASSERT_WITH_CODE(0 == polaris10_perform_btc(smumgr),
 					"[AVFS][Polaris10_AVFSEventMgr] Failure at SmuPolaris10_PerformBTC. AVFS Disabled",
-				 return -EINVAL);
-		smu_data->avfs.avfs_btc_status = AVFS_BTC_ENABLEAVFS;
+				 return -1);
+
 		break;
 
 	case AVFS_BTC_DISABLED:
-	case AVFS_BTC_ENABLEAVFS:
 	case AVFS_BTC_NOTSUPPORTED:
 		break;
 
 	default:
-		pr_err("AVFS failed status is %x!\n", smu_data->avfs.avfs_btc_status);
+		pr_info("[AVFS] Something is broken. See log!");
 		break;
 	}
 
@@ -376,6 +376,11 @@ static int polaris10_smu_init(struct pp_smumgr *smumgr)
 	if (smu7_init(smumgr))
 		return -EINVAL;
 
+	if (polaris10_is_hw_avfs_present(smumgr))
+		smu_data->avfs.avfs_btc_status = AVFS_BTC_BOOT;
+	else
+		smu_data->avfs.avfs_btc_status = AVFS_BTC_NOTSUPPORTED;
+
 	for (i = 0; i < SMU74_MAX_LEVELS_GRAPHICS; i++)
 		smu_data->activity_target[i] = PPPOLARIS10_TARGETACTIVITY_DFLT;
 
@@ -405,5 +410,4 @@ const struct pp_smumgr_func polaris10_smu_funcs = {
 	.get_mac_definition = polaris10_get_mac_definition,
 	.is_dpm_running = polaris10_is_dpm_running,
 	.populate_requested_graphic_levels = polaris10_populate_requested_graphic_levels,
-	.is_hw_avfs_present = polaris10_is_hw_avfs_present,
 };

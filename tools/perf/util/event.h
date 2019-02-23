@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_RECORD_H
 #define __PERF_RECORD_H
 
@@ -143,8 +142,7 @@ struct branch_flags {
 	u64 in_tx:1;
 	u64 abort:1;
 	u64 cycles:16;
-	u64 type:4;
-	u64 reserved:40;
+	u64 reserved:44;
 };
 
 struct branch_entry {
@@ -201,7 +199,6 @@ struct perf_sample {
 	u32 cpu;
 	u32 raw_size;
 	u64 data_src;
-	u64 phys_addr;
 	u32 flags;
 	u16 insn_len;
 	u8  cpumode;
@@ -247,7 +244,6 @@ enum perf_user_event_type { /* above any possible kernel type */
 	PERF_RECORD_STAT_ROUND			= 77,
 	PERF_RECORD_EVENT_UPDATE		= 78,
 	PERF_RECORD_TIME_CONV			= 79,
-	PERF_RECORD_HEADER_FEATURE		= 80,
 	PERF_RECORD_HEADER_MAX
 };
 
@@ -613,12 +609,6 @@ struct time_conv_event {
 	u64 time_zero;
 };
 
-struct feature_event {
-	struct perf_event_header 	header;
-	u64				feat_id;
-	char				data[];
-};
-
 union perf_event {
 	struct perf_event_header	header;
 	struct mmap_event		mmap;
@@ -649,7 +639,6 @@ union perf_event {
 	struct stat_event		stat;
 	struct stat_round_event		stat_round;
 	struct time_conv_event		time_conv;
-	struct feature_event		feat;
 };
 
 void perf_event__print_totals(void);

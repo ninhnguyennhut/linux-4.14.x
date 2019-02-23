@@ -97,10 +97,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg(
-		"%s: Test the futex value of private file mappings in FUTEX_WAIT\n",
-		basename(argv[0]));
+	printf("%s: Test the futex value of private file mappings in FUTEX_WAIT\n",
+	       basename(argv[0]));
 
 	ret = pthread_create(&thr, NULL, thr_futex_wait, NULL);
 	if (ret < 0) {

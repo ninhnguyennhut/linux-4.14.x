@@ -52,10 +52,15 @@ module_param(iterations, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(iterations,
 		"Iterations before stopping test (default: infinite)");
 
+static unsigned int sg_buffers = 1;
+module_param(sg_buffers, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(sg_buffers,
+		"Number of scatter gather buffers (default: 1)");
+
 static unsigned int dmatest;
 module_param(dmatest, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(dmatest,
-		"dmatest 0-memcpy 1-memset (default: 0)");
+		"dmatest 0-memcpy 1-slave_sg (default: 0)");
 
 static unsigned int xor_sources = 3;
 module_param(xor_sources, uint, S_IRUGO | S_IWUSR);
@@ -153,13 +158,6 @@ MODULE_PARM_DESC(run, "Run the test (default: false)");
 #define PATTERN_COPY		0x40
 #define PATTERN_OVERWRITE	0x20
 #define PATTERN_COUNT_MASK	0x1f
-#define PATTERN_MEMSET_IDX	0x01
-
-/* poor man's completion - we want to use wait_event_freezable() on it */
-struct dmatest_done {
-	bool			done;
-	wait_queue_head_t	*wait;
-};
 
 struct dmatest_thread {
 	struct list_head	node;
@@ -171,8 +169,6 @@ struct dmatest_thread {
 	u8			**dsts;
 	u8			**udsts;
 	enum dma_transaction_type type;
-	wait_queue_head_t done_wait;
-	struct dmatest_done test_done;
 	bool			done;
 };
 
@@ -243,62 +239,46 @@ static unsigned long dmatest_random(void)
 	return buf;
 }
 
-static inline u8 gen_inv_idx(u8 index, bool is_memset)
-{
-	u8 val = is_memset ? PATTERN_MEMSET_IDX : index;
-
-	return ~val & PATTERN_COUNT_MASK;
-}
-
-static inline u8 gen_src_value(u8 index, bool is_memset)
-{
-	return PATTERN_SRC | gen_inv_idx(index, is_memset);
-}
-
-static inline u8 gen_dst_value(u8 index, bool is_memset)
-{
-	return PATTERN_DST | gen_inv_idx(index, is_memset);
-}
-
 static void dmatest_init_srcs(u8 **bufs, unsigned int start, unsigned int len,
-		unsigned int buf_size, bool is_memset)
+		unsigned int buf_size)
 {
 	unsigned int i;
 	u8 *buf;
 
 	for (; (buf = *bufs); bufs++) {
 		for (i = 0; i < start; i++)
-			buf[i] = gen_src_value(i, is_memset);
+			buf[i] = PATTERN_SRC | (~i & PATTERN_COUNT_MASK);
 		for ( ; i < start + len; i++)
-			buf[i] = gen_src_value(i, is_memset) | PATTERN_COPY;
+			buf[i] = PATTERN_SRC | PATTERN_COPY
+				| (~i & PATTERN_COUNT_MASK);
 		for ( ; i < buf_size; i++)
-			buf[i] = gen_src_value(i, is_memset);
+			buf[i] = PATTERN_SRC | (~i & PATTERN_COUNT_MASK);
 		buf++;
 	}
 }
 
 static void dmatest_init_dsts(u8 **bufs, unsigned int start, unsigned int len,
-		unsigned int buf_size, bool is_memset)
+		unsigned int buf_size)
 {
 	unsigned int i;
 	u8 *buf;
 
 	for (; (buf = *bufs); bufs++) {
 		for (i = 0; i < start; i++)
-			buf[i] = gen_dst_value(i, is_memset);
+			buf[i] = PATTERN_DST | (~i & PATTERN_COUNT_MASK);
 		for ( ; i < start + len; i++)
-			buf[i] = gen_dst_value(i, is_memset) |
-						PATTERN_OVERWRITE;
+			buf[i] = PATTERN_DST | PATTERN_OVERWRITE
+				| (~i & PATTERN_COUNT_MASK);
 		for ( ; i < buf_size; i++)
-			buf[i] = gen_dst_value(i, is_memset);
+			buf[i] = PATTERN_DST | (~i & PATTERN_COUNT_MASK);
 	}
 }
 
 static void dmatest_mismatch(u8 actual, u8 pattern, unsigned int index,
-		unsigned int counter, bool is_srcbuf, bool is_memset)
+		unsigned int counter, bool is_srcbuf)
 {
 	u8		diff = actual ^ pattern;
-	u8		expected = pattern | gen_inv_idx(counter, is_memset);
+	u8		expected = pattern | (~counter & PATTERN_COUNT_MASK);
 	const char	*thread_name = current->comm;
 
 	if (is_srcbuf)
@@ -318,7 +298,7 @@ static void dmatest_mismatch(u8 actual, u8 pattern, unsigned int index,
 
 static unsigned int dmatest_verify(u8 **bufs, unsigned int start,
 		unsigned int end, unsigned int counter, u8 pattern,
-		bool is_srcbuf, bool is_memset)
+		bool is_srcbuf)
 {
 	unsigned int i;
 	unsigned int error_count = 0;
@@ -331,12 +311,11 @@ static unsigned int dmatest_verify(u8 **bufs, unsigned int start,
 		counter = counter_orig;
 		for (i = start; i < end; i++) {
 			actual = buf[i];
-			expected = pattern | gen_inv_idx(counter, is_memset);
+			expected = pattern | (~counter & PATTERN_COUNT_MASK);
 			if (actual != expected) {
 				if (error_count < MAX_ERROR_COUNT)
 					dmatest_mismatch(actual, pattern, i,
-							 counter, is_srcbuf,
-							 is_memset);
+							 counter, is_srcbuf);
 				error_count++;
 			}
 			counter++;
@@ -350,25 +329,18 @@ static unsigned int dmatest_verify(u8 **bufs, unsigned int start,
 	return error_count;
 }
 
+/* poor man's completion - we want to use wait_event_freezable() on it */
+struct dmatest_done {
+	bool			done;
+	wait_queue_head_t	*wait;
+};
 
 static void dmatest_callback(void *arg)
 {
 	struct dmatest_done *done = arg;
-	struct dmatest_thread *thread =
-		container_of(arg, struct dmatest_thread, done_wait);
-	if (!thread->done) {
-		done->done = true;
-		wake_up_all(done->wait);
-	} else {
-		/*
-		 * If thread->done, it means that this callback occurred
-		 * after the parent thread has cleaned up. This can
-		 * happen in the case that driver doesn't implement
-		 * the terminate_all() functionality and a dma operation
-		 * did not occur within the timeout period
-		 */
-		WARN(1, "dmatest: Kernel memory may be corrupted!!\n");
-	}
+
+	done->done = true;
+	wake_up_all(done->wait);
 }
 
 static unsigned int min_odd(unsigned int x, unsigned int y)
@@ -439,8 +411,9 @@ static unsigned long long dmatest_KBs(s64 runtime, unsigned long long len)
  */
 static int dmatest_func(void *data)
 {
+	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(done_wait);
 	struct dmatest_thread	*thread = data;
-	struct dmatest_done	*done = &thread->test_done;
+	struct dmatest_done	done = { .wait = &done_wait };
 	struct dmatest_info	*info;
 	struct dmatest_params	*params;
 	struct dma_chan		*chan;
@@ -462,7 +435,6 @@ static int dmatest_func(void *data)
 	s64			runtime = 0;
 	unsigned long long	total_len = 0;
 	u8			align = 0;
-	bool			is_memset = false;
 
 	set_freezable();
 
@@ -476,10 +448,9 @@ static int dmatest_func(void *data)
 	if (thread->type == DMA_MEMCPY) {
 		align = dev->copy_align;
 		src_cnt = dst_cnt = 1;
-	} else if (thread->type == DMA_MEMSET) {
-		align = dev->fill_align;
-		src_cnt = dst_cnt = 1;
-		is_memset = true;
+	} else if (thread->type == DMA_SG) {
+		align = dev->copy_align;
+		src_cnt = dst_cnt = sg_buffers;
 	} else if (thread->type == DMA_XOR) {
 		/* force odd to ensure dst = src */
 		src_cnt = min_odd(params->xor_sources | 1, dev->max_xor);
@@ -559,6 +530,8 @@ static int dmatest_func(void *data)
 		dma_addr_t srcs[src_cnt];
 		dma_addr_t *dsts;
 		unsigned int src_off, dst_off, len;
+		struct scatterlist tx_sg[src_cnt];
+		struct scatterlist rx_sg[src_cnt];
 
 		total_tests++;
 
@@ -598,9 +571,9 @@ static int dmatest_func(void *data)
 			dst_off = (dst_off >> align) << align;
 
 			dmatest_init_srcs(thread->srcs, src_off, len,
-					  params->buf_size, is_memset);
+					  params->buf_size);
 			dmatest_init_dsts(thread->dsts, dst_off, len,
-					  params->buf_size, is_memset);
+					  params->buf_size);
 
 			diff = ktime_sub(ktime_get(), start);
 			filltime = ktime_add(filltime, diff);
@@ -654,15 +627,22 @@ static int dmatest_func(void *data)
 			um->bidi_cnt++;
 		}
 
+		sg_init_table(tx_sg, src_cnt);
+		sg_init_table(rx_sg, src_cnt);
+		for (i = 0; i < src_cnt; i++) {
+			sg_dma_address(&rx_sg[i]) = srcs[i];
+			sg_dma_address(&tx_sg[i]) = dsts[i] + dst_off;
+			sg_dma_len(&tx_sg[i]) = len;
+			sg_dma_len(&rx_sg[i]) = len;
+		}
+
 		if (thread->type == DMA_MEMCPY)
 			tx = dev->device_prep_dma_memcpy(chan,
 							 dsts[0] + dst_off,
 							 srcs[0], len, flags);
-		else if (thread->type == DMA_MEMSET)
-			tx = dev->device_prep_dma_memset(chan,
-						dsts[0] + dst_off,
-						*(thread->srcs[0] + src_off),
-						len, flags);
+		else if (thread->type == DMA_SG)
+			tx = dev->device_prep_dma_sg(chan, tx_sg, src_cnt,
+						     rx_sg, src_cnt, flags);
 		else if (thread->type == DMA_XOR)
 			tx = dev->device_prep_dma_xor(chan,
 						      dsts[0] + dst_off,
@@ -687,9 +667,9 @@ static int dmatest_func(void *data)
 			continue;
 		}
 
-		done->done = false;
+		done.done = false;
 		tx->callback = dmatest_callback;
-		tx->callback_param = done;
+		tx->callback_param = &done;
 		cookie = tx->tx_submit(tx);
 
 		if (dma_submit_error(cookie)) {
@@ -702,12 +682,20 @@ static int dmatest_func(void *data)
 		}
 		dma_async_issue_pending(chan);
 
-		wait_event_freezable_timeout(thread->done_wait, done->done,
+		wait_event_freezable_timeout(done_wait, done.done,
 					     msecs_to_jiffies(params->timeout));
 
 		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
 
-		if (!done->done) {
+		if (!done.done) {
+			/*
+			 * We're leaving the timed out dma operation with
+			 * dangling pointer to done_wait.  To make this
+			 * correct, we'll need to allocate wait_done for
+			 * each test iteration and perform "who's gonna
+			 * free it this time?" dancing.  For now, just
+			 * leave it dangling.
+			 */
 			dmaengine_unmap_put(um);
 			result("test timed out", total_tests, src_off, dst_off,
 			       len, 0);
@@ -734,25 +722,23 @@ static int dmatest_func(void *data)
 		start = ktime_get();
 		pr_debug("%s: verifying source buffer...\n", current->comm);
 		error_count = dmatest_verify(thread->srcs, 0, src_off,
-				0, PATTERN_SRC, true, is_memset);
+				0, PATTERN_SRC, true);
 		error_count += dmatest_verify(thread->srcs, src_off,
 				src_off + len, src_off,
-				PATTERN_SRC | PATTERN_COPY, true, is_memset);
+				PATTERN_SRC | PATTERN_COPY, true);
 		error_count += dmatest_verify(thread->srcs, src_off + len,
 				params->buf_size, src_off + len,
-				PATTERN_SRC, true, is_memset);
+				PATTERN_SRC, true);
 
 		pr_debug("%s: verifying dest buffer...\n", current->comm);
 		error_count += dmatest_verify(thread->dsts, 0, dst_off,
-				0, PATTERN_DST, false, is_memset);
-
+				0, PATTERN_DST, false);
 		error_count += dmatest_verify(thread->dsts, dst_off,
 				dst_off + len, src_off,
-				PATTERN_SRC | PATTERN_COPY, false, is_memset);
-
+				PATTERN_SRC | PATTERN_COPY, false);
 		error_count += dmatest_verify(thread->dsts, dst_off + len,
 				params->buf_size, dst_off + len,
-				PATTERN_DST, false, is_memset);
+				PATTERN_DST, false);
 
 		diff = ktime_sub(ktime_get(), start);
 		comparetime = ktime_add(comparetime, diff);
@@ -794,7 +780,7 @@ err_thread_type:
 		dmatest_KBs(runtime, total_len), ret);
 
 	/* terminate all transfers on specified channels */
-	if (ret || failed_tests)
+	if (ret)
 		dmaengine_terminate_all(chan);
 
 	thread->done = true;
@@ -835,8 +821,8 @@ static int dmatest_add_threads(struct dmatest_info *info,
 
 	if (type == DMA_MEMCPY)
 		op = "copy";
-	else if (type == DMA_MEMSET)
-		op = "set";
+	else if (type == DMA_SG)
+		op = "sg";
 	else if (type == DMA_XOR)
 		op = "xor";
 	else if (type == DMA_PQ)
@@ -854,8 +840,6 @@ static int dmatest_add_threads(struct dmatest_info *info,
 		thread->info = info;
 		thread->chan = dtc->chan;
 		thread->type = type;
-		thread->test_done.wait = &thread->done_wait;
-		init_waitqueue_head(&thread->done_wait);
 		smp_wmb();
 		thread->task = kthread_create(dmatest_func, thread, "%s-%s%u",
 				dma_chan_name(chan), op, i);
@@ -899,9 +883,9 @@ static int dmatest_add_channel(struct dmatest_info *info,
 		}
 	}
 
-	if (dma_has_cap(DMA_MEMSET, dma_dev->cap_mask)) {
+	if (dma_has_cap(DMA_SG, dma_dev->cap_mask)) {
 		if (dmatest == 1) {
-			cnt = dmatest_add_threads(info, dtc, DMA_MEMSET);
+			cnt = dmatest_add_threads(info, dtc, DMA_SG);
 			thread_count += cnt > 0 ? cnt : 0;
 		}
 	}
@@ -977,8 +961,8 @@ static void run_threaded_test(struct dmatest_info *info)
 	params->noverify = noverify;
 
 	request_channels(info, DMA_MEMCPY);
-	request_channels(info, DMA_MEMSET);
 	request_channels(info, DMA_XOR);
+	request_channels(info, DMA_SG);
 	request_channels(info, DMA_PQ);
 }
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* utility to create the register check tables
  * this includes inlined list.h safe for userspace.
  *

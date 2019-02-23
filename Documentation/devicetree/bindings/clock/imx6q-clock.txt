@@ -27,4 +27,5 @@ uart1: serial@02020000 {
 	interrupts = <0 26 0x04>;
 	clocks = <&clks IMX6QDL_CLK_UART_IPG>, <&clks IMX6QDL_CLK_UART_SERIAL>;
 	clock-names = "ipg", "per";
+	status = "disabled";
 };

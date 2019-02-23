@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _RUNTIME_INSTR_H
 #define _RUNTIME_INSTR_H
 
@@ -86,8 +85,6 @@ static inline void restore_ri_cb(struct runtime_instr_cb *cb_next,
 		load_runtime_instr_cb(&runtime_instr_empty_cb);
 }
 
-struct task_struct;
-
-void runtime_instr_release(struct task_struct *tsk);
+void exit_thread_runtime_instr(void);
 
 #endif /* _RUNTIME_INSTR_H */

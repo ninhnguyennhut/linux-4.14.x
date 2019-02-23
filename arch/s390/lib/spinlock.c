@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *    Out of line spinlock code.
  *
@@ -33,63 +32,42 @@ static int __init spin_retry_setup(char *str)
 }
 __setup("spin_retry=", spin_retry_setup);
 
-static inline int arch_load_niai4(int *lock)
-{
-	int owner;
-
-	asm volatile(
-#ifdef CONFIG_HAVE_MARCH_ZEC12_FEATURES
-		"	.long	0xb2fa0040\n"	/* NIAI 4 */
-#endif
-		"	l	%0,%1\n"
-		: "=d" (owner) : "Q" (*lock) : "memory");
-       return owner;
-}
-
-static inline int arch_cmpxchg_niai8(int *lock, int old, int new)
-{
-	int expected = old;
-
-	asm volatile(
-#ifdef CONFIG_HAVE_MARCH_ZEC12_FEATURES
-		"	.long	0xb2fa0080\n"	/* NIAI 8 */
-#endif
-		"	cs	%0,%3,%1\n"
-		: "=d" (old), "=Q" (*lock)
-		: "0" (old), "d" (new), "Q" (*lock)
-		: "cc", "memory");
-	return expected == old;
-}
-
 void arch_spin_lock_wait(arch_spinlock_t *lp)
 {
 	int cpu = SPINLOCK_LOCKVAL;
-	int owner, count;
+	int owner, count, first_diag;
 
-	/* Pass the virtual CPU to the lock holder if it is not running */
-	owner = arch_load_niai4(&lp->lock);
-	if (owner && arch_vcpu_is_preempted(~owner))
-		smp_yield_cpu(~owner);
-
-	count = spin_retry;
+	first_diag = 1;
 	while (1) {
-		owner = arch_load_niai4(&lp->lock);
+		owner = ACCESS_ONCE(lp->lock);
 		/* Try to get the lock if it is free. */
 		if (!owner) {
-			if (arch_cmpxchg_niai8(&lp->lock, 0, cpu))
+			if (__atomic_cmpxchg_bool(&lp->lock, 0, cpu))
 				return;
 			continue;
 		}
-		if (count-- >= 0)
+		/* First iteration: check if the lock owner is running. */
+		if (first_diag && arch_vcpu_is_preempted(~owner)) {
+			smp_yield_cpu(~owner);
+			first_diag = 0;
 			continue;
+		}
+		/* Loop for a while on the lock value. */
 		count = spin_retry;
+		do {
+			owner = ACCESS_ONCE(lp->lock);
+		} while (owner && count-- > 0);
+		if (!owner)
+			continue;
 		/*
 		 * For multiple layers of hypervisors, e.g. z/VM + LPAR
 		 * yield the CPU unconditionally. For LPAR rely on the
 		 * sense running status.
 		 */
-		if (!MACHINE_IS_LPAR || arch_vcpu_is_preempted(~owner))
+		if (!MACHINE_IS_LPAR || arch_vcpu_is_preempted(~owner)) {
 			smp_yield_cpu(~owner);
+			first_diag = 0;
+		}
 	}
 }
 EXPORT_SYMBOL(arch_spin_lock_wait);
@@ -97,36 +75,42 @@ EXPORT_SYMBOL(arch_spin_lock_wait);
 void arch_spin_lock_wait_flags(arch_spinlock_t *lp, unsigned long flags)
 {
 	int cpu = SPINLOCK_LOCKVAL;
-	int owner, count;
+	int owner, count, first_diag;
 
 	local_irq_restore(flags);
-
-	/* Pass the virtual CPU to the lock holder if it is not running */
-	owner = arch_load_niai4(&lp->lock);
-	if (owner && arch_vcpu_is_preempted(~owner))
-		smp_yield_cpu(~owner);
-
-	count = spin_retry;
+	first_diag = 1;
 	while (1) {
-		owner = arch_load_niai4(&lp->lock);
+		owner = ACCESS_ONCE(lp->lock);
 		/* Try to get the lock if it is free. */
 		if (!owner) {
 			local_irq_disable();
-			if (arch_cmpxchg_niai8(&lp->lock, 0, cpu))
+			if (__atomic_cmpxchg_bool(&lp->lock, 0, cpu))
 				return;
 			local_irq_restore(flags);
 			continue;
 		}
-		if (count-- >= 0)
+		/* Check if the lock owner is running. */
+		if (first_diag && arch_vcpu_is_preempted(~owner)) {
+			smp_yield_cpu(~owner);
+			first_diag = 0;
 			continue;
+		}
+		/* Loop for a while on the lock value. */
 		count = spin_retry;
+		do {
+			owner = ACCESS_ONCE(lp->lock);
+		} while (owner && count-- > 0);
+		if (!owner)
+			continue;
 		/*
 		 * For multiple layers of hypervisors, e.g. z/VM + LPAR
 		 * yield the CPU unconditionally. For LPAR rely on the
 		 * sense running status.
 		 */
-		if (!MACHINE_IS_LPAR || arch_vcpu_is_preempted(~owner))
+		if (!MACHINE_IS_LPAR || arch_vcpu_is_preempted(~owner)) {
 			smp_yield_cpu(~owner);
+			first_diag = 0;
+		}
 	}
 }
 EXPORT_SYMBOL(arch_spin_lock_wait_flags);

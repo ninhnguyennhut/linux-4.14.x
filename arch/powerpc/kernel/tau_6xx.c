@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * temp.c	Thermal management for cpu's with Thermal Assist Units
  *

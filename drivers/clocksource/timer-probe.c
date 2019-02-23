@@ -40,7 +40,8 @@ void __init timer_probe(void)
 
 		ret = init_func_ret(np);
 		if (ret) {
-			pr_err("Failed to initialize '%pOF': %d\n", np, ret);
+			pr_err("Failed to initialize '%s': %d\n",
+			       of_node_full_name(np), ret);
 			continue;
 		}
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef __BUDGET_DVB__
 #define __BUDGET_DVB__

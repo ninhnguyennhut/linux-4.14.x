@@ -224,13 +224,13 @@ static int __init imx_gpc_init(struct device_node *node,
 	int i;
 
 	if (!parent) {
-		pr_err("%pOF: no parent, giving up\n", node);
+		pr_err("%s: no parent, giving up\n", node->full_name);
 		return -ENODEV;
 	}
 
 	parent_domain = irq_find_host(parent);
 	if (!parent_domain) {
-		pr_err("%pOF: unable to obtain parent domain\n", node);
+		pr_err("%s: unable to obtain parent domain\n", node->full_name);
 		return -ENXIO;
 	}
 

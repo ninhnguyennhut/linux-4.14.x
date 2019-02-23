@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM bcache
 
@@ -22,7 +21,7 @@ DECLARE_EVENT_CLASS(bcache_request,
 	),
 
 	TP_fast_assign(
-		__entry->dev		= bio_dev(bio);
+		__entry->dev		= bio->bi_bdev->bd_dev;
 		__entry->orig_major	= d->disk->major;
 		__entry->orig_minor	= d->disk->first_minor;
 		__entry->sector		= bio->bi_iter.bi_sector;
@@ -99,7 +98,7 @@ DECLARE_EVENT_CLASS(bcache_bio,
 	),
 
 	TP_fast_assign(
-		__entry->dev		= bio_dev(bio);
+		__entry->dev		= bio->bi_bdev->bd_dev;
 		__entry->sector		= bio->bi_iter.bi_sector;
 		__entry->nr_sector	= bio->bi_iter.bi_size >> 9;
 		blk_fill_rwbs(__entry->rwbs, bio->bi_opf, bio->bi_iter.bi_size);
@@ -134,7 +133,7 @@ TRACE_EVENT(bcache_read,
 	),
 
 	TP_fast_assign(
-		__entry->dev		= bio_dev(bio);
+		__entry->dev		= bio->bi_bdev->bd_dev;
 		__entry->sector		= bio->bi_iter.bi_sector;
 		__entry->nr_sector	= bio->bi_iter.bi_size >> 9;
 		blk_fill_rwbs(__entry->rwbs, bio->bi_opf, bio->bi_iter.bi_size);

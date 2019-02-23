@@ -72,20 +72,20 @@ struct intel_scu_ipc_pdata_t {
 	u8 irq_mode;
 };
 
-static const struct intel_scu_ipc_pdata_t intel_scu_ipc_lincroft_pdata = {
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_lincroft_pdata = {
 	.i2c_base = 0xff12b000,
 	.i2c_len = 0x10,
 	.irq_mode = 0,
 };
 
 /* Penwell and Cloverview */
-static const struct intel_scu_ipc_pdata_t intel_scu_ipc_penwell_pdata = {
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_penwell_pdata = {
 	.i2c_base = 0xff12b000,
 	.i2c_len = 0x10,
 	.irq_mode = 1,
 };
 
-static const struct intel_scu_ipc_pdata_t intel_scu_ipc_tangier_pdata = {
+static struct intel_scu_ipc_pdata_t intel_scu_ipc_tangier_pdata = {
 	.i2c_base  = 0xff00d000,
 	.i2c_len = 0x10,
 	.irq_mode = 0,

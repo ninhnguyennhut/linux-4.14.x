@@ -57,7 +57,7 @@ static int register_balloon(struct device *dev);
 static void watch_target(struct xenbus_watch *watch,
 			 const char *path, const char *token)
 {
-	unsigned long long new_target, static_max;
+	unsigned long long new_target;
 	int err;
 	static bool watch_fired;
 	static long target_diff;
@@ -72,20 +72,13 @@ static void watch_target(struct xenbus_watch *watch,
 	 * pages. PAGE_SHIFT converts bytes to pages, hence PAGE_SHIFT - 10.
 	 */
 	new_target >>= PAGE_SHIFT - 10;
-
-	if (!watch_fired) {
-		watch_fired = true;
-		err = xenbus_scanf(XBT_NIL, "memory", "static-max", "%llu",
-				   &static_max);
-		if (err != 1)
-			static_max = new_target;
-		else
-			static_max >>= PAGE_SHIFT - 10;
-		target_diff = xen_pv_domain() ? 0
-				: static_max - balloon_stats.target_pages;
+	if (watch_fired) {
+		balloon_set_new_target(new_target - target_diff);
+		return;
 	}
 
-	balloon_set_new_target(new_target - target_diff);
+	watch_fired = true;
+	target_diff = new_target - balloon_stats.target_pages;
 }
 static struct xenbus_watch target_watch = {
 	.node = "memory/target",

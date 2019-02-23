@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * BIOS32 and PCI BIOS handling.
  */

@@ -159,10 +159,8 @@ static int davinci_mdio_reset(struct mii_bus *bus)
 
 	/* dump hardware version info */
 	ver = __raw_readl(&data->regs->version);
-	dev_info(data->dev,
-		 "davinci mdio revision %d.%d, bus freq %ld\n",
-		 (ver >> 8) & 0xff, ver & 0xff,
-		 data->pdata.bus_freq);
+	dev_info(data->dev, "davinci mdio revision %d.%d\n",
+		 (ver >> 8) & 0xff, ver & 0xff);
 
 	if (data->skip_scan)
 		goto done;
@@ -200,10 +198,8 @@ static inline int wait_for_user_access(struct davinci_mdio_data *data)
 			return 0;
 
 		reg = __raw_readl(&regs->control);
-		if ((reg & CONTROL_IDLE) == 0) {
-			usleep_range(100, 200);
+		if ((reg & CONTROL_IDLE) == 0)
 			continue;
-		}
 
 		/*
 		 * An emac soft_reset may have clobbered the mdio controller's

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 ccflags-y := -Iinclude/drm
 
 vboxvideo-y :=  hgsmi_base.o modesetting.o vbva_base.o \

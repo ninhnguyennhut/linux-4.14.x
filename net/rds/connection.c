@@ -151,7 +151,6 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 	struct rds_transport *loop_trans;
 	unsigned long flags;
 	int ret, i;
-	int npaths = (trans->t_mp_capable ? RDS_MPATH_WORKERS : 1);
 
 	rcu_read_lock();
 	conn = rds_conn_lookup(net, head, laddr, faddr, trans);
@@ -173,12 +172,6 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 		conn = ERR_PTR(-ENOMEM);
 		goto out;
 	}
-	conn->c_path = kcalloc(npaths, sizeof(struct rds_conn_path), gfp);
-	if (!conn->c_path) {
-		kmem_cache_free(rds_conn_slab, conn);
-		conn = ERR_PTR(-ENOMEM);
-		goto out;
-	}
 
 	INIT_HLIST_NODE(&conn->c_hash_node);
 	conn->c_laddr = laddr;
@@ -188,7 +181,6 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 
 	ret = rds_cong_get_maps(conn);
 	if (ret) {
-		kfree(conn->c_path);
 		kmem_cache_free(rds_conn_slab, conn);
 		conn = ERR_PTR(ret);
 		goto out;
@@ -215,14 +207,13 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 	conn->c_trans = trans;
 
 	init_waitqueue_head(&conn->c_hs_waitq);
-	for (i = 0; i < npaths; i++) {
+	for (i = 0; i < RDS_MPATH_WORKERS; i++) {
 		__rds_conn_path_init(conn, &conn->c_path[i],
 				     is_outgoing);
 		conn->c_path[i].cp_index = i;
 	}
 	ret = trans->conn_alloc(conn, gfp);
 	if (ret) {
-		kfree(conn->c_path);
 		kmem_cache_free(rds_conn_slab, conn);
 		conn = ERR_PTR(ret);
 		goto out;
@@ -245,7 +236,6 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 		/* Creating passive conn */
 		if (parent->c_passive) {
 			trans->conn_free(conn->c_path[0].cp_transport_data);
-			kfree(conn->c_path);
 			kmem_cache_free(rds_conn_slab, conn);
 			conn = parent->c_passive;
 		} else {
@@ -262,7 +252,7 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 			struct rds_conn_path *cp;
 			int i;
 
-			for (i = 0; i < npaths; i++) {
+			for (i = 0; i < RDS_MPATH_WORKERS; i++) {
 				cp = &conn->c_path[i];
 				/* The ->conn_alloc invocation may have
 				 * allocated resource for all paths, so all
@@ -271,7 +261,6 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 				if (cp->cp_transport_data)
 					trans->conn_free(cp->cp_transport_data);
 			}
-			kfree(conn->c_path);
 			kmem_cache_free(rds_conn_slab, conn);
 			conn = found;
 		} else {
@@ -385,12 +374,12 @@ static void rds_conn_path_destroy(struct rds_conn_path *cp)
 	if (!cp->cp_transport_data)
 		return;
 
+	rds_conn_path_drop(cp);
+	flush_work(&cp->cp_down_w);
+
 	/* make sure lingering queued work won't try to ref the conn */
 	cancel_delayed_work_sync(&cp->cp_send_w);
 	cancel_delayed_work_sync(&cp->cp_recv_w);
-
-	rds_conn_path_drop(cp, true);
-	flush_work(&cp->cp_down_w);
 
 	/* tear down queued messages */
 	list_for_each_entry_safe(rm, rtmp,
@@ -418,7 +407,6 @@ void rds_conn_destroy(struct rds_connection *conn)
 	unsigned long flags;
 	int i;
 	struct rds_conn_path *cp;
-	int npaths = (conn->c_trans->t_mp_capable ? RDS_MPATH_WORKERS : 1);
 
 	rdsdebug("freeing conn %p for %pI4 -> "
 		 "%pI4\n", conn, &conn->c_laddr,
@@ -432,7 +420,7 @@ void rds_conn_destroy(struct rds_connection *conn)
 	synchronize_rcu();
 
 	/* shut the connection down */
-	for (i = 0; i < npaths; i++) {
+	for (i = 0; i < RDS_MPATH_WORKERS; i++) {
 		cp = &conn->c_path[i];
 		rds_conn_path_destroy(cp);
 		BUG_ON(!list_empty(&cp->cp_retrans));
@@ -446,7 +434,6 @@ void rds_conn_destroy(struct rds_connection *conn)
 	rds_cong_remove_conn(conn);
 
 	put_net(conn->c_net);
-	kfree(conn->c_path);
 	kmem_cache_free(rds_conn_slab, conn);
 
 	spin_lock_irqsave(&rds_conn_lock, flags);
@@ -477,12 +464,8 @@ static void rds_conn_message_info(struct socket *sock, unsigned int len,
 	     i++, head++) {
 		hlist_for_each_entry_rcu(conn, head, c_hash_node) {
 			struct rds_conn_path *cp;
-			int npaths;
 
-			npaths = (conn->c_trans->t_mp_capable ?
-				 RDS_MPATH_WORKERS : 1);
-
-			for (j = 0; j < npaths; j++) {
+			for (j = 0; j < RDS_MPATH_WORKERS; j++) {
 				cp = &conn->c_path[j];
 				if (want_send)
 					list = &cp->cp_send_queue;
@@ -503,6 +486,8 @@ static void rds_conn_message_info(struct socket *sock, unsigned int len,
 				}
 
 				spin_unlock_irqrestore(&cp->cp_lock, flags);
+				if (!conn->c_trans->t_mp_capable)
+					break;
 			}
 		}
 	}
@@ -586,16 +571,15 @@ static void rds_walk_conn_path_info(struct socket *sock, unsigned int len,
 	     i++, head++) {
 		hlist_for_each_entry_rcu(conn, head, c_hash_node) {
 			struct rds_conn_path *cp;
-			int npaths;
 
-			npaths = (conn->c_trans->t_mp_capable ?
-				 RDS_MPATH_WORKERS : 1);
-			for (j = 0; j < npaths; j++) {
+			for (j = 0; j < RDS_MPATH_WORKERS; j++) {
 				cp = &conn->c_path[j];
 
 				/* XXX no cp_lock usage.. */
 				if (!visitor(cp, buffer))
 					continue;
+				if (!conn->c_trans->t_mp_capable)
+					break;
 			}
 
 			/* We copy as much as we can fit in the buffer,
@@ -680,13 +664,9 @@ void rds_conn_exit(void)
 /*
  * Force a disconnect
  */
-void rds_conn_path_drop(struct rds_conn_path *cp, bool destroy)
+void rds_conn_path_drop(struct rds_conn_path *cp)
 {
 	atomic_set(&cp->cp_state, RDS_CONN_ERROR);
-
-	if (!destroy && cp->cp_conn->c_destroy_in_prog)
-		return;
-
 	queue_work(rds_wq, &cp->cp_down_w);
 }
 EXPORT_SYMBOL_GPL(rds_conn_path_drop);
@@ -694,7 +674,7 @@ EXPORT_SYMBOL_GPL(rds_conn_path_drop);
 void rds_conn_drop(struct rds_connection *conn)
 {
 	WARN_ON(conn->c_trans->t_mp_capable);
-	rds_conn_path_drop(&conn->c_path[0], false);
+	rds_conn_path_drop(&conn->c_path[0]);
 }
 EXPORT_SYMBOL_GPL(rds_conn_drop);
 
@@ -726,5 +706,5 @@ __rds_conn_path_error(struct rds_conn_path *cp, const char *fmt, ...)
 	vprintk(fmt, ap);
 	va_end(ap);
 
-	rds_conn_path_drop(cp, false);
+	rds_conn_path_drop(cp);
 }

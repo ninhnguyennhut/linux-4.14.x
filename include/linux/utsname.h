@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_UTSNAME_H
 #define _LINUX_UTSNAME_H
 

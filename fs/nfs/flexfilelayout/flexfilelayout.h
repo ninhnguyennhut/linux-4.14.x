@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * NFSv4 flexfile layout driver data structures.
  *

@@ -242,6 +242,7 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 			pktopt = xchg(&np->pktoptions, NULL);
 			kfree_skb(pktopt);
 
+			sk->sk_destruct = inet_sock_destruct;
 			/*
 			 * ... and add it to the refcnt debug socks count
 			 * in the new family. -acme
@@ -878,7 +879,6 @@ pref_skip_coa:
 		break;
 	case IPV6_AUTOFLOWLABEL:
 		np->autoflowlabel = valbool;
-		np->autoflowlabel_set = 1;
 		retv = 0;
 		break;
 	case IPV6_RECVFRAGSIZE:

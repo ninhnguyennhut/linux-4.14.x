@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SEQ_FILE_NET_H__
 #define __SEQ_FILE_NET_H__
 

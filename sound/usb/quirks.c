@@ -146,9 +146,10 @@ static int create_fixed_stream_quirk(struct snd_usb_audio *chip,
 	unsigned *rate_table = NULL;
 
 	fp = kmemdup(quirk->data, sizeof(*fp), GFP_KERNEL);
-	if (!fp)
+	if (!fp) {
+		usb_audio_err(chip, "cannot memdup\n");
 		return -ENOMEM;
-
+	}
 	INIT_LIST_HEAD(&fp->list);
 	if (fp->nr_rates > MAX_NR_RATES) {
 		kfree(fp);
@@ -1137,9 +1138,6 @@ bool snd_usb_get_sample_rate_quirk(struct snd_usb_audio *chip)
 	case USB_ID(0x047F, 0x02F7): /* Plantronics BT-600 */
 	case USB_ID(0x047F, 0x0415): /* Plantronics BT-300 */
 	case USB_ID(0x047F, 0xAA05): /* Plantronics DA45 */
-	case USB_ID(0x047F, 0xC022): /* Plantronics C310 */
-	case USB_ID(0x047F, 0xC02F): /* Plantronics P610 */
-	case USB_ID(0x047F, 0xC036): /* Plantronics C520-M */
 	case USB_ID(0x04D8, 0xFEEA): /* Benchmark DAC1 Pre */
 	case USB_ID(0x0556, 0x0014): /* Phoenix Audio TMX320VC */
 	case USB_ID(0x05A3, 0x9420): /* ELP HD USB Camera */
@@ -1172,11 +1170,10 @@ static bool is_marantz_denon_dac(unsigned int id)
 /* TEAC UD-501/UD-503/NT-503 USB DACs need a vendor cmd to switch
  * between PCM/DOP and native DSD mode
  */
-static bool is_teac_dsd_dac(unsigned int id)
+static bool is_teac_50X_dac(unsigned int id)
 {
 	switch (id) {
 	case USB_ID(0x0644, 0x8043): /* TEAC UD-501/UD-503/NT-503 */
-	case USB_ID(0x0644, 0x8044): /* Esoteric D-05X */
 		return true;
 	}
 	return false;
@@ -1209,7 +1206,7 @@ int snd_usb_select_mode_quirk(struct snd_usb_substream *subs,
 			break;
 		}
 		mdelay(20);
-	} else if (is_teac_dsd_dac(subs->stream->chip->usb_id)) {
+	} else if (is_teac_50X_dac(subs->stream->chip->usb_id)) {
 		/* Vendor mode switch cmd is required. */
 		switch (fmt->altsetting) {
 		case 3: /* DSD mode (DSD_U32) requested */
@@ -1355,7 +1352,6 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 	case USB_ID(0x20b1, 0x2008): /* Matrix Audio X-Sabre */
 	case USB_ID(0x20b1, 0x300a): /* Matrix Audio Mini-i Pro */
 	case USB_ID(0x22d9, 0x0416): /* OPPO HA-1 */
-	case USB_ID(0x2772, 0x0230): /* Pro-Ject Pre Box S2 Digital */
 		if (fp->altsetting == 2)
 			return SNDRV_PCM_FMTBIT_DSD_U32_BE;
 		break;
@@ -1376,7 +1372,6 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 			case 0x199:
 				return SNDRV_PCM_FMTBIT_DSD_U32_LE;
 			case 0x19b:
-			case 0x203:
 				return SNDRV_PCM_FMTBIT_DSD_U32_BE;
 			default:
 				break;
@@ -1399,7 +1394,7 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 	}
 
 	/* TEAC devices with USB DAC functionality */
-	if (is_teac_dsd_dac(chip->usb_id)) {
+	if (is_teac_50X_dac(chip->usb_id)) {
 		if (fp->altsetting == 3)
 			return SNDRV_PCM_FMTBIT_DSD_U32_BE;
 	}

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <target/target_core_base.h>
 #include <linux/btree.h>
 

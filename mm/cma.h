@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __MM_CMA_H__
 #define __MM_CMA_H__
 

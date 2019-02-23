@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_ATALK_H__
 #define __LINUX_ATALK_H__
 

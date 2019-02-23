@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * HTC simple EGPIO irq and gpio extender
  */

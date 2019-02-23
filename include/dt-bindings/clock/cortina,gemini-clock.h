@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DT_BINDINGS_CORTINA_GEMINI_CLOCK_H
 #define DT_BINDINGS_CORTINA_GEMINI_CLOCK_H
 

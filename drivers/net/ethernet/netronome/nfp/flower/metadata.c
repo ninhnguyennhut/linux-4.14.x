@@ -282,7 +282,7 @@ nfp_check_mask_add(struct nfp_app *app, char *mask_data, u32 mask_len,
 		id = nfp_add_mask_table(app, mask_data, mask_len);
 		if (id < 0)
 			return false;
-		*meta_flags |= NFP_FL_META_FLAG_MANAGE_MASK;
+		*meta_flags |= NFP_FL_META_FLAG_NEW_MASK;
 	}
 	*mask_id = id;
 
@@ -299,9 +299,6 @@ nfp_check_mask_remove(struct nfp_app *app, char *mask_data, u32 mask_len,
 	if (!mask_entry)
 		return false;
 
-	if (meta_flags)
-		*meta_flags &= ~NFP_FL_META_FLAG_MANAGE_MASK;
-
 	*mask_id = mask_entry->mask_id;
 	mask_entry->ref_cnt--;
 	if (!mask_entry->ref_cnt) {
@@ -309,7 +306,7 @@ nfp_check_mask_remove(struct nfp_app *app, char *mask_data, u32 mask_len,
 		nfp_release_mask_id(app, *mask_id);
 		kfree(mask_entry);
 		if (meta_flags)
-			*meta_flags |= NFP_FL_META_FLAG_MANAGE_MASK;
+			*meta_flags |= NFP_FL_META_FLAG_LAST_MASK;
 	}
 
 	return true;

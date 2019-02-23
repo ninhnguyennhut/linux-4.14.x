@@ -22,7 +22,6 @@
 #include <asm/hvcall.h>
 #include <asm/synch.h>
 #include <asm/ppc-opcode.h>
-#include <asm/pte-walk.h>
 
 /* Translate address of a vmalloc'd thing to a linear map address */
 static void *real_vmalloc_addr(void *x)
@@ -32,9 +31,9 @@ static void *real_vmalloc_addr(void *x)
 	/*
 	 * assume we don't have huge pages in vmalloc space...
 	 * So don't worry about THP collapse/split. Called
-	 * Only in realmode with MSR_EE = 0, hence won't need irq_save/restore.
+	 * Only in realmode, hence won't need irq_save/restore.
 	 */
-	p = find_init_mm_pte(addr, NULL);
+	p = __find_linux_pte_or_hugepte(swapper_pg_dir, addr, NULL, NULL);
 	if (!p || !pte_present(*p))
 		return NULL;
 	addr = (pte_pfn(*p) << PAGE_SHIFT) | (addr & ~PAGE_MASK);
@@ -231,13 +230,14 @@ long kvmppc_do_h_enter(struct kvm *kvm, unsigned long flags,
 	 * If we had a page table table change after lookup, we would
 	 * retry via mmu_notifier_retry.
 	 */
-	if (!realmode)
+	if (realmode)
+		ptep = __find_linux_pte_or_hugepte(pgdir, hva, NULL,
+						   &hpage_shift);
+	else {
 		local_irq_save(irq_flags);
-	/*
-	 * If called in real mode we have MSR_EE = 0. Otherwise
-	 * we disable irq above.
-	 */
-	ptep = __find_linux_pte(pgdir, hva, NULL, &hpage_shift);
+		ptep = find_linux_pte_or_hugepte(pgdir, hva, NULL,
+						 &hpage_shift);
+	}
 	if (ptep) {
 		pte_t pte;
 		unsigned int host_pte_size;
@@ -269,7 +269,7 @@ long kvmppc_do_h_enter(struct kvm *kvm, unsigned long flags,
 	if (!realmode)
 		local_irq_restore(irq_flags);
 
-	ptel &= HPTE_R_KEY | HPTE_R_PP0 | (psize-1);
+	ptel &= ~(HPTE_R_PP0 - psize);
 	ptel |= pa;
 
 	if (pa)

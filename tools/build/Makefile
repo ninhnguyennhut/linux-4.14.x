@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 ifeq ($(srctree),)
 srctree := $(patsubst %/,%,$(dir $(CURDIR)))
 srctree := $(patsubst %/,%,$(dir $(srctree)))

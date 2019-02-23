@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ISCSI_CHAP_H_
 #define _ISCSI_CHAP_H_
 

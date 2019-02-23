@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Software async multibuffer crypto daemon headers
  *
@@ -27,7 +26,6 @@ static inline struct mcryptd_ahash *__mcryptd_ahash_cast(
 
 struct mcryptd_cpu_queue {
 	struct crypto_queue queue;
-	spinlock_t q_lock;
 	struct work_struct work;
 };
 

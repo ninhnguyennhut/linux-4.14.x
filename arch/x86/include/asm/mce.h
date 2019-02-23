@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_MCE_H
 #define _ASM_X86_MCE_H
 
@@ -188,6 +187,7 @@ struct mca_msr_regs {
 
 extern struct mce_vendor_flags mce_flags;
 
+extern struct mca_config mca_cfg;
 extern struct mca_msr_regs msr_ops;
 
 enum mce_notifier_prios {

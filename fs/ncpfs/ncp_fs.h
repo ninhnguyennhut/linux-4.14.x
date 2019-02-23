@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/ncp_fs.h>
 #include "ncp_fs_i.h"
 #include "ncp_fs_sb.h"

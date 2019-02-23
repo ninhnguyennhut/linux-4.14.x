@@ -1776,7 +1776,7 @@ int reiserfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 	struct reiserfs_transaction_handle th;
 	int jbegin_count = 1;
 
-	if (sb_rdonly(inode->i_sb))
+	if (inode->i_sb->s_flags & MS_RDONLY)
 		return -EROFS;
 	/*
 	 * memory pressure can sometimes initiate write_inode calls with

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_BITOPS_H
 #define _ASM_X86_BITOPS_H
 
@@ -143,7 +142,7 @@ static __always_inline void __clear_bit(long nr, volatile unsigned long *addr)
 static __always_inline bool clear_bit_unlock_is_negative_byte(long nr, volatile unsigned long *addr)
 {
 	bool negative;
-	asm volatile(LOCK_PREFIX "andb %2,%1"
+	asm volatile(LOCK_PREFIX "andb %2,%1\n\t"
 		CC_SET(s)
 		: CC_OUT(s) (negative), ADDR
 		: "ir" ((char) ~(1 << nr)) : "memory");
@@ -246,7 +245,7 @@ static __always_inline bool __test_and_set_bit(long nr, volatile unsigned long *
 {
 	bool oldbit;
 
-	asm("bts %2,%1"
+	asm("bts %2,%1\n\t"
 	    CC_SET(c)
 	    : CC_OUT(c) (oldbit), ADDR
 	    : "Ir" (nr));
@@ -286,7 +285,7 @@ static __always_inline bool __test_and_clear_bit(long nr, volatile unsigned long
 {
 	bool oldbit;
 
-	asm volatile("btr %2,%1"
+	asm volatile("btr %2,%1\n\t"
 		     CC_SET(c)
 		     : CC_OUT(c) (oldbit), ADDR
 		     : "Ir" (nr));
@@ -298,7 +297,7 @@ static __always_inline bool __test_and_change_bit(long nr, volatile unsigned lon
 {
 	bool oldbit;
 
-	asm volatile("btc %2,%1"
+	asm volatile("btc %2,%1\n\t"
 		     CC_SET(c)
 		     : CC_OUT(c) (oldbit), ADDR
 		     : "Ir" (nr) : "memory");
@@ -329,7 +328,7 @@ static __always_inline bool variable_test_bit(long nr, volatile const unsigned l
 {
 	bool oldbit;
 
-	asm volatile("bt %2,%1"
+	asm volatile("bt %2,%1\n\t"
 		     CC_SET(c)
 		     : CC_OUT(c) (oldbit)
 		     : "m" (*(unsigned long *)addr), "Ir" (nr));

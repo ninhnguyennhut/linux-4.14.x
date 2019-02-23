@@ -109,11 +109,9 @@ unsigned int nf_queue_nf_hook_drop(struct net *net)
 
 	return count;
 }
-EXPORT_SYMBOL_GPL(nf_queue_nf_hook_drop);
 
 static int __nf_queue(struct sk_buff *skb, const struct nf_hook_state *state,
-		      const struct nf_hook_entries *entries,
-		      unsigned int index, unsigned int queuenum)
+		      struct nf_hook_entry *hook_entry, unsigned int queuenum)
 {
 	int status = -ENOENT;
 	struct nf_queue_entry *entry = NULL;
@@ -141,7 +139,7 @@ static int __nf_queue(struct sk_buff *skb, const struct nf_hook_state *state,
 	*entry = (struct nf_queue_entry) {
 		.skb	= skb,
 		.state	= *state,
-		.hook_index = index,
+		.hook	= hook_entry,
 		.size	= sizeof(*entry) + afinfo->route_key_size,
 	};
 
@@ -164,16 +162,18 @@ err:
 
 /* Packets leaving via this function must come back through nf_reinject(). */
 int nf_queue(struct sk_buff *skb, struct nf_hook_state *state,
-	     const struct nf_hook_entries *entries, unsigned int index,
-	     unsigned int verdict)
+	     struct nf_hook_entry **entryp, unsigned int verdict)
 {
+	struct nf_hook_entry *entry = *entryp;
 	int ret;
 
-	ret = __nf_queue(skb, state, entries, index, verdict >> NF_VERDICT_QBITS);
+	ret = __nf_queue(skb, state, entry, verdict >> NF_VERDICT_QBITS);
 	if (ret < 0) {
 		if (ret == -ESRCH &&
-		    (verdict & NF_VERDICT_FLAG_QUEUE_BYPASS))
+		    (verdict & NF_VERDICT_FLAG_QUEUE_BYPASS)) {
+			*entryp = rcu_dereference(entry->next);
 			return 1;
+		}
 		kfree_skb(skb);
 	}
 
@@ -182,55 +182,32 @@ int nf_queue(struct sk_buff *skb, struct nf_hook_state *state,
 
 static unsigned int nf_iterate(struct sk_buff *skb,
 			       struct nf_hook_state *state,
-			       const struct nf_hook_entries *hooks,
-			       unsigned int *index)
+			       struct nf_hook_entry **entryp)
 {
-	const struct nf_hook_entry *hook;
-	unsigned int verdict, i = *index;
+	unsigned int verdict;
 
-	while (i < hooks->num_hook_entries) {
-		hook = &hooks->hooks[i];
+	do {
 repeat:
-		verdict = nf_hook_entry_hookfn(hook, skb, state);
+		verdict = nf_hook_entry_hookfn((*entryp), skb, state);
 		if (verdict != NF_ACCEPT) {
 			if (verdict != NF_REPEAT)
 				return verdict;
 			goto repeat;
 		}
-		i++;
-	}
+		*entryp = rcu_dereference((*entryp)->next);
+	} while (*entryp);
 
-	*index = i;
 	return NF_ACCEPT;
 }
 
-/* Caller must hold rcu read-side lock */
 void nf_reinject(struct nf_queue_entry *entry, unsigned int verdict)
 {
-	const struct nf_hook_entry *hook_entry;
-	const struct nf_hook_entries *hooks;
+	struct nf_hook_entry *hook_entry = entry->hook;
 	struct sk_buff *skb = entry->skb;
 	const struct nf_afinfo *afinfo;
-	const struct net *net;
-	unsigned int i;
 	int err;
-	u8 pf;
-
-	net = entry->state.net;
-	pf = entry->state.pf;
-
-	hooks = rcu_dereference(net->nf.hooks[pf][entry->state.hook]);
 
 	nf_queue_entry_release_refs(entry);
-
-	i = entry->hook_index;
-	if (WARN_ON_ONCE(i >= hooks->num_hook_entries)) {
-		kfree_skb(skb);
-		kfree(entry);
-		return;
-	}
-
-	hook_entry = &hooks->hooks[i];
 
 	/* Continue traversal iff userspace said ok... */
 	if (verdict == NF_REPEAT)
@@ -243,22 +220,27 @@ void nf_reinject(struct nf_queue_entry *entry, unsigned int verdict)
 	}
 
 	if (verdict == NF_ACCEPT) {
+		hook_entry = rcu_dereference(hook_entry->next);
+		if (hook_entry)
 next_hook:
-		++i;
-		verdict = nf_iterate(skb, &entry->state, hooks, &i);
+			verdict = nf_iterate(skb, &entry->state, &hook_entry);
 	}
 
 	switch (verdict & NF_VERDICT_MASK) {
 	case NF_ACCEPT:
 	case NF_STOP:
+okfn:
 		local_bh_disable();
 		entry->state.okfn(entry->state.net, entry->state.sk, skb);
 		local_bh_enable();
 		break;
 	case NF_QUEUE:
-		err = nf_queue(skb, &entry->state, hooks, i, verdict);
-		if (err == 1)
-			goto next_hook;
+		err = nf_queue(skb, &entry->state, &hook_entry, verdict);
+		if (err == 1) {
+			if (hook_entry)
+				goto next_hook;
+			goto okfn;
+		}
 		break;
 	case NF_STOLEN:
 		break;

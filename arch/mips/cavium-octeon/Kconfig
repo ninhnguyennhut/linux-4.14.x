@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 if CPU_CAVIUM_OCTEON
 
 config CAVIUM_CN63XXP1

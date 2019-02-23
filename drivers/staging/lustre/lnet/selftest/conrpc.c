@@ -36,8 +36,8 @@
  * Author: Liang Zhen <liang@whamcloud.com>
  */
 
-#include <linux/libcfs/libcfs.h>
-#include <linux/lnet/lib-lnet.h>
+#include "../../include/linux/libcfs/libcfs.h"
+#include "../../include/linux/lnet/lib-lnet.h"
 #include "timer.h"
 #include "conrpc.h"
 #include "console.h"
@@ -487,9 +487,10 @@ lstcon_rpc_trans_interpreter(struct lstcon_rpc_trans *trans,
 				   sizeof(struct list_head)))
 			return -EFAULT;
 
-		next = tmp.next;
-		if (next == head_up)
+		if (tmp.next == head_up)
 			return 0;
+
+		next = tmp.next;
 
 		ent = list_entry(next, struct lstcon_rpc_ent, rpe_link);
 

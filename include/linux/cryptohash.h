@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CRYPTOHASH_H
 #define __CRYPTOHASH_H
 

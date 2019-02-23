@@ -1160,6 +1160,7 @@ static const struct drm_connector_helper_funcs tc_connector_helper_funcs = {
 };
 
 static const struct drm_connector_funcs tc_connector_funcs = {
+	.dpms = drm_atomic_helper_connector_dpms,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = drm_connector_cleanup,
 	.reset = drm_atomic_helper_connector_reset,
@@ -1324,7 +1325,11 @@ static int tc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	tc->bridge.funcs = &tc_bridge_funcs;
 	tc->bridge.of_node = dev->of_node;
-	drm_bridge_add(&tc->bridge);
+	ret = drm_bridge_add(&tc->bridge);
+	if (ret) {
+		dev_err(dev, "Failed to add drm_bridge: %d\n", ret);
+		goto err_unregister_aux;
+	}
 
 	i2c_set_clientdata(client, tc);
 

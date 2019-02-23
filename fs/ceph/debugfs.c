@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/ceph/ceph_debug.h>
 
 #include <linux/device.h>
@@ -25,7 +24,7 @@ static int mdsmap_show(struct seq_file *s, void *p)
 	struct ceph_fs_client *fsc = s->private;
 	struct ceph_mdsmap *mdsmap;
 
-	if (!fsc->mdsc || !fsc->mdsc->mdsmap)
+	if (fsc->mdsc == NULL || fsc->mdsc->mdsmap == NULL)
 		return 0;
 	mdsmap = fsc->mdsc->mdsmap;
 	seq_printf(s, "epoch %d\n", mdsmap->m_epoch);

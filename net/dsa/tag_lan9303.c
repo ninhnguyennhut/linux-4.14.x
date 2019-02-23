@@ -39,6 +39,7 @@
  */
 
 #define LAN9303_TAG_LEN 4
+#define LAN9303_MAX_PORTS 3
 
 static struct sk_buff *lan9303_xmit(struct sk_buff *skb, struct net_device *dev)
 {
@@ -68,7 +69,7 @@ static struct sk_buff *lan9303_xmit(struct sk_buff *skb, struct net_device *dev)
 }
 
 static struct sk_buff *lan9303_rcv(struct sk_buff *skb, struct net_device *dev,
-			struct packet_type *pt)
+			struct packet_type *pt, struct net_device *orig_dev)
 {
 	u16 *lan9303_tag;
 	struct dsa_switch_tree *dst = dev->dsa_ptr;
@@ -103,7 +104,7 @@ static struct sk_buff *lan9303_rcv(struct sk_buff *skb, struct net_device *dev,
 
 	source_port = ntohs(lan9303_tag[1]) & 0x3;
 
-	if (source_port >= ds->num_ports) {
+	if (source_port >= LAN9303_MAX_PORTS) {
 		dev_warn_ratelimited(&dev->dev, "Dropping packet due to invalid source port\n");
 		return NULL;
 	}

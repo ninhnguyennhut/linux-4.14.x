@@ -54,8 +54,6 @@ static struct workqueue_struct *kpcitest_workqueue;
 struct pci_epf_test {
 	void			*reg[6];
 	struct pci_epf		*epf;
-	enum pci_barno		test_reg_bar;
-	bool			linkup_notifier;
 	struct delayed_work	cmd_handler;
 };
 
@@ -76,12 +74,7 @@ static struct pci_epf_header test_header = {
 	.interrupt_pin	= PCI_INTERRUPT_INTA,
 };
 
-struct pci_epf_test_data {
-	enum pci_barno	test_reg_bar;
-	bool		linkup_notifier;
-};
-
-static int bar_size[] = { 512, 512, 1024, 16384, 131072, 1048576 };
+static int bar_size[] = { 512, 1024, 16384, 131072, 1048576 };
 
 static int pci_epf_test_copy(struct pci_epf_test *epf_test)
 {
@@ -93,8 +86,7 @@ static int pci_epf_test_copy(struct pci_epf_test *epf_test)
 	struct pci_epf *epf = epf_test->epf;
 	struct device *dev = &epf->dev;
 	struct pci_epc *epc = epf->epc;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
-	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	struct pci_epf_test_reg *reg = epf_test->reg[0];
 
 	src_addr = pci_epc_mem_alloc_addr(epc, &src_phys_addr, reg->size);
 	if (!src_addr) {
@@ -153,8 +145,7 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 	struct pci_epf *epf = epf_test->epf;
 	struct device *dev = &epf->dev;
 	struct pci_epc *epc = epf->epc;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
-	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	struct pci_epf_test_reg *reg = epf_test->reg[0];
 
 	src_addr = pci_epc_mem_alloc_addr(epc, &phys_addr, reg->size);
 	if (!src_addr) {
@@ -204,8 +195,7 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 	struct pci_epf *epf = epf_test->epf;
 	struct device *dev = &epf->dev;
 	struct pci_epc *epc = epf->epc;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
-	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	struct pci_epf_test_reg *reg = epf_test->reg[0];
 
 	dst_addr = pci_epc_mem_alloc_addr(epc, &phys_addr, reg->size);
 	if (!dst_addr) {
@@ -251,16 +241,17 @@ err:
 	return ret;
 }
 
-static void pci_epf_test_raise_irq(struct pci_epf_test *epf_test, u8 irq)
+static void pci_epf_test_raise_irq(struct pci_epf_test *epf_test)
 {
+	u8 irq;
 	u8 msi_count;
 	struct pci_epf *epf = epf_test->epf;
 	struct pci_epc *epc = epf->epc;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
-	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	struct pci_epf_test_reg *reg = epf_test->reg[0];
 
 	reg->status |= STATUS_IRQ_RAISED;
 	msi_count = pci_epc_get_msi(epc);
+	irq = (reg->command & MSI_NUMBER_MASK) >> MSI_NUMBER_SHIFT;
 	if (irq > msi_count || msi_count <= 0)
 		pci_epc_raise_irq(epc, PCI_EPC_IRQ_LEGACY, 0);
 	else
@@ -272,61 +263,54 @@ static void pci_epf_test_cmd_handler(struct work_struct *work)
 	int ret;
 	u8 irq;
 	u8 msi_count;
-	u32 command;
 	struct pci_epf_test *epf_test = container_of(work, struct pci_epf_test,
 						     cmd_handler.work);
 	struct pci_epf *epf = epf_test->epf;
 	struct pci_epc *epc = epf->epc;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
-	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	struct pci_epf_test_reg *reg = epf_test->reg[0];
 
-	command = reg->command;
-	if (!command)
+	if (!reg->command)
 		goto reset_handler;
 
-	reg->command = 0;
-	reg->status = 0;
-
-	irq = (command & MSI_NUMBER_MASK) >> MSI_NUMBER_SHIFT;
-
-	if (command & COMMAND_RAISE_LEGACY_IRQ) {
+	if (reg->command & COMMAND_RAISE_LEGACY_IRQ) {
 		reg->status = STATUS_IRQ_RAISED;
 		pci_epc_raise_irq(epc, PCI_EPC_IRQ_LEGACY, 0);
 		goto reset_handler;
 	}
 
-	if (command & COMMAND_WRITE) {
+	if (reg->command & COMMAND_WRITE) {
 		ret = pci_epf_test_write(epf_test);
 		if (ret)
 			reg->status |= STATUS_WRITE_FAIL;
 		else
 			reg->status |= STATUS_WRITE_SUCCESS;
-		pci_epf_test_raise_irq(epf_test, irq);
+		pci_epf_test_raise_irq(epf_test);
 		goto reset_handler;
 	}
 
-	if (command & COMMAND_READ) {
+	if (reg->command & COMMAND_READ) {
 		ret = pci_epf_test_read(epf_test);
 		if (!ret)
 			reg->status |= STATUS_READ_SUCCESS;
 		else
 			reg->status |= STATUS_READ_FAIL;
-		pci_epf_test_raise_irq(epf_test, irq);
+		pci_epf_test_raise_irq(epf_test);
 		goto reset_handler;
 	}
 
-	if (command & COMMAND_COPY) {
+	if (reg->command & COMMAND_COPY) {
 		ret = pci_epf_test_copy(epf_test);
 		if (!ret)
 			reg->status |= STATUS_COPY_SUCCESS;
 		else
 			reg->status |= STATUS_COPY_FAIL;
-		pci_epf_test_raise_irq(epf_test, irq);
+		pci_epf_test_raise_irq(epf_test);
 		goto reset_handler;
 	}
 
-	if (command & COMMAND_RAISE_MSI_IRQ) {
+	if (reg->command & COMMAND_RAISE_MSI_IRQ) {
 		msi_count = pci_epc_get_msi(epc);
+		irq = (reg->command & MSI_NUMBER_MASK) >> MSI_NUMBER_SHIFT;
 		if (irq > msi_count || msi_count <= 0)
 			goto reset_handler;
 		reg->status = STATUS_IRQ_RAISED;
@@ -335,6 +319,8 @@ static void pci_epf_test_cmd_handler(struct work_struct *work)
 	}
 
 reset_handler:
+	reg->command = 0;
+
 	queue_delayed_work(kpcitest_workqueue, &epf_test->cmd_handler,
 			   msecs_to_jiffies(1));
 }
@@ -372,7 +358,6 @@ static int pci_epf_test_set_bar(struct pci_epf *epf)
 	struct pci_epc *epc = epf->epc;
 	struct device *dev = &epf->dev;
 	struct pci_epf_test *epf_test = epf_get_drvdata(epf);
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
 
 	flags = PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_32;
 	if (sizeof(dma_addr_t) == 0x8)
@@ -385,7 +370,7 @@ static int pci_epf_test_set_bar(struct pci_epf *epf)
 		if (ret) {
 			pci_epf_free_space(epf, epf_test->reg[bar], bar);
 			dev_err(dev, "failed to set BAR%d\n", bar);
-			if (bar == test_reg_bar)
+			if (bar == BAR_0)
 				return ret;
 		}
 	}
@@ -399,20 +384,17 @@ static int pci_epf_test_alloc_space(struct pci_epf *epf)
 	struct device *dev = &epf->dev;
 	void *base;
 	int bar;
-	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
 
 	base = pci_epf_alloc_space(epf, sizeof(struct pci_epf_test_reg),
-				   test_reg_bar);
+				   BAR_0);
 	if (!base) {
 		dev_err(dev, "failed to allocated register space\n");
 		return -ENOMEM;
 	}
-	epf_test->reg[test_reg_bar] = base;
+	epf_test->reg[0] = base;
 
-	for (bar = BAR_0; bar <= BAR_5; bar++) {
-		if (bar == test_reg_bar)
-			continue;
-		base = pci_epf_alloc_space(epf, bar_size[bar], bar);
+	for (bar = BAR_1; bar <= BAR_5; bar++) {
+		base = pci_epf_alloc_space(epf, bar_size[bar - 1], bar);
 		if (!base)
 			dev_err(dev, "failed to allocate space for BAR%d\n",
 				bar);
@@ -425,7 +407,6 @@ static int pci_epf_test_alloc_space(struct pci_epf *epf)
 static int pci_epf_test_bind(struct pci_epf *epf)
 {
 	int ret;
-	struct pci_epf_test *epf_test = epf_get_drvdata(epf);
 	struct pci_epf_header *header = epf->header;
 	struct pci_epc *epc = epf->epc;
 	struct device *dev = &epf->dev;
@@ -451,34 +432,13 @@ static int pci_epf_test_bind(struct pci_epf *epf)
 	if (ret)
 		return ret;
 
-	if (!epf_test->linkup_notifier)
-		queue_work(kpcitest_workqueue, &epf_test->cmd_handler.work);
-
 	return 0;
 }
-
-static const struct pci_epf_device_id pci_epf_test_ids[] = {
-	{
-		.name = "pci_epf_test",
-	},
-	{},
-};
 
 static int pci_epf_test_probe(struct pci_epf *epf)
 {
 	struct pci_epf_test *epf_test;
 	struct device *dev = &epf->dev;
-	const struct pci_epf_device_id *match;
-	struct pci_epf_test_data *data;
-	enum pci_barno test_reg_bar = BAR_0;
-	bool linkup_notifier = true;
-
-	match = pci_epf_match_device(pci_epf_test_ids, epf);
-	data = (struct pci_epf_test_data *)match->driver_data;
-	if (data) {
-		test_reg_bar = data->test_reg_bar;
-		linkup_notifier = data->linkup_notifier;
-	}
 
 	epf_test = devm_kzalloc(dev, sizeof(*epf_test), GFP_KERNEL);
 	if (!epf_test)
@@ -486,12 +446,18 @@ static int pci_epf_test_probe(struct pci_epf *epf)
 
 	epf->header = &test_header;
 	epf_test->epf = epf;
-	epf_test->test_reg_bar = test_reg_bar;
-	epf_test->linkup_notifier = linkup_notifier;
 
 	INIT_DELAYED_WORK(&epf_test->cmd_handler, pci_epf_test_cmd_handler);
 
 	epf_set_drvdata(epf, epf_test);
+	return 0;
+}
+
+static int pci_epf_test_remove(struct pci_epf *epf)
+{
+	struct pci_epf_test *epf_test = epf_get_drvdata(epf);
+
+	kfree(epf_test);
 	return 0;
 }
 
@@ -501,9 +467,17 @@ static struct pci_epf_ops ops = {
 	.linkup = pci_epf_test_linkup,
 };
 
+static const struct pci_epf_device_id pci_epf_test_ids[] = {
+	{
+		.name = "pci_epf_test",
+	},
+	{},
+};
+
 static struct pci_epf_driver test_driver = {
 	.driver.name	= "pci_epf_test",
 	.probe		= pci_epf_test_probe,
+	.remove		= pci_epf_test_remove,
 	.id_table	= pci_epf_test_ids,
 	.ops		= &ops,
 	.owner		= THIS_MODULE,

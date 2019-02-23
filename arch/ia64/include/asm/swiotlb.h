@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ASM_IA64__SWIOTLB_H
 #define ASM_IA64__SWIOTLB_H
 

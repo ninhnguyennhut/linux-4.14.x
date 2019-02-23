@@ -166,8 +166,7 @@ static int elan_smbus_get_version(struct i2c_client *client,
 }
 
 static int elan_smbus_get_sm_version(struct i2c_client *client,
-				     u16 *ic_type, u8 *version,
-				     u8 *clickpad)
+				     u16 *ic_type, u8 *version)
 {
 	int error;
 	u8 val[3];
@@ -181,7 +180,6 @@ static int elan_smbus_get_sm_version(struct i2c_client *client,
 
 	*version = val[0];
 	*ic_type = val[1];
-	*clickpad = val[0] & 0x10;
 	return 0;
 }
 

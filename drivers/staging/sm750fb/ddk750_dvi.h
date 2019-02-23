@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef DDK750_DVI_H__
 #define DDK750_DVI_H__
 

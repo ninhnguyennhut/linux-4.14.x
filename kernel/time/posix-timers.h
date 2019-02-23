@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #define TIMER_RETRY 1
 
 struct k_clock {

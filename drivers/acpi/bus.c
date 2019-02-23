@@ -67,7 +67,7 @@ static int set_copy_dsdt(const struct dmi_system_id *id)
 }
 #endif
 
-static const struct dmi_system_id dsdt_dmi_table[] __initconst = {
+static struct dmi_system_id dsdt_dmi_table[] __initdata = {
 	/*
 	 * Invoke DSDT corruption work-around on all Toshiba Satellite.
 	 * https://bugzilla.kernel.org/show_bug.cgi?id=14679
@@ -83,7 +83,7 @@ static const struct dmi_system_id dsdt_dmi_table[] __initconst = {
 	{}
 };
 #else
-static const struct dmi_system_id dsdt_dmi_table[] __initconst = {
+static struct dmi_system_id dsdt_dmi_table[] __initdata = {
 	{}
 };
 #endif
@@ -994,6 +994,9 @@ void __init acpi_early_init(void)
 		return;
 
 	printk(KERN_INFO PREFIX "Core revision %08x\n", ACPI_CA_VERSION);
+
+	/* It's safe to verify table checksums during late stage */
+	acpi_gbl_verify_table_checksum = TRUE;
 
 	/* enable workarounds, unless strict ACPI spec. compliance */
 	if (!acpi_strict)

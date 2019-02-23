@@ -284,9 +284,6 @@ static const struct of_device_id rcar_sysc_matches[] = {
 #ifdef CONFIG_SYSC_R8A7796
 	{ .compatible = "renesas,r8a7796-sysc", .data = &r8a7796_sysc_info },
 #endif
-#ifdef CONFIG_SYSC_R8A77995
-	{ .compatible = "renesas,r8a77995-sysc", .data = &r8a77995_sysc_info },
-#endif
 	{ /* sentinel */ }
 };
 
@@ -326,7 +323,7 @@ static int __init rcar_sysc_pd_init(void)
 
 	base = of_iomap(np, 0);
 	if (!base) {
-		pr_warn("%pOF: Cannot map regs\n", np);
+		pr_warn("%s: Cannot map regs\n", np->full_name);
 		error = -ENOMEM;
 		goto out_put;
 	}
@@ -351,13 +348,13 @@ static int __init rcar_sysc_pd_init(void)
 	 */
 	syscimr = ioread32(base + SYSCIMR);
 	syscimr |= syscier;
-	pr_debug("%pOF: syscimr = 0x%08x\n", np, syscimr);
+	pr_debug("%s: syscimr = 0x%08x\n", np->full_name, syscimr);
 	iowrite32(syscimr, base + SYSCIMR);
 
 	/*
 	 * SYSC needs all interrupt sources enabled to control power.
 	 */
-	pr_debug("%pOF: syscier = 0x%08x\n", np, syscier);
+	pr_debug("%s: syscier = 0x%08x\n", np->full_name, syscier);
 	iowrite32(syscier, base + SYSCIER);
 
 	for (i = 0; i < info->num_areas; i++) {

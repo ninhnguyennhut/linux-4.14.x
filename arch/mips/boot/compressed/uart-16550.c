@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * 16550 compatible uart based serial debug support for zboot
  */

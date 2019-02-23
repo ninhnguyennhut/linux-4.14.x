@@ -83,7 +83,6 @@ int mmc_send_status(struct mmc_card *card, u32 *status)
 {
 	return __mmc_send_status(card, status, MMC_CMD_RETRIES);
 }
-EXPORT_SYMBOL_GPL(mmc_send_status);
 
 static int _mmc_select_card(struct mmc_host *host, struct mmc_card *card)
 {
@@ -947,7 +946,7 @@ static int mmc_read_bkops_status(struct mmc_card *card)
 /**
  *	mmc_start_bkops - start BKOPS for supported cards
  *	@card: MMC card to start BKOPS
- *	@from_exception: A flag to indicate if this function was
+ *	@form_exception: A flag to indicate if this function was
  *			 called due to an exception raised by the card
  *
  *	Start background operations whenever requested.

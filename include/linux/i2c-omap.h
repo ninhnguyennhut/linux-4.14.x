@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __I2C_OMAP_H__
 #define __I2C_OMAP_H__
 

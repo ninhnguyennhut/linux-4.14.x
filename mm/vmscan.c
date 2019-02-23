@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/mm/vmscan.c
  *
@@ -394,15 +393,14 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 		unsigned long nr_to_scan = min(batch_size, total_scan);
 
 		shrinkctl->nr_to_scan = nr_to_scan;
-		shrinkctl->nr_scanned = nr_to_scan;
 		ret = shrinker->scan_objects(shrinker, shrinkctl);
 		if (ret == SHRINK_STOP)
 			break;
 		freed += ret;
 
-		count_vm_events(SLABS_SCANNED, shrinkctl->nr_scanned);
-		total_scan -= shrinkctl->nr_scanned;
-		scanned += shrinkctl->nr_scanned;
+		count_vm_events(SLABS_SCANNED, nr_to_scan);
+		total_scan -= nr_to_scan;
+		scanned += nr_to_scan;
 
 		cond_resched();
 	}
@@ -537,9 +535,7 @@ static inline int is_page_cache_freeable(struct page *page)
 	 * that isolated the page, the page cache radix tree and
 	 * optional buffer heads at page->private.
 	 */
-	int radix_pins = PageTransHuge(page) && PageSwapCache(page) ?
-		HPAGE_PMD_NR : 1;
-	return page_count(page) - page_has_private(page) == 1 + radix_pins;
+	return page_count(page) - page_has_private(page) == 2;
 }
 
 static int may_write_to_inode(struct inode *inode, struct scan_control *sc)
@@ -669,7 +665,6 @@ static int __remove_mapping(struct address_space *mapping, struct page *page,
 			    bool reclaimed)
 {
 	unsigned long flags;
-	int refcount;
 
 	BUG_ON(!PageLocked(page));
 	BUG_ON(mapping != page_mapping(page));
@@ -700,15 +695,11 @@ static int __remove_mapping(struct address_space *mapping, struct page *page,
 	 * Note that if SetPageDirty is always performed via set_page_dirty,
 	 * and thus under tree_lock, then this ordering is not required.
 	 */
-	if (unlikely(PageTransHuge(page)) && PageSwapCache(page))
-		refcount = 1 + HPAGE_PMD_NR;
-	else
-		refcount = 2;
-	if (!page_ref_freeze(page, refcount))
+	if (!page_ref_freeze(page, 2))
 		goto cannot_free;
 	/* note: atomic_cmpxchg in page_freeze_refs provides the smp_rmb */
 	if (unlikely(PageDirty(page))) {
-		page_ref_unfreeze(page, refcount);
+		page_ref_unfreeze(page, 2);
 		goto cannot_free;
 	}
 
@@ -1130,59 +1121,58 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 * Try to allocate it some swap space here.
 		 * Lazyfree page could be freed directly
 		 */
-		if (PageAnon(page) && PageSwapBacked(page)) {
-			if (!PageSwapCache(page)) {
-				if (!(sc->gfp_mask & __GFP_IO))
-					goto keep_locked;
-				if (PageTransHuge(page)) {
-					/* cannot split THP, skip it */
-					if (!can_split_huge_page(page, NULL))
-						goto activate_locked;
-					/*
-					 * Split pages without a PMD map right
-					 * away. Chances are some or all of the
-					 * tail pages can be freed without IO.
-					 */
-					if (!compound_mapcount(page) &&
-					    split_huge_page_to_list(page,
-								    page_list))
-						goto activate_locked;
-				}
-				if (!add_to_swap(page)) {
-					if (!PageTransHuge(page))
-						goto activate_locked;
-					/* Fallback to swap normal pages */
-					if (split_huge_page_to_list(page,
-								    page_list))
-						goto activate_locked;
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
-					count_vm_event(THP_SWPOUT_FALLBACK);
-#endif
-					if (!add_to_swap(page))
-						goto activate_locked;
-				}
-
-				may_enter_fs = 1;
-
-				/* Adding to swap updated mapping */
-				mapping = page_mapping(page);
+		if (PageAnon(page) && PageSwapBacked(page) &&
+		    !PageSwapCache(page)) {
+			if (!(sc->gfp_mask & __GFP_IO))
+				goto keep_locked;
+			if (PageTransHuge(page)) {
+				/* cannot split THP, skip it */
+				if (!can_split_huge_page(page, NULL))
+					goto activate_locked;
+				/*
+				 * Split pages without a PMD map right
+				 * away. Chances are some or all of the
+				 * tail pages can be freed without IO.
+				 */
+				if (!compound_mapcount(page) &&
+				    split_huge_page_to_list(page, page_list))
+					goto activate_locked;
 			}
+			if (!add_to_swap(page)) {
+				if (!PageTransHuge(page))
+					goto activate_locked;
+				/* Split THP and swap individual base pages */
+				if (split_huge_page_to_list(page, page_list))
+					goto activate_locked;
+				if (!add_to_swap(page))
+					goto activate_locked;
+			}
+
+			/* XXX: We don't support THP writes */
+			if (PageTransHuge(page) &&
+				  split_huge_page_to_list(page, page_list)) {
+				delete_from_swap_cache(page);
+				goto activate_locked;
+			}
+
+			may_enter_fs = 1;
+
+			/* Adding to swap updated mapping */
+			mapping = page_mapping(page);
 		} else if (unlikely(PageTransHuge(page))) {
 			/* Split file THP */
 			if (split_huge_page_to_list(page, page_list))
 				goto keep_locked;
 		}
 
+		VM_BUG_ON_PAGE(PageTransHuge(page), page);
+
 		/*
 		 * The page is mapped into the page tables of one or more
 		 * processes. Try to unmap it here.
 		 */
 		if (page_mapped(page)) {
-			enum ttu_flags flags = ttu_flags | TTU_BATCH_FLUSH;
-
-			if (unlikely(PageTransHuge(page)))
-				flags |= TTU_SPLIT_HUGE_PMD;
-			if (!try_to_unmap(page, flags)) {
+			if (!try_to_unmap(page, ttu_flags | TTU_BATCH_FLUSH)) {
 				nr_unmap_fail++;
 				goto activate_locked;
 			}
@@ -1322,11 +1312,7 @@ free_it:
 		 * Is there need to periodically free_page_list? It would
 		 * appear not as the counts should be low
 		 */
-		if (unlikely(PageTransHuge(page))) {
-			mem_cgroup_uncharge(page);
-			(*get_compound_page_dtor(page))(page);
-		} else
-			list_add(&page->lru, &free_pages);
+		list_add(&page->lru, &free_pages);
 		continue;
 
 activate_locked:
@@ -1756,15 +1742,9 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 	int file = is_file_lru(lru);
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
 	struct zone_reclaim_stat *reclaim_stat = &lruvec->reclaim_stat;
-	bool stalled = false;
 
 	while (unlikely(too_many_isolated(pgdat, file, sc))) {
-		if (stalled)
-			return 0;
-
-		/* wait a bit for the reclaimer. */
-		msleep(100);
-		stalled = true;
+		congestion_wait(BLK_RW_ASYNC, HZ/10);
 
 		/* We are about to die and free our memory. Return now. */
 		if (fatal_signal_pending(current))
@@ -3545,6 +3525,8 @@ static int kswapd(void *p)
 	};
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
 
+	lockdep_set_current_reclaim_state(GFP_KERNEL);
+
 	if (!cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(tsk, cpumask);
 	current->reclaim_state = &reclaim_state;
@@ -3603,15 +3585,14 @@ kswapd_try_sleep:
 		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, classzone_idx,
 						alloc_order);
-		fs_reclaim_acquire(GFP_KERNEL);
 		reclaim_order = balance_pgdat(pgdat, alloc_order, classzone_idx);
-		fs_reclaim_release(GFP_KERNEL);
 		if (reclaim_order < alloc_order)
 			goto kswapd_try_sleep;
 	}
 
 	tsk->flags &= ~(PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD);
 	current->reclaim_state = NULL;
+	lockdep_clear_current_reclaim_state();
 
 	return 0;
 }
@@ -3674,14 +3655,14 @@ unsigned long shrink_all_memory(unsigned long nr_to_reclaim)
 	unsigned int noreclaim_flag;
 
 	noreclaim_flag = memalloc_noreclaim_save();
-	fs_reclaim_acquire(sc.gfp_mask);
+	lockdep_set_current_reclaim_state(sc.gfp_mask);
 	reclaim_state.reclaimed_slab = 0;
 	p->reclaim_state = &reclaim_state;
 
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
 
 	p->reclaim_state = NULL;
-	fs_reclaim_release(sc.gfp_mask);
+	lockdep_clear_current_reclaim_state();
 	memalloc_noreclaim_restore(noreclaim_flag);
 
 	return nr_reclaimed;
@@ -3866,7 +3847,7 @@ static int __node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned in
 	 */
 	noreclaim_flag = memalloc_noreclaim_save();
 	p->flags |= PF_SWAPWRITE;
-	fs_reclaim_acquire(sc.gfp_mask);
+	lockdep_set_current_reclaim_state(sc.gfp_mask);
 	reclaim_state.reclaimed_slab = 0;
 	p->reclaim_state = &reclaim_state;
 
@@ -3881,9 +3862,9 @@ static int __node_reclaim(struct pglist_data *pgdat, gfp_t gfp_mask, unsigned in
 	}
 
 	p->reclaim_state = NULL;
-	fs_reclaim_release(gfp_mask);
 	current->flags &= ~PF_SWAPWRITE;
 	memalloc_noreclaim_restore(noreclaim_flag);
+	lockdep_clear_current_reclaim_state();
 	return sc.nr_reclaimed >= nr_pages;
 }
 

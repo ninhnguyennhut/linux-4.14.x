@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * FS_IOC_GETFSMAP ioctl infrastructure.
  *
@@ -97,7 +96,7 @@ fsmap_advance(
 #define FMR_OF_EXTENT_MAP	0x4	/* segment = extent map */
 #define FMR_OF_SHARED		0x8	/* segment = shared with another file */
 #define FMR_OF_SPECIAL_OWNER	0x10	/* owner is a special value */
-#define FMR_OF_LAST		0x20	/* segment is the last in the dataset */
+#define FMR_OF_LAST		0x20	/* segment is the last in the FS */
 
 /* Each FS gets to define its own special owner codes. */
 #define FMR_OWNER(type, code)	(((__u64)type << 32) | \

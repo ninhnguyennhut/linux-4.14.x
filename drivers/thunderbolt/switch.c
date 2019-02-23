@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Thunderbolt Cactus Ridge driver - switch/port utility functions
  *
@@ -808,11 +807,11 @@ static ssize_t key_store(struct device *dev, struct device_attribute *attr,
 	struct tb_switch *sw = tb_to_switch(dev);
 	u8 key[TB_SWITCH_KEY_SIZE];
 	ssize_t ret = count;
-	bool clear = false;
 
-	if (!strcmp(buf, "\n"))
-		clear = true;
-	else if (hex2bin(key, buf, sizeof(key)))
+	if (count < 64)
+		return -EINVAL;
+
+	if (hex2bin(key, buf, sizeof(key)))
 		return -EINVAL;
 
 	if (mutex_lock_interruptible(&switch_lock))
@@ -822,19 +821,15 @@ static ssize_t key_store(struct device *dev, struct device_attribute *attr,
 		ret = -EBUSY;
 	} else {
 		kfree(sw->key);
-		if (clear) {
-			sw->key = NULL;
-		} else {
-			sw->key = kmemdup(key, sizeof(key), GFP_KERNEL);
-			if (!sw->key)
-				ret = -ENOMEM;
-		}
+		sw->key = kmemdup(key, sizeof(key), GFP_KERNEL);
+		if (!sw->key)
+			ret = -ENOMEM;
 	}
 
 	mutex_unlock(&switch_lock);
 	return ret;
 }
-static DEVICE_ATTR(key, 0600, key_show, key_store);
+static DEVICE_ATTR_RW(key);
 
 static ssize_t nvm_authenticate_show(struct device *dev,
 	struct device_attribute *attr, char *buf)

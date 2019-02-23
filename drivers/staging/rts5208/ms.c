@@ -3064,8 +3064,7 @@ static int mspro_rw_multi_sector(struct scsi_cmnd *srb,
 
 		if (detect_card_cd(chip, MS_CARD) != STATUS_SUCCESS) {
 			chip->rw_need_retry = 0;
-			dev_dbg(rtsx_dev(chip), "No card exist, exit %s\n",
-				__func__);
+			dev_dbg(rtsx_dev(chip), "No card exist, exit mspro_rw_multi_sector\n");
 			rtsx_trace(chip);
 			return STATUS_FAIL;
 		}
@@ -3102,7 +3101,7 @@ static int mspro_read_format_progress(struct rtsx_chip *chip,
 	u8 cnt, tmp;
 	u8 data[8];
 
-	dev_dbg(rtsx_dev(chip), "%s, short_data_len = %d\n", __func__,
+	dev_dbg(rtsx_dev(chip), "mspro_read_format_progress, short_data_len = %d\n",
 		short_data_len);
 
 	retval = ms_switch_clock(chip);

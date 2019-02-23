@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef LINUX_MMC_SDHCI_PCI_DATA_H
 #define LINUX_MMC_SDHCI_PCI_DATA_H
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Gemini power management controller
  * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>

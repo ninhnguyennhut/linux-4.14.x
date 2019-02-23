@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * NFS-private data for each "struct net".  Accessed with net_generic().
  */

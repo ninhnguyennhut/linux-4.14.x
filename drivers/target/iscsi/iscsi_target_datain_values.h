@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ISCSI_TARGET_DATAIN_VALUES_H
 #define ISCSI_TARGET_DATAIN_VALUES_H
 

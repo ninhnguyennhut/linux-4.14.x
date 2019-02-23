@@ -33,11 +33,10 @@
 #include <mach/regs-gpio.h>
 #include <mach/regs-clock.h>
 
-/*
- * S3C24XX_DEBUG_RESUME is dangerous if your bootloader does not
+/* CONFIG_DEBUG_RESUME is dangerous if your bootloader does not
  * reset the UART configuration, only enable if you really need this!
- */
-//#define S3C24XX_DEBUG_RESUME
+*/
+//#define CONFIG_DEBUG_RESUME
 
 	.text
 
@@ -72,13 +71,13 @@ ENTRY(s3c_cpu_resume)
 	str	r12, [ r14, #0x54 ]
 #endif
 
-#ifdef S3C24XX_DEBUG_RESUME
+#ifdef CONFIG_DEBUG_RESUME
 	mov	r3, #'L'
 	strb	r3, [ r2, #S3C2410_UTXH ]
 1001:
 	ldrb	r14, [ r3, #S3C2410_UTRSTAT ]
 	tst	r14, #S3C2410_UTRSTAT_TXE
 	beq	1001b
-#endif /* S3C24XX_DEBUG_RESUME */
+#endif /* CONFIG_DEBUG_RESUME */
 
 	b	cpu_resume

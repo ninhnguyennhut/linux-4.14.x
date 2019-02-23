@@ -1035,7 +1035,7 @@ static struct clcd_vendor_data vendor_nomadik = {
 	.init_panel = nomadik_clcd_init_panel,
 };
 
-static const struct amba_id clcdfb_id_table[] = {
+static struct amba_id clcdfb_id_table[] = {
 	{
 		.id	= 0x00041110,
 		.mask	= 0x000ffffe,

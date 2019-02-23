@@ -44,7 +44,6 @@ available subsections can be seen below.
    uio-howto
    firmware/index
    pinctl
-   gpio
    misc_devices
 
 .. only::  subproject and html

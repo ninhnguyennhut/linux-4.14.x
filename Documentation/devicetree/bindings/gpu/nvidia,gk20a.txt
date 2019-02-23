@@ -51,6 +51,7 @@ Example for GK20A:
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
 		iommus = <&mc TEGRA_SWGROUP_GPU>;
+		status = "disabled";
 	};
 
 Example for GM20B:
@@ -69,6 +70,7 @@ Example for GM20B:
 		resets = <&tegra_car 184>;
 		reset-names = "gpu";
 		iommus = <&mc TEGRA_SWGROUP_GPU>;
+		status = "disabled";
 	};
 
 Example for GP10B:
@@ -87,4 +89,5 @@ Example for GP10B:
 		reset-names = "gpu";
 		power-domains = <&bpmp TEGRA186_POWER_DOMAIN_GPU>;
 		iommus = <&smmu TEGRA186_SID_GPU>;
+		status = "disabled";
 	};

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Glue code for the ISP1760 driver and bus
  * Currently there is support for

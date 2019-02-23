@@ -117,7 +117,7 @@ void __init prom_init(void)
 
 int __init plat_of_setup(void)
 {
-	return of_platform_default_populate(NULL, NULL, NULL);
+	return __dt_register_buses(soc_info.compatible, "simple-bus");
 }
 
 arch_initcall(plat_of_setup);

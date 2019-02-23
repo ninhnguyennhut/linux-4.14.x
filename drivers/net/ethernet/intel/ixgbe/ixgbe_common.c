@@ -79,28 +79,16 @@ bool ixgbe_device_supports_autoneg_fc(struct ixgbe_hw *hw)
 
 	switch (hw->phy.media_type) {
 	case ixgbe_media_type_fiber:
-		/* flow control autoneg black list */
-		switch (hw->device_id) {
-		case IXGBE_DEV_ID_X550EM_A_SFP:
-		case IXGBE_DEV_ID_X550EM_A_SFP_N:
-			supported = false;
-			break;
-		default:
-			hw->mac.ops.check_link(hw, &speed, &link_up, false);
-			/* if link is down, assume supported */
-			if (link_up)
-				supported = speed == IXGBE_LINK_SPEED_1GB_FULL ?
+		hw->mac.ops.check_link(hw, &speed, &link_up, false);
+		/* if link is down, assume supported */
+		if (link_up)
+			supported = speed == IXGBE_LINK_SPEED_1GB_FULL ?
 				true : false;
-			else
-				supported = true;
-		}
-
-		break;
-	case ixgbe_media_type_backplane:
-		if (hw->device_id == IXGBE_DEV_ID_X550EM_X_XFI)
-			supported = false;
 		else
 			supported = true;
+		break;
+	case ixgbe_media_type_backplane:
+		supported = true;
 		break;
 	case ixgbe_media_type_copper:
 		/* only some copper devices support flow control autoneg */
@@ -122,10 +110,6 @@ bool ixgbe_device_supports_autoneg_fc(struct ixgbe_hw *hw)
 	default:
 		break;
 	}
-
-	if (!supported)
-		hw_dbg(hw, "Device %x does not support flow control autoneg\n",
-		       hw->device_id);
 
 	return supported;
 }
@@ -366,6 +350,25 @@ s32 ixgbe_start_hw_gen2(struct ixgbe_hw *hw)
 	}
 	IXGBE_WRITE_FLUSH(hw);
 
+#ifndef CONFIG_ARCH_WANT_RELAX_ORDER
+	/* Disable relaxed ordering */
+	for (i = 0; i < hw->mac.max_tx_queues; i++) {
+		u32 regval;
+
+		regval = IXGBE_READ_REG(hw, IXGBE_DCA_TXCTRL_82599(i));
+		regval &= ~IXGBE_DCA_TXCTRL_DESC_WRO_EN;
+		IXGBE_WRITE_REG(hw, IXGBE_DCA_TXCTRL_82599(i), regval);
+	}
+
+	for (i = 0; i < hw->mac.max_rx_queues; i++) {
+		u32 regval;
+
+		regval = IXGBE_READ_REG(hw, IXGBE_DCA_RXCTRL(i));
+		regval &= ~(IXGBE_DCA_RXCTRL_DATA_WRO_EN |
+			    IXGBE_DCA_RXCTRL_HEAD_WRO_EN);
+		IXGBE_WRITE_REG(hw, IXGBE_DCA_RXCTRL(i), regval);
+	}
+#endif
 	return 0;
 }
 
@@ -3781,10 +3784,10 @@ s32 ixgbe_set_fw_drv_ver_generic(struct ixgbe_hw *hw, u8 maj, u8 min,
 	fw_cmd.ver_build = build;
 	fw_cmd.ver_sub = sub;
 	fw_cmd.hdr.checksum = 0;
-	fw_cmd.pad = 0;
-	fw_cmd.pad2 = 0;
 	fw_cmd.hdr.checksum = ixgbe_calculate_checksum((u8 *)&fw_cmd,
 				(FW_CEM_HDR_LEN + fw_cmd.hdr.buf_len));
+	fw_cmd.pad = 0;
+	fw_cmd.pad2 = 0;
 
 	for (i = 0; i <= FW_CEM_MAX_RETRIES; i++) {
 		ret_val = ixgbe_host_interface_command(hw, &fw_cmd,

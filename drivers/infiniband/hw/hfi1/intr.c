@@ -164,7 +164,6 @@ void handle_linkup_change(struct hfi1_devdata *dd, u32 linkup)
 		ppd->linkup = 0;
 
 		/* clear HW details of the previous connection */
-		ppd->actual_vls_operational = 0;
 		reset_link_credits(dd);
 
 		/* freeze after a link down to guarantee a clean egress */
@@ -197,7 +196,7 @@ void handle_user_interrupt(struct hfi1_ctxtdata *rcd)
 
 	if (test_and_clear_bit(HFI1_CTXT_WAITING_RCV, &rcd->event_flags)) {
 		wake_up_interruptible(&rcd->wait);
-		hfi1_rcvctrl(dd, HFI1_RCVCTRL_INTRAVAIL_DIS, rcd);
+		hfi1_rcvctrl(dd, HFI1_RCVCTRL_INTRAVAIL_DIS, rcd->ctxt);
 	} else if (test_and_clear_bit(HFI1_CTXT_WAITING_URG,
 							&rcd->event_flags)) {
 		rcd->urgent++;

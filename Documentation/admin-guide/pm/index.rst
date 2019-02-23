@@ -5,6 +5,12 @@ Power Management
 .. toctree::
    :maxdepth: 2
 
-   strategies
-   system-wide
-   working-state
+   cpufreq
+   intel_pstate
+
+.. only::  subproject and html
+
+   Indices
+   =======
+
+   * :ref:`genindex`

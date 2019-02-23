@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_MMAN_H
 #define _LINUX_MMAN_H
 
@@ -64,9 +63,8 @@ static inline bool arch_validate_prot(unsigned long prot)
  * ("bit1" and "bit2" must be single bits)
  */
 #define _calc_vm_trans(x, bit1, bit2) \
-  ((!(bit1) || !(bit2)) ? 0 : \
   ((bit1) <= (bit2) ? ((x) & (bit1)) * ((bit2) / (bit1)) \
-   : ((x) & (bit1)) / ((bit1) / (bit2))))
+   : ((x) & (bit1)) / ((bit1) / (bit2)))
 
 /*
  * Combine the mmap "prot" argument into "vm_flags" used internally.

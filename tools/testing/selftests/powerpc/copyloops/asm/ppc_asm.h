@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <ppc-asm.h>
 
 #define CONFIG_ALTIVEC

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Faraday Technolog FTGPIO010 gpiochip and interrupt routines
  * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Kernel interface for the s390 arch_random_* functions
  *

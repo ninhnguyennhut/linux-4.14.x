@@ -66,7 +66,6 @@ struct mxs_gpio_port {
 	int irq;
 	struct irq_domain *domain;
 	struct gpio_chip gc;
-	struct device *dev;
 	enum mxs_gpio_id devid;
 	u32 both_edges;
 };
@@ -210,10 +209,9 @@ static int mxs_gpio_init_gc(struct mxs_gpio_port *port, int irq_base)
 {
 	struct irq_chip_generic *gc;
 	struct irq_chip_type *ct;
-	int rv;
 
-	gc = devm_irq_alloc_generic_chip(port->dev, "gpio-mxs", 2, irq_base,
-					 port->base, handle_level_irq);
+	gc = irq_alloc_generic_chip("gpio-mxs", 2, irq_base,
+				    port->base, handle_level_irq);
 	if (!gc)
 		return -ENOMEM;
 
@@ -244,11 +242,10 @@ static int mxs_gpio_init_gc(struct mxs_gpio_port *port, int irq_base)
 	ct->regs.disable = PINCTRL_IRQEN(port) + MXS_CLR;
 	ct->handler = handle_level_irq;
 
-	rv = devm_irq_setup_generic_chip(port->dev, gc, IRQ_MSK(32),
-					 IRQ_GC_INIT_NESTED_LOCK,
-					 IRQ_NOREQUEST, 0);
+	irq_setup_generic_chip(gc, IRQ_MSK(32), IRQ_GC_INIT_NESTED_LOCK,
+			       IRQ_NOREQUEST, 0);
 
-	return rv;
+	return 0;
 }
 
 static int mxs_gpio_to_irq(struct gpio_chip *gc, unsigned offset)
@@ -307,7 +304,6 @@ static int mxs_gpio_probe(struct platform_device *pdev)
 	if (port->id < 0)
 		return port->id;
 	port->devid = (enum mxs_gpio_id) of_id->data;
-	port->dev = &pdev->dev;
 	port->irq = platform_get_irq(pdev, 0);
 	if (port->irq < 0)
 		return port->irq;
@@ -383,7 +379,6 @@ static struct platform_driver mxs_gpio_driver = {
 	.driver		= {
 		.name	= "gpio-mxs",
 		.of_match_table = mxs_gpio_dt_ids,
-		.suppress_bind_attrs = true,
 	},
 	.probe		= mxs_gpio_probe,
 	.id_table	= mxs_gpio_ids,

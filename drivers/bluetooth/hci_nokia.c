@@ -767,8 +767,16 @@ static int nokia_bluetooth_serdev_probe(struct serdev_device *serdev)
 static void nokia_bluetooth_serdev_remove(struct serdev_device *serdev)
 {
 	struct nokia_bt_dev *btdev = serdev_device_get_drvdata(serdev);
+	struct hci_uart *hu = &btdev->hu;
+	struct hci_dev *hdev = hu->hdev;
 
-	hci_uart_unregister_device(&btdev->hu);
+	cancel_work_sync(&hu->write_work);
+
+	hci_unregister_dev(hdev);
+	hci_free_dev(hdev);
+	hu->proto->close(hu);
+
+	pm_runtime_disable(&btdev->serdev->dev);
 }
 
 static int nokia_bluetooth_runtime_suspend(struct device *dev)

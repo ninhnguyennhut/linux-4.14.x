@@ -137,8 +137,6 @@ static struct field {
 	{ "AnyThread",	"any=" },
 	{ "EdgeDetect",	"edge=" },
 	{ "SampleAfterValue", "period=" },
-	{ "FCMask",	"fc_mask=" },
-	{ "PortMask",	"ch_mask=" },
 	{ NULL, NULL }
 };
 
@@ -824,6 +822,10 @@ static int process_one_file(const char *fpath, const struct stat *sb,
  * PMU event tables (see struct pmu_events_map).
  *
  * Write out the PMU events tables and the mapping table to pmu-event.c.
+ *
+ * If unable to process the JSON or arch files, create an empty mapping
+ * table so we can continue to build/use  perf even if we cannot use the
+ * PMU event aliases.
  */
 int main(int argc, char *argv[])
 {
@@ -834,7 +836,6 @@ int main(int argc, char *argv[])
 	const char *arch;
 	const char *output_file;
 	const char *start_dirname;
-	struct stat stbuf;
 
 	prog = basename(argv[0]);
 	if (argc < 4) {
@@ -856,16 +857,10 @@ int main(int argc, char *argv[])
 		return 2;
 	}
 
-	sprintf(ldirname, "%s/%s", start_dirname, arch);
-
-	/* If architecture does not have any event lists, bail out */
-	if (stat(ldirname, &stbuf) < 0) {
-		pr_info("%s: Arch %s has no PMU event lists\n", prog, arch);
-		goto empty_map;
-	}
-
 	/* Include pmu-events.h first */
 	fprintf(eventsfp, "#include \"../../pmu-events/pmu-events.h\"\n");
+
+	sprintf(ldirname, "%s/%s", start_dirname, arch);
 
 	/*
 	 * The mapfile allows multiple CPUids to point to the same JSON file,
@@ -883,9 +878,6 @@ int main(int argc, char *argv[])
 	if (rc && verbose) {
 		pr_info("%s: Error walking file tree %s\n", prog, ldirname);
 		goto empty_map;
-	} else if (rc < 0) {
-		/* Make build fail */
-		return 1;
 	} else if (rc) {
 		goto empty_map;
 	}
@@ -900,8 +892,7 @@ int main(int argc, char *argv[])
 
 	if (process_mapfile(eventsfp, mapfile)) {
 		pr_info("%s: Error processing mapfile %s\n", prog, mapfile);
-		/* Make build fail */
-		return 1;
+		goto empty_map;
 	}
 
 	return 0;

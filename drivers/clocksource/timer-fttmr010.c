@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Faraday Technology FTTMR010 timer driver
  * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>

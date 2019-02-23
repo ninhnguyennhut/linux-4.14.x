@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <errno.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -125,7 +124,7 @@ out_delete_evlist:
 	return err;
 }
 
-int test__sw_clock_freq(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__sw_clock_freq(int subtest __maybe_unused)
 {
 	int ret;
 

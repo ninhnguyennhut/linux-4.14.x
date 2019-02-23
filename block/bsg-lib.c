@@ -154,6 +154,7 @@ static int bsg_prepare_job(struct device *dev, struct request *req)
 failjob_rls_rqst_payload:
 	kfree(job->request_payload.sg_list);
 failjob_rls_job:
+	kfree(job);
 	return -ENOMEM;
 }
 
@@ -207,34 +208,20 @@ static int bsg_init_rq(struct request_queue *q, struct request *req, gfp_t gfp)
 	struct bsg_job *job = blk_mq_rq_to_pdu(req);
 	struct scsi_request *sreq = &job->sreq;
 
-	/* called right after the request is allocated for the request_queue */
-
-	sreq->sense = kzalloc(SCSI_SENSE_BUFFERSIZE, gfp);
-	if (!sreq->sense)
-		return -ENOMEM;
-
-	return 0;
-}
-
-static void bsg_initialize_rq(struct request *req)
-{
-	struct bsg_job *job = blk_mq_rq_to_pdu(req);
-	struct scsi_request *sreq = &job->sreq;
-	void *sense = sreq->sense;
-
-	/* called right before the request is given to the request_queue user */
-
 	memset(job, 0, sizeof(*job));
 
 	scsi_req_init(sreq);
-
-	sreq->sense = sense;
 	sreq->sense_len = SCSI_SENSE_BUFFERSIZE;
+	sreq->sense = kzalloc(sreq->sense_len, gfp);
+	if (!sreq->sense)
+		return -ENOMEM;
 
 	job->req = req;
-	job->reply = sense;
+	job->reply = sreq->sense;
 	job->reply_len = sreq->sense_len;
 	job->dd_data = job + 1;
+
+	return 0;
 }
 
 static void bsg_exit_rq(struct request_queue *q, struct request *req)
@@ -252,9 +239,8 @@ static void bsg_exit_rq(struct request_queue *q, struct request *req)
  * @job_fn: bsg job handler
  * @dd_job_size: size of LLD data needed for each job
  */
-struct request_queue *bsg_setup_queue(struct device *dev, const char *name,
-		bsg_job_fn *job_fn, int dd_job_size,
-		void (*release)(struct device *))
+struct request_queue *bsg_setup_queue(struct device *dev, char *name,
+		bsg_job_fn *job_fn, int dd_job_size)
 {
 	struct request_queue *q;
 	int ret;
@@ -265,7 +251,6 @@ struct request_queue *bsg_setup_queue(struct device *dev, const char *name,
 	q->cmd_size = sizeof(struct bsg_job) + dd_job_size;
 	q->init_rq_fn = bsg_init_rq;
 	q->exit_rq_fn = bsg_exit_rq;
-	q->initialize_rq_fn = bsg_initialize_rq;
 	q->request_fn = bsg_request_fn;
 
 	ret = blk_init_allocated_queue(q);
@@ -279,7 +264,7 @@ struct request_queue *bsg_setup_queue(struct device *dev, const char *name,
 	blk_queue_softirq_done(q, bsg_softirq_done);
 	blk_queue_rq_timeout(q, BLK_DEFAULT_SG_TIMEOUT);
 
-	ret = bsg_register_queue(q, dev, name, release);
+	ret = bsg_register_queue(q, dev, name, NULL);
 	if (ret) {
 		printk(KERN_ERR "%s: bsg interface failed to "
 		       "initialize - register queue\n", dev->kobj.name);

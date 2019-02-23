@@ -171,7 +171,7 @@ ip6_tnl_lookup(struct net *net, const struct in6_addr *remote, const struct in6_
 	}
 
 	t = rcu_dereference(ip6n->collect_md_tun);
-	if (t && t->dev->flags & IFF_UP)
+	if (t)
 		return t;
 
 	t = rcu_dereference(ip6n->tnls_wc[0]);
@@ -912,7 +912,7 @@ static int ipxip6_rcv(struct sk_buff *skb, u8 ipproto,
 		if (t->parms.collect_md) {
 			tun_dst = ipv6_tun_rx_dst(skb, 0, 0, 0);
 			if (!tun_dst)
-				goto drop;
+				return 0;
 		}
 		ret = __ip6_tnl_rcv(t, skb, tpi, tun_dst, dscp_ecn_decapsulate,
 				    log_ecn_error);
@@ -1043,7 +1043,6 @@ int ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev, __u8 dsfield,
 	struct dst_entry *dst = NULL, *ndst = NULL;
 	struct net_device *tdev;
 	int mtu;
-	unsigned int eth_hlen = t->dev->type == ARPHRD_ETHER ? ETH_HLEN : 0;
 	unsigned int psh_hlen = sizeof(struct ipv6hdr) + t->encap_hlen;
 	unsigned int max_headroom = psh_hlen;
 	bool use_cache = false;
@@ -1081,11 +1080,10 @@ int ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev, __u8 dsfield,
 			memcpy(&fl6->daddr, addr6, sizeof(fl6->daddr));
 			neigh_release(neigh);
 		}
-	} else if (t->parms.proto != 0 && !(t->parms.flags &
-					    (IP6_TNL_F_USE_ORIG_TCLASS |
-					     IP6_TNL_F_USE_ORIG_FWMARK))) {
-		/* enable the cache only if neither the outer protocol nor the
-		 * routing decision depends on the current inner header value
+	} else if (!(t->parms.flags &
+		     (IP6_TNL_F_USE_ORIG_TCLASS | IP6_TNL_F_USE_ORIG_FWMARK))) {
+		/* enable the cache only only if the routing decision does
+		 * not depend on the current inner header value
 		 */
 		use_cache = true;
 	}
@@ -1126,7 +1124,7 @@ route_lookup:
 				     t->parms.name);
 		goto tx_err_dst_release;
 	}
-	mtu = dst_mtu(dst) - eth_hlen - psh_hlen - t->tun_hlen;
+	mtu = dst_mtu(dst) - psh_hlen - t->tun_hlen;
 	if (encap_limit >= 0) {
 		max_headroom += 8;
 		mtu -= 8;
@@ -1135,7 +1133,7 @@ route_lookup:
 		mtu = IPV6_MIN_MTU;
 	if (skb_dst(skb) && !t->parms.collect_md)
 		skb_dst(skb)->ops->update_pmtu(skb_dst(skb), NULL, skb, mtu);
-	if (skb->len - t->tun_hlen - eth_hlen > mtu && !skb_is_gso(skb)) {
+	if (skb->len - t->tun_hlen > mtu && !skb_is_gso(skb)) {
 		*pmtu = mtu;
 		err = -EMSGSIZE;
 		goto tx_err_dst_release;
@@ -1186,7 +1184,6 @@ route_lookup:
 		init_tel_txopt(&opt, encap_limit);
 		ipv6_push_frag_opts(skb, &opt.ops, &proto);
 	}
-	hop_limit = hop_limit ? : ip6_dst_hoplimit(dst);
 
 	/* Calculate max headroom for all the headers and adjust
 	 * needed_headroom if necessary.
@@ -2260,9 +2257,6 @@ static struct pernet_operations ip6_tnl_net_ops = {
 static int __init ip6_tunnel_init(void)
 {
 	int  err;
-
-	if (!ipv6_mod_enabled())
-		return -EOPNOTSUPP;
 
 	err = register_pernet_device(&ip6_tnl_net_ops);
 	if (err < 0)

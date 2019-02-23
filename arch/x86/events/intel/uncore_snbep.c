@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* SandyBridge-EP/IvyTown uncore support */
 #include "uncore.h"
 
@@ -3463,7 +3462,7 @@ static struct intel_uncore_ops skx_uncore_iio_ops = {
 static struct intel_uncore_type skx_uncore_iio = {
 	.name			= "iio",
 	.num_counters		= 4,
-	.num_boxes		= 6,
+	.num_boxes		= 5,
 	.perf_ctr_bits		= 48,
 	.event_ctl		= SKX_IIO0_MSR_PMON_CTL0,
 	.perf_ctr		= SKX_IIO0_MSR_PMON_CTR0,
@@ -3493,7 +3492,7 @@ static const struct attribute_group skx_uncore_format_group = {
 static struct intel_uncore_type skx_uncore_irp = {
 	.name			= "irp",
 	.num_counters		= 2,
-	.num_boxes		= 6,
+	.num_boxes		= 5,
 	.perf_ctr_bits		= 48,
 	.event_ctl		= SKX_IRP0_MSR_PMON_CTL0,
 	.perf_ctr		= SKX_IRP0_MSR_PMON_CTR0,
